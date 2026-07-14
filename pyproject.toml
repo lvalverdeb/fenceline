@@ -6,6 +6,9 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"
 authors = [
+    {name = "Luis Valverde"},
+]
+maintainers = [
     {name = "Luis Valverde", email = "lvalverdeb@gmail.com"},
 ]
 classifiers = [
@@ -20,6 +23,12 @@ classifiers = [
 dependencies = [
     "boti>=1.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/lvalverdeb/repo-split"
+Repository = "https://github.com/lvalverdeb/repo-split"
+Documentation = "https://github.com/lvalverdeb/repo-split/tree/main/tripwire#readme"
+Issues = "https://github.com/lvalverdeb/repo-split/issues"
 
 [project.scripts]
 tripwire = "tripwire.cli:main"
