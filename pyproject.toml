@@ -1,0 +1,59 @@
+[project]
+name = "tripwire"
+version = "0.1.0"
+description = "Zero-day security scanner for the Boti workspace"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.13"
+authors = [
+    {name = "Luis Valverde", email = "lvalverdeb@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+    "Topic :: Security",
+]
+dependencies = [
+    "boti>=1.0.0",
+]
+
+[project.scripts]
+tripwire = "tripwire.cli:main"
+
+[build-system]
+requires = ["setuptools>=80", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.11.0",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["tripwire*"]
+
+[tool.setuptools.package-data]
+tripwire = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E501"]
