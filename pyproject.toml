@@ -1,5 +1,5 @@
 [project]
-name = "tripwire"
+name = "boti-tripwire"
 version = "0.1.0"
 description = "Zero-day security scanner for the Boti workspace"
 readme = "README.md"

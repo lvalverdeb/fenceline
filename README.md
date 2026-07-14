@@ -1,6 +1,12 @@
-# tripwire
+# boti-tripwire
 
 Zero-day security scanner for the Boti workspace.
+
+## Installation
+
+```bash
+uv add boti-tripwire
+```
 
 Maps every finding to a CWE from the 2025 CWE Top 25, OWASP Top 10:2025, and known
 Python zero-day exploit patterns (pickle bypass CVE-2026-56315, PyYAML shadow
