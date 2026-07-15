@@ -17,7 +17,7 @@ from tripwire.scanner import _ast_parse, _iter_py, _read, _rel
 __all__ = ["main"]
 
 
-def _find_manifest_files(root: Path, *, ceiling: Path) -> list[Path]:
+def _find_manifest_files(root: Path, *, ceiling: Path | None) -> list[Path]:
     """Find dependency manifest files for a package by walking upward from
     *root* (the package's importable source dir) to *ceiling* (the workspace
     root), stopping at the first ancestor where any manifest file exists.
@@ -41,10 +41,15 @@ def _parse_package_args(entries: list[str], *, cwd: Path) -> dict[str, Path]:
     """Parse repeated ``--package NAME=PATH`` CLI entries into a registry.
 
     Every resolved path is validated with ``is_secure_path`` against the
-    workspace root: tripwire reads and reports the contents of whatever it's
-    pointed at, so a mistyped or malicious ``--package foo=../../../etc``
-    should be rejected rather than silently scanned.
+    workspace root (when one was found) and the invoking directory: tripwire
+    reads and reports the contents of whatever it's pointed at, so a
+    mistyped or malicious ``--package foo=../../../etc`` should be rejected
+    rather than silently scanned. ``cwd`` is always an allowed root — the
+    caller explicitly invoked tripwire from there — which also covers running
+    tripwire standalone (pip-installed, no ambient workspace) pointed at an
+    arbitrary target directory.
     """
+    allowed_roots = [root for root in (WORKSPACE_ROOT, cwd) if root is not None]
     resolved: dict[str, Path] = {}
     for entry in entries:
         name, sep, raw_path = entry.partition("=")
@@ -52,10 +57,10 @@ def _parse_package_args(entries: list[str], *, cwd: Path) -> dict[str, Path]:
         if not sep or not name or not raw_path:
             raise SystemExit(f"error: --package expects NAME=PATH, got {entry!r}")
         candidate = (cwd / raw_path).resolve()
-        if not is_secure_path(candidate, [WORKSPACE_ROOT]):
+        if not is_secure_path(candidate, allowed_roots):
             raise SystemExit(
                 f"error: --package {entry!r} resolves to {candidate}, which is "
-                f"outside the workspace root {WORKSPACE_ROOT}."
+                f"outside the allowed roots {allowed_roots}."
             )
         resolved[name] = candidate
     return resolved
@@ -82,6 +87,11 @@ def main() -> int:
 
     packages = dict(PACKAGES)
     packages.update(_parse_package_args(args.package, cwd=Path.cwd()))
+    if not packages:
+        parser.error(
+            "no packages to scan — no ambient workspace was found and no "
+            "--package NAME=PATH was given"
+        )
 
     total_files = sum(1 for root in packages.values() for _ in _iter_py(root))
 

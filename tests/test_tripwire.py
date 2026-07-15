@@ -8,7 +8,7 @@ from pathlib import Path
 from tripwire.checks import CHECKS
 from tripwire.checks.ast_checks import check_numpy_load, check_pandas_eval
 from tripwire.checks.text_checks import check_pickle
-from tripwire.config import DEFAULT_PACKAGES, WORKSPACE_ROOT
+from tripwire.config import DEFAULT_PACKAGES, WORKSPACE_ROOT, _find_workspace_root
 from tripwire.models import Finding
 
 
@@ -63,21 +63,49 @@ def test_check_numpy_load_flags_explicit_allow_pickle_true_only():
 
 
 def test_default_packages_resolve_inside_workspace_root():
+    # Vacuously true when no ambient workspace was found (e.g. tripwire's own
+    # standalone CI checkout) — DEFAULT_PACKAGES is empty in that case.
     for path in DEFAULT_PACKAGES.values():
+        assert WORKSPACE_ROOT is not None
         assert path.is_relative_to(WORKSPACE_ROOT)
 
 
-def test_cli_json_output_is_well_formed():
+def test_find_workspace_root_returns_none_when_absent(tmp_path):
+    # Regression test: this used to be a hard RuntimeError raised at import
+    # time, which broke importing tripwire.config (and therefore this whole
+    # test module) in any standalone checkout with no ancestor
+    # [tool.uv.workspace] — exactly what tripwire's own GitHub Actions
+    # checkout looks like.
+    assert _find_workspace_root(tmp_path) is None
+
+
+def test_find_workspace_root_finds_ancestor_workspace_marker(tmp_path):
+    (tmp_path / "pyproject.toml").write_text("[tool.uv.workspace]\nmembers = []\n")
+    nested = tmp_path / "a" / "b"
+    nested.mkdir(parents=True)
+    assert _find_workspace_root(nested) == tmp_path
+
+
+def test_cli_json_output_is_well_formed(tmp_path):
+    # Self-contained fixture rather than depending on the ambient boti
+    # package: the latter doesn't exist in tripwire's own standalone
+    # checkout. --package is resolved relative to cwd, and cwd is always an
+    # allowed root, so pointing the subprocess's cwd at tmp_path works
+    # identically whether or not an ambient workspace is present.
+    pkg_dir = tmp_path / "pkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "mod.py").write_text("pickle.loads(data)\n")
     result = subprocess.run(
         [
             sys.executable,
             "-m",
             "tripwire.cli",
             "--package",
-            f"boti={WORKSPACE_ROOT / 'boti' / 'src' / 'boti'}",
+            "pkg=pkg",
             "--json",
             "--quiet",
         ],
+        cwd=tmp_path,
         capture_output=True,
         text=True,
         timeout=60,

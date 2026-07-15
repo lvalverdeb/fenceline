@@ -29,6 +29,8 @@ def _ast_parse(path: Path) -> ast.Module | None:
 
 
 def _rel(path: Path) -> str:
+    if WORKSPACE_ROOT is None:
+        return str(path)
     try:
         return str(path.relative_to(WORKSPACE_ROOT))
     except ValueError:
