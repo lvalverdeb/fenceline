@@ -5,6 +5,7 @@ Each entry is ``(display_name, check_fn)``; ``check_fn`` receives
 :mod:`tripwire.checks.ast_checks`, :mod:`tripwire.checks.text_checks`,
 and :mod:`tripwire.checks.manifest_checks` for the implementations.
 """
+
 from __future__ import annotations
 
 from tripwire.checks.ast_checks import (

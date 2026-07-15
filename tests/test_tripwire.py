@@ -69,7 +69,15 @@ def test_default_packages_resolve_inside_workspace_root():
 
 def test_cli_json_output_is_well_formed():
     result = subprocess.run(
-        [sys.executable, "-m", "tripwire.cli", "--package", f"boti={WORKSPACE_ROOT / 'boti' / 'src' / 'boti'}", "--json", "--quiet"],
+        [
+            sys.executable,
+            "-m",
+            "tripwire.cli",
+            "--package",
+            f"boti={WORKSPACE_ROOT / 'boti' / 'src' / 'boti'}",
+            "--json",
+            "--quiet",
+        ],
         capture_output=True,
         text=True,
         timeout=60,

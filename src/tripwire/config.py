@@ -1,6 +1,7 @@
 """Package-wide configuration: workspace root discovery, the scan-target
 package registry, and dependency-manifest filenames.
 """
+
 from __future__ import annotations
 
 import tomllib

@@ -1,4 +1,5 @@
 """File discovery and reading helpers used by the CLI before dispatching to checks."""
+
 from __future__ import annotations
 
 import ast

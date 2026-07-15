@@ -1,4 +1,5 @@
 """CLI entry point for the tripwire scanner."""
+
 from __future__ import annotations
 
 import argparse

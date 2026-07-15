@@ -1,4 +1,5 @@
 """Human-readable and JSON report rendering for a completed scan."""
+
 from __future__ import annotations
 
 import json as _json
@@ -26,17 +27,19 @@ def print_report(all_findings: list[Finding], json_output: bool) -> None:
     if json_output:
         data = []
         for f in all_findings:
-            data.append({
-                "cwe_id": f.cwe_id,
-                "cwe_name": f.cwe_name,
-                "severity": f.severity,
-                "package": f.package,
-                "file": f.file,
-                "line": f.line,
-                "code": f.code_snippet,
-                "description": f.description,
-                "zero_day_relevance": f.zero_day_relevance,
-            })
+            data.append(
+                {
+                    "cwe_id": f.cwe_id,
+                    "cwe_name": f.cwe_name,
+                    "severity": f.severity,
+                    "package": f.package,
+                    "file": f.file,
+                    "line": f.line,
+                    "code": f.code_snippet,
+                    "description": f.description,
+                    "zero_day_relevance": f.zero_day_relevance,
+                }
+            )
         print(_json.dumps({"findings": data, "count": len(data)}, indent=2))
         return
 

@@ -1,6 +1,7 @@
 """AST and text-matching helpers shared by the check functions in
 :mod:`tripwire.checks`.
 """
+
 from __future__ import annotations
 
 import ast
@@ -35,14 +36,14 @@ _LOGGING_METHOD_NAMES = frozenset(
 # Derived from _LOGGING_METHOD_NAMES (not a second hand-typed list) — matches
 # a logging call whose argument is an f-string, e.g. `logger.error(f"...")`.
 _LOG_METHOD_CALL_RE = re.compile(
-    r'\.(?:' + "|".join(re.escape(name) for name in _LOGGING_METHOD_NAMES) + r')\s*\(\s*f["\']'
+    r"\.(?:" + "|".join(re.escape(name) for name in _LOGGING_METHOD_NAMES) + r')\s*\(\s*f["\']'
 )
 
 # Same method-name set, without the f-string requirement — for checks (e.g.
 # check_log_secrets) that need to detect any logging call regardless of the
 # argument's literal form.
 _LOG_METHOD_CALL_ANY_RE = re.compile(
-    r'\.(?:' + "|".join(re.escape(name) for name in _LOGGING_METHOD_NAMES) + r')\s*\('
+    r"\.(?:" + "|".join(re.escape(name) for name in _LOGGING_METHOD_NAMES) + r")\s*\("
 )
 
 # Word-level tokens (not raw substrings) that mark a bare function call as
@@ -83,7 +84,17 @@ def _full_attr(node: ast.Call) -> str:
 
 def _is_re_compile(node: ast.Call) -> bool:
     name = _full_attr(node)
-    return name in ("re.compile", "re.compile",) or _call_name(node) == "compile" and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) and node.func.value.id == "re"
+    return (
+        name
+        in (
+            "re.compile",
+            "re.compile",
+        )
+        or _call_name(node) == "compile"
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "re"
+    )
 
 
 def _is_sqlalchemy_compile(node: ast.Call) -> bool:
