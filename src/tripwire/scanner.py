@@ -7,11 +7,41 @@ from pathlib import Path
 
 from tripwire.config import WORKSPACE_ROOT
 
-__all__ = ["_iter_py", "_read", "_ast_parse", "_rel"]
+__all__ = ["_iter_py", "_read", "_ast_parse", "_rel", "_is_self_scan_exclusion"]
+
+# tripwire's own check-definition, shared-detection-helper, and
+# reporting files necessarily contain, as string literals, the exact regex
+# patterns / function names / CVE tables their own checks search for
+# elsewhere (e.g. `checks/text_checks.py` defines `r"pickle\.loads?\s*\("`
+# to *detect* pickle.loads() calls — that pattern's own source line contains
+# the substring "pickle.loads(" and will match itself). Scanning these files
+# produces guaranteed self-referential false positives — the tool flagging
+# its own detection rules as if they were the vulnerabilities they detect —
+# not real findings in application code. `cli.py`/`scanner.py`/`config.py`/
+# `models.py` are deliberately left scannable: they're plumbing (arg
+# parsing, file I/O, data models), not pattern tables, so real bugs there
+# are still worth catching by self-scan.
+#
+# Matched by path suffix (not "is this literally the tripwire package"), so
+# this only ever excludes tripwire's own files, wherever a package root
+# happens to point — the default registry or an explicit --package
+# override both resolve to the same real files on disk.
+_SELF_SCAN_EXCLUDE = (
+    Path("tripwire/checks/__init__.py"),
+    Path("tripwire/checks/text_checks.py"),
+    Path("tripwire/checks/ast_checks.py"),
+    Path("tripwire/checks/manifest_checks.py"),
+    Path("tripwire/ast_helpers.py"),
+    Path("tripwire/reporting.py"),
+)
+
+
+def _is_self_scan_exclusion(path: Path) -> bool:
+    return any(path.parts[-len(pattern.parts) :] == pattern.parts for pattern in _SELF_SCAN_EXCLUDE)
 
 
 def _iter_py(root: Path) -> list[Path]:
-    return sorted(root.rglob("*.py"))
+    return sorted(p for p in root.rglob("*.py") if not _is_self_scan_exclusion(p))
 
 
 def _read(path: Path) -> list[str]:

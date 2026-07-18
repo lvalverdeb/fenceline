@@ -10,6 +10,7 @@ from tripwire.checks.ast_checks import check_numpy_load, check_pandas_eval
 from tripwire.checks.text_checks import check_pickle
 from tripwire.config import DEFAULT_PACKAGES, WORKSPACE_ROOT, _find_workspace_root
 from tripwire.models import Finding
+from tripwire.scanner import _is_self_scan_exclusion, _iter_py
 
 
 def _findings(check_fn, src: str) -> list[Finding]:
@@ -60,6 +61,39 @@ def test_check_numpy_load_flags_explicit_allow_pickle_true_only():
     findings = _findings(check_numpy_load, "np.load(f, allow_pickle=True)\n")
     assert len(findings) == 1
     assert findings[0].severity == "HIGH"
+
+
+def test_iter_py_excludes_tripwires_own_check_definition_files(tmp_path):
+    # Regression test: these files are guaranteed to trip tripwire's own
+    # checks when scanned, since they define the exact regex patterns/CVE
+    # tables/function names those checks search for (e.g. text_checks.py's
+    # own r"pickle\.loads?\s*\(" pattern contains the literal substring
+    # "pickle.loads(" and matches itself). See _SELF_SCAN_EXCLUDE.
+    pkg = tmp_path / "tripwire"
+    (pkg / "checks").mkdir(parents=True)
+    (pkg / "checks" / "__init__.py").write_text("CHECKS = []\n")
+    (pkg / "checks" / "text_checks.py").write_text("PATTERN = r'pickle.loads('\n")
+    (pkg / "checks" / "ast_checks.py").write_text("# ast checks\n")
+    (pkg / "checks" / "manifest_checks.py").write_text("# manifest checks\n")
+    (pkg / "ast_helpers.py").write_text("# helpers\n")
+    (pkg / "reporting.py").write_text("# report\n")
+    # Real plumbing — must still be scanned.
+    (pkg / "cli.py").write_text("import sys\n")
+    (pkg / "scanner.py").write_text("import ast\n")
+
+    found = {p.name for p in _iter_py(pkg)}
+    assert found == {"cli.py", "scanner.py"}
+
+
+def test_is_self_scan_exclusion_matches_by_suffix_not_absolute_path():
+    # Matching is by trailing path parts, not "is this exactly tripwire's
+    # installed package" — so it works the same whether the package root
+    # came from the default registry or an explicit --package override
+    # pointing at a differently-located checkout.
+    assert _is_self_scan_exclusion(Path("/anywhere/src/tripwire/reporting.py"))
+    assert _is_self_scan_exclusion(Path("/other/checkout/tripwire/checks/text_checks.py"))
+    assert not _is_self_scan_exclusion(Path("/anywhere/src/tripwire/cli.py"))
+    assert not _is_self_scan_exclusion(Path("/anywhere/src/boti_data/reporting.py"))
 
 
 def test_default_packages_resolve_inside_workspace_root():
