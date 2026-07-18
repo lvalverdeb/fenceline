@@ -1,6 +1,6 @@
 [project]
 name = "boti-tripwire"
-version = "1.0.1"
+version = "1.0.2"
 description = "Zero-day security scanner for the Boti workspace"
 readme = "README.md"
 license = "MIT"
