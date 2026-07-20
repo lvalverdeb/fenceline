@@ -219,65 +219,91 @@ def check_format_string(path: Path, lines: list[str], tree: ast.Module | None) -
     return results
 
 
+def _is_true(node: ast.AST) -> bool:
+    return isinstance(node, ast.Constant) and node.value is True
+
+
+def _allow_pickle_kw_line(node: ast.Call) -> int | None:
+    for kw in node.keywords:
+        if kw.arg == "allow_pickle" and _is_true(kw.value):
+            return _node_line(kw.value)
+    return None
+
+
+def _allow_pickle_assign_line(node: ast.Assign) -> int | None:
+    targets_match = any(
+        (isinstance(t, ast.Name) and t.id == "allow_pickle")
+        or (isinstance(t, ast.Attribute) and t.attr == "allow_pickle")
+        for t in node.targets
+    )
+    if targets_match and _is_true(node.value):
+        return _node_line(node)
+    return None
+
+
+def _allow_pickle_ann_assign_line(node: ast.AnnAssign) -> int | None:
+    target = node.target
+    name_match = (isinstance(target, ast.Name) and target.id == "allow_pickle") or (
+        isinstance(target, ast.Attribute) and target.attr == "allow_pickle"
+    )
+    if name_match and node.value is not None and _is_true(node.value):
+        return _node_line(node)
+    return None
+
+
+def _allow_pickle_default_lines(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[int]:
+    """Parameter defaults: def load(..., allow_pickle=True)"""
+    flagged: list[int] = []
+    args = node.args
+    positional = args.posonlyargs + args.args
+    for arg, default in zip(positional[len(positional) - len(args.defaults) :], args.defaults):
+        if arg.arg == "allow_pickle" and _is_true(default):
+            flagged.append(_node_line(default))
+    for arg, default in zip(args.kwonlyargs, args.kw_defaults):
+        if arg.arg == "allow_pickle" and default is not None and _is_true(default):
+            flagged.append(_node_line(default))
+    return flagged
+
+
+def _allow_pickle_finding(pk: str, lines: list[str], lineno: int) -> Finding:
+    code = lines[lineno - 1].strip() if 1 <= lineno <= len(lines) else ""
+    return Finding(
+        cwe_id="CWE-453",
+        cwe_name="Insecure Default",
+        severity="HIGH",
+        package="",
+        file=pk,
+        line=lineno,
+        code_snippet=code,
+        description="allow_pickle=True enables pickle deserialisation — verify strict input gating.",
+        zero_day_relevance="CVE-2026-56315: picklescan bypass. Allow-pickle flags are a common zero-day entry point.",
+    )
+
+
 def check_insecure_default(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """AST-based so `allow_pickle=True` inside string literals (e.g. error
     messages documenting the flag) is not flagged — only real keyword
     arguments and assignments count."""
     pk = _rel(path)
-    results: list[Finding] = []
-
-    def _flag(lineno: int) -> None:
-        code = lines[lineno - 1].strip() if 1 <= lineno <= len(lines) else ""
-        results.append(
-            Finding(
-                cwe_id="CWE-453",
-                cwe_name="Insecure Default",
-                severity="HIGH",
-                package="",
-                file=pk,
-                line=lineno,
-                code_snippet=code,
-                description="allow_pickle=True enables pickle deserialisation — verify strict input gating.",
-                zero_day_relevance="CVE-2026-56315: picklescan bypass. Allow-pickle flags are a common zero-day entry point.",
-            )
-        )
-
-    def _is_true(node: ast.AST) -> bool:
-        return isinstance(node, ast.Constant) and node.value is True
+    flagged_lines: list[int] = []
 
     for node in ast.walk(tree) if tree else []:
         if isinstance(node, ast.Call):
-            for kw in node.keywords:
-                if kw.arg == "allow_pickle" and _is_true(kw.value):
-                    _flag(_node_line(kw.value))
+            line = _allow_pickle_kw_line(node)
+            if line is not None:
+                flagged_lines.append(line)
         elif isinstance(node, ast.Assign):
-            targets_match = any(
-                (isinstance(t, ast.Name) and t.id == "allow_pickle")
-                or (isinstance(t, ast.Attribute) and t.attr == "allow_pickle")
-                for t in node.targets
-            )
-            if targets_match and _is_true(node.value):
-                _flag(_node_line(node))
+            line = _allow_pickle_assign_line(node)
+            if line is not None:
+                flagged_lines.append(line)
         elif isinstance(node, ast.AnnAssign):
-            target = node.target
-            name_match = (isinstance(target, ast.Name) and target.id == "allow_pickle") or (
-                isinstance(target, ast.Attribute) and target.attr == "allow_pickle"
-            )
-            if name_match and node.value is not None and _is_true(node.value):
-                _flag(_node_line(node))
+            line = _allow_pickle_ann_assign_line(node)
+            if line is not None:
+                flagged_lines.append(line)
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            # Parameter defaults: def load(..., allow_pickle=True)
-            args = node.args
-            positional = args.posonlyargs + args.args
-            for arg, default in zip(
-                positional[len(positional) - len(args.defaults) :], args.defaults
-            ):
-                if arg.arg == "allow_pickle" and _is_true(default):
-                    _flag(_node_line(default))
-            for arg, default in zip(args.kwonlyargs, args.kw_defaults):
-                if arg.arg == "allow_pickle" and default is not None and _is_true(default):
-                    _flag(_node_line(default))
-    return results
+            flagged_lines.extend(_allow_pickle_default_lines(node))
+
+    return [_allow_pickle_finding(pk, lines, lineno) for lineno in flagged_lines]
 
 
 def check_request_timeout(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
