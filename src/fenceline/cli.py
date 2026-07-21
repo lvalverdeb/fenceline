@@ -8,11 +8,13 @@ from pathlib import Path
 
 from boti.core import is_secure_path
 
+from fenceline.baseline import load_baseline, split_by_baseline, write_baseline
 from fenceline.checks import CHECKS
 from fenceline.config import DEP_MANIFEST_FILES, PACKAGES, WORKSPACE_ROOT
-from fenceline.models import SEVERITY_ORDER, Finding
+from fenceline.models import CONFIDENCE_ORDER, SEVERITY_ORDER, Finding
 from fenceline.reporting import print_report
 from fenceline.scanner import _ast_parse, _iter_py, _read, _rel
+from fenceline.suppression import apply_suppressions
 
 __all__ = ["main"]
 
@@ -83,6 +85,26 @@ def main() -> int:
         default="high",
         help="Exit 1 only when findings at or above this severity exist (default: high)",
     )
+    parser.add_argument(
+        "--confidence-min",
+        choices=["high", "medium", "low"],
+        default="low",
+        help="Drop findings below this confidence level (default: low, i.e. no filtering)",
+    )
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Only report/fail on findings not already present in this baseline file",
+    )
+    parser.add_argument(
+        "--write-baseline",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Write current findings to PATH as a baseline (for --baseline on later runs) and exit 0",
+    )
     args = parser.parse_args()
 
     packages = dict(PACKAGES)
@@ -119,22 +141,50 @@ def main() -> int:
         for path in _find_manifest_files(root, ceiling=WORKSPACE_ROOT):
             path_package.setdefault(path, name)
 
+    nosec_suppressed = 0
     for path in sorted(path_package):
         lines = _read(path)
         tree = _ast_parse(path) if path.suffix == ".py" else None
         pkg_name = path_package[path]
 
+        file_findings: list[Finding] = []
         for check_name, check_fn in CHECKS:
             try:
                 findings = check_fn(path, lines, tree)
                 for f in findings:
                     f.package = pkg_name
-                all_findings.extend(findings)
+                file_findings.extend(findings)
             except Exception as exc:
                 if not args.quiet:
                     print(f"  ⚠ {check_name} error on {_rel(path)}: {exc}", file=sys.stderr)
 
-    print_report(all_findings, json_output=args.json)
+        kept, suppressed_here = apply_suppressions(file_findings, lines)
+        nosec_suppressed += suppressed_here
+        all_findings.extend(kept)
+
+    conf_threshold = CONFIDENCE_ORDER[args.confidence_min.upper()]
+    all_findings = [
+        f for f in all_findings if CONFIDENCE_ORDER.get(f.confidence, 0) <= conf_threshold
+    ]
+
+    if args.write_baseline is not None:
+        write_baseline(all_findings, args.write_baseline)
+        print_report(all_findings, json_output=args.json, nosec_suppressed=nosec_suppressed)
+        if not args.quiet and not args.json:
+            print(f"  Wrote baseline with {len(all_findings)} finding(s) to {args.write_baseline}")
+        return 0
+
+    baseline_suppressed = 0
+    if args.baseline is not None:
+        baseline_fingerprints = load_baseline(args.baseline)
+        all_findings, baseline_suppressed = split_by_baseline(all_findings, baseline_fingerprints)
+
+    print_report(
+        all_findings,
+        json_output=args.json,
+        baseline_suppressed=baseline_suppressed,
+        nosec_suppressed=nosec_suppressed,
+    )
     threshold = SEVERITY_ORDER[args.fail_on.upper()]
     gating = [f for f in all_findings if SEVERITY_ORDER.get(f.severity, 99) <= threshold]
     return 1 if gating else 0

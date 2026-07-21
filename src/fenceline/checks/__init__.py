@@ -4,9 +4,29 @@ Each entry is ``(display_name, check_fn)``; ``check_fn`` receives
 ``(path, lines, tree)`` and returns ``list[Finding]``. See
 :mod:`fenceline.checks.ast_checks`, :mod:`fenceline.checks.text_checks`,
 and :mod:`fenceline.checks.manifest_checks` for the implementations.
+
+Third-party packages can register additional checks without touching this
+file, by declaring an entry point in the ``fenceline.checks`` group in their
+own ``pyproject.toml``::
+
+    [project.entry-points."fenceline.checks"]
+    "My Custom Check (CWE-000)" = "my_package.checks:my_check_function"
+
+The entry point's own name is used as the check's display name; the object
+it loads must be a check function with the same ``(path, lines, tree) ->
+list[Finding]`` signature every built-in check has. Built-in checks are
+*not* themselves routed through entry points -- there's no benefit to
+indirecting checks fenceline ships with itself through a discovery
+mechanism meant for external extension, the same way pytest's own built-in
+behavior isn't implemented as a "plugin" of itself even though third-party
+pytest plugins use exactly that mechanism.
 """
 
 from __future__ import annotations
+
+import sys
+from collections.abc import Callable
+from importlib.metadata import entry_points
 
 from fenceline.checks.ast_checks import (
     check_decode_exec_chains,
@@ -70,10 +90,13 @@ from fenceline.checks.text_checks import (
     check_yaml_deserialize,
     check_zipslip,
 )
+from fenceline.models import Finding
 
 __all__ = ["CHECKS"]
 
-CHECKS = [
+CheckFn = Callable[..., list[Finding]]
+
+_BUILTIN_CHECKS: list[tuple[str, CheckFn]] = [
     ("Pickle Deserialization (CWE-502)", check_pickle),
     ("eval/exec/compile Injection (CWE-94)", check_eval_exec),
     ("Command Injection (CWE-78)", check_command_injection),
@@ -131,3 +154,24 @@ CHECKS = [
     ("Legacy PyCrypto Import (CWE-1104)", check_legacy_pycrypto),
     ("HuggingFace Unsafe Download (OWASP ML06 / B615)", check_huggingface_unsafe_download),
 ]
+
+_PLUGIN_GROUP = "fenceline.checks"
+
+
+def _discover_plugin_checks() -> list[tuple[str, CheckFn]]:
+    """Loads third-party checks registered under the ``fenceline.checks``
+    entry-point group. A plugin that fails to import is skipped with a
+    warning rather than crashing the whole tool -- one broken third-party
+    package shouldn't take down scanning for everyone else."""
+    discovered: list[tuple[str, CheckFn]] = []
+    for ep in entry_points(group=_PLUGIN_GROUP):
+        try:
+            check_fn = ep.load()
+        except Exception as exc:
+            print(f"  ⚠ fenceline: failed to load plugin check {ep.name!r}: {exc}", file=sys.stderr)
+            continue
+        discovered.append((ep.name, check_fn))
+    return discovered
+
+
+CHECKS: list[tuple[str, CheckFn]] = _BUILTIN_CHECKS + _discover_plugin_checks()

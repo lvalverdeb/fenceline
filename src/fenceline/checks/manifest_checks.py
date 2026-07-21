@@ -90,6 +90,7 @@ def check_dependency_cve(path: Path, lines: list[str], tree: ast.Module | None) 
                                 cwe_id="CWE-1104",
                                 cwe_name="Supply Chain — Dependency with Known Vulnerability",
                                 severity="HIGH",
+                                confidence="HIGH",
                                 package="",
                                 file=pk,
                                 line=lineno,

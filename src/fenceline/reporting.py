@@ -23,7 +23,13 @@ def _color(sev: str) -> str:
     return SEV_COLORS.get(sev, RESET)
 
 
-def print_report(all_findings: list[Finding], json_output: bool) -> None:
+def print_report(
+    all_findings: list[Finding],
+    json_output: bool,
+    *,
+    baseline_suppressed: int = 0,
+    nosec_suppressed: int = 0,
+) -> None:
     if json_output:
         data = []
         for f in all_findings:
@@ -32,6 +38,7 @@ def print_report(all_findings: list[Finding], json_output: bool) -> None:
                     "cwe_id": f.cwe_id,
                     "cwe_name": f.cwe_name,
                     "severity": f.severity,
+                    "confidence": f.confidence,
                     "package": f.package,
                     "file": f.file,
                     "line": f.line,
@@ -40,12 +47,21 @@ def print_report(all_findings: list[Finding], json_output: bool) -> None:
                     "zero_day_relevance": f.zero_day_relevance,
                 }
             )
-        print(_json.dumps({"findings": data, "count": len(data)}, indent=2))
+        payload = {"findings": data, "count": len(data)}
+        if baseline_suppressed:
+            payload["baseline_suppressed"] = baseline_suppressed
+        if nosec_suppressed:
+            payload["nosec_suppressed"] = nosec_suppressed
+        print(_json.dumps(payload, indent=2))
         return
 
     if not all_findings:
         print(f"\n  {'=' * 72}")
         print("  SECURITY AUDIT RESULT: ALL CHECKS PASSED (0 findings)")
+        if baseline_suppressed:
+            print(f"  ({baseline_suppressed} pre-existing finding(s) suppressed by baseline)")
+        if nosec_suppressed:
+            print(f"  ({nosec_suppressed} finding(s) suppressed by # nosec)")
         print(f"  {'=' * 72}")
         print()
         return
@@ -55,11 +71,15 @@ def print_report(all_findings: list[Finding], json_output: bool) -> None:
 
     print(f"\n  {'=' * 72}")
     print(f"  SECURITY AUDIT RESULT: {len(all_findings)} FINDING(S)")
+    if baseline_suppressed:
+        print(f"  ({baseline_suppressed} pre-existing finding(s) suppressed by baseline)")
+    if nosec_suppressed:
+        print(f"  ({nosec_suppressed} finding(s) suppressed by # nosec)")
     print(f"  {'=' * 72}\n")
 
     for f in all_findings:
         c = _color(f.severity)
-        print(f"  {c}[{f.severity}]{RESET} {f.cwe_id} — {f.cwe_name}")
+        print(f"  {c}[{f.severity}/{f.confidence}]{RESET} {f.cwe_id} — {f.cwe_name}")
         print(f"  File:    {f.file}:{f.line}")
         if f.package:
             print(f"  Package: {f.package}")
@@ -71,13 +91,20 @@ def print_report(all_findings: list[Finding], json_output: bool) -> None:
 
     # Summary
     counts: dict[str, int] = {}
+    conf_counts: dict[str, int] = {}
     for f in all_findings:
         counts[f.severity] = counts.get(f.severity, 0) + 1
+        conf_counts[f.confidence] = conf_counts.get(f.confidence, 0) + 1
     print(f"  {'─' * 72}")
     for sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"):
         c = counts.get(sev, 0)
         if c:
             print(f"  {_color(sev)}{c:>4} × {sev}{RESET}")
+    print(f"  {'─' * 72}")
+    for conf in ("HIGH", "MEDIUM", "LOW"):
+        c = conf_counts.get(conf, 0)
+        if c:
+            print(f"  {c:>4} × {conf} confidence")
     print(f"  {'─' * 72}\n")
     print(CWE_REFERENCE)
 
