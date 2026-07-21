@@ -7,9 +7,9 @@ import ast
 import re
 from pathlib import Path
 
-from tripwire.ast_helpers import _skip
-from tripwire.models import Finding
-from tripwire.scanner import _rel
+from fenceline.ast_helpers import _skip
+from fenceline.models import Finding
+from fenceline.scanner import _rel
 
 __all__ = ["check_dependency_cve", "check_unbounded_pins"]
 

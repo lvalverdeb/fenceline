@@ -5,11 +5,11 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tripwire.config import WORKSPACE_ROOT
+from fenceline.config import WORKSPACE_ROOT
 
 __all__ = ["_iter_py", "_read", "_ast_parse", "_rel", "_is_self_scan_exclusion"]
 
-# tripwire's own check-definition, shared-detection-helper, and
+# fenceline's own check-definition, shared-detection-helper, and
 # reporting files necessarily contain, as string literals, the exact regex
 # patterns / function names / CVE tables their own checks search for
 # elsewhere (e.g. `checks/text_checks.py` defines `r"pickle\.loads?\s*\("`
@@ -22,17 +22,17 @@ __all__ = ["_iter_py", "_read", "_ast_parse", "_rel", "_is_self_scan_exclusion"]
 # parsing, file I/O, data models), not pattern tables, so real bugs there
 # are still worth catching by self-scan.
 #
-# Matched by path suffix (not "is this literally the tripwire package"), so
-# this only ever excludes tripwire's own files, wherever a package root
+# Matched by path suffix (not "is this literally the fenceline package"), so
+# this only ever excludes fenceline's own files, wherever a package root
 # happens to point — the default registry or an explicit --package
 # override both resolve to the same real files on disk.
 _SELF_SCAN_EXCLUDE = (
-    Path("tripwire/checks/__init__.py"),
-    Path("tripwire/checks/text_checks.py"),
-    Path("tripwire/checks/ast_checks.py"),
-    Path("tripwire/checks/manifest_checks.py"),
-    Path("tripwire/ast_helpers.py"),
-    Path("tripwire/reporting.py"),
+    Path("fenceline/checks/__init__.py"),
+    Path("fenceline/checks/text_checks.py"),
+    Path("fenceline/checks/ast_checks.py"),
+    Path("fenceline/checks/manifest_checks.py"),
+    Path("fenceline/ast_helpers.py"),
+    Path("fenceline/reporting.py"),
 )
 
 

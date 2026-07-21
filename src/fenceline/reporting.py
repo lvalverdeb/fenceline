@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json as _json
 
-from tripwire.models import SEVERITY_ORDER, Finding
+from fenceline.models import SEVERITY_ORDER, Finding
 
 __all__ = ["print_report", "CWE_REFERENCE"]
 

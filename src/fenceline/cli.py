@@ -1,4 +1,4 @@
-"""CLI entry point for the tripwire scanner."""
+"""CLI entry point for the fenceline scanner."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from pathlib import Path
 
 from boti.core import is_secure_path
 
-from tripwire.checks import CHECKS
-from tripwire.config import DEP_MANIFEST_FILES, PACKAGES, WORKSPACE_ROOT
-from tripwire.models import SEVERITY_ORDER, Finding
-from tripwire.reporting import print_report
-from tripwire.scanner import _ast_parse, _iter_py, _read, _rel
+from fenceline.checks import CHECKS
+from fenceline.config import DEP_MANIFEST_FILES, PACKAGES, WORKSPACE_ROOT
+from fenceline.models import SEVERITY_ORDER, Finding
+from fenceline.reporting import print_report
+from fenceline.scanner import _ast_parse, _iter_py, _read, _rel
 
 __all__ = ["main"]
 
@@ -41,12 +41,12 @@ def _parse_package_args(entries: list[str], *, cwd: Path) -> dict[str, Path]:
     """Parse repeated ``--package NAME=PATH`` CLI entries into a registry.
 
     Every resolved path is validated with ``is_secure_path`` against the
-    workspace root (when one was found) and the invoking directory: tripwire
+    workspace root (when one was found) and the invoking directory: fenceline
     reads and reports the contents of whatever it's pointed at, so a
     mistyped or malicious ``--package foo=../../../etc`` should be rejected
     rather than silently scanned. ``cwd`` is always an allowed root — the
-    caller explicitly invoked tripwire from there — which also covers running
-    tripwire standalone (pip-installed, no ambient workspace) pointed at an
+    caller explicitly invoked fenceline from there — which also covers running
+    fenceline standalone (pip-installed, no ambient workspace) pointed at an
     arbitrary target directory.
     """
     allowed_roots = [root for root in (WORKSPACE_ROOT, cwd) if root is not None]
@@ -99,7 +99,7 @@ def main() -> int:
     # diagnostics go to stderr.
     if not args.quiet and not args.json:
         print(f"\n  {'=' * 72}")
-        print("  Zero-Day Security Audit — tripwire")
+        print("  Zero-Day Security Audit — fenceline")
         print("  CWEs: CWE Top 25 (2025) + OWASP Top 10:2025 + Python Zero-Day Patterns")
         print(f"  Scanning {len(packages)} packages, {total_files} files...")
         print(f"  {'=' * 72}")

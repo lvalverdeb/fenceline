@@ -5,22 +5,22 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tripwire.checks import CHECKS
-from tripwire.checks.ast_checks import (
+from fenceline.checks import CHECKS
+from fenceline.checks.ast_checks import (
     check_huggingface_unsafe_download,
     check_numpy_load,
     check_pandas_eval,
 )
-from tripwire.checks.text_checks import (
+from fenceline.checks.text_checks import (
     check_bind_all_interfaces,
     check_legacy_pycrypto,
     check_pickle,
     check_weak_hash,
     check_weak_tls_version,
 )
-from tripwire.config import DEFAULT_PACKAGES, WORKSPACE_ROOT, _find_workspace_root
-from tripwire.models import Finding
-from tripwire.scanner import _is_self_scan_exclusion, _iter_py
+from fenceline.config import DEFAULT_PACKAGES, WORKSPACE_ROOT, _find_workspace_root
+from fenceline.models import Finding
+from fenceline.scanner import _is_self_scan_exclusion, _iter_py
 
 
 def _findings(check_fn, src: str) -> list[Finding]:
@@ -164,13 +164,13 @@ def test_check_bind_all_interfaces_ignores_cidr_ranges():
     assert _findings(check_bind_all_interfaces, 'ipaddress.ip_network("0.0.0.0/0")\n') == []
 
 
-def test_iter_py_excludes_tripwires_own_check_definition_files(tmp_path):
-    # Regression test: these files are guaranteed to trip tripwire's own
+def test_iter_py_excludes_fencelines_own_check_definition_files(tmp_path):
+    # Regression test: these files are guaranteed to trip fenceline's own
     # checks when scanned, since they define the exact regex patterns/CVE
     # tables/function names those checks search for (e.g. text_checks.py's
     # own r"pickle\.loads?\s*\(" pattern contains the literal substring
     # "pickle.loads(" and matches itself). See _SELF_SCAN_EXCLUDE.
-    pkg = tmp_path / "tripwire"
+    pkg = tmp_path / "fenceline"
     (pkg / "checks").mkdir(parents=True)
     (pkg / "checks" / "__init__.py").write_text("CHECKS = []\n")
     (pkg / "checks" / "text_checks.py").write_text("PATTERN = r'pickle.loads('\n")
@@ -187,18 +187,18 @@ def test_iter_py_excludes_tripwires_own_check_definition_files(tmp_path):
 
 
 def test_is_self_scan_exclusion_matches_by_suffix_not_absolute_path():
-    # Matching is by trailing path parts, not "is this exactly tripwire's
+    # Matching is by trailing path parts, not "is this exactly fenceline's
     # installed package" — so it works the same whether the package root
     # came from the default registry or an explicit --package override
     # pointing at a differently-located checkout.
-    assert _is_self_scan_exclusion(Path("/anywhere/src/tripwire/reporting.py"))
-    assert _is_self_scan_exclusion(Path("/other/checkout/tripwire/checks/text_checks.py"))
-    assert not _is_self_scan_exclusion(Path("/anywhere/src/tripwire/cli.py"))
+    assert _is_self_scan_exclusion(Path("/anywhere/src/fenceline/reporting.py"))
+    assert _is_self_scan_exclusion(Path("/other/checkout/fenceline/checks/text_checks.py"))
+    assert not _is_self_scan_exclusion(Path("/anywhere/src/fenceline/cli.py"))
     assert not _is_self_scan_exclusion(Path("/anywhere/src/boti_data/reporting.py"))
 
 
 def test_default_packages_resolve_inside_workspace_root():
-    # Vacuously true when no ambient workspace was found (e.g. tripwire's own
+    # Vacuously true when no ambient workspace was found (e.g. fenceline's own
     # standalone CI checkout) — DEFAULT_PACKAGES is empty in that case.
     for path in DEFAULT_PACKAGES.values():
         assert WORKSPACE_ROOT is not None
@@ -207,9 +207,9 @@ def test_default_packages_resolve_inside_workspace_root():
 
 def test_find_workspace_root_returns_none_when_absent(tmp_path):
     # Regression test: this used to be a hard RuntimeError raised at import
-    # time, which broke importing tripwire.config (and therefore this whole
+    # time, which broke importing fenceline.config (and therefore this whole
     # test module) in any standalone checkout with no ancestor
-    # [tool.uv.workspace] — exactly what tripwire's own GitHub Actions
+    # [tool.uv.workspace] — exactly what fenceline's own GitHub Actions
     # checkout looks like.
     assert _find_workspace_root(tmp_path) is None
 
@@ -223,7 +223,7 @@ def test_find_workspace_root_finds_ancestor_workspace_marker(tmp_path):
 
 def test_cli_json_output_is_well_formed(tmp_path):
     # Self-contained fixture rather than depending on the ambient boti
-    # package: the latter doesn't exist in tripwire's own standalone
+    # package: the latter doesn't exist in fenceline's own standalone
     # checkout. --package is resolved relative to cwd, and cwd is always an
     # allowed root, so pointing the subprocess's cwd at tmp_path works
     # identically whether or not an ambient workspace is present.
@@ -234,7 +234,7 @@ def test_cli_json_output_is_well_formed(tmp_path):
         [
             sys.executable,
             "-m",
-            "tripwire.cli",
+            "fenceline.cli",
             "--package",
             "pkg=pkg",
             "--json",

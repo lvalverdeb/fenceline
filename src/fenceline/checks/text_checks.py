@@ -5,7 +5,7 @@ write for surface-syntax patterns (a specific function name, a literal flag)
 but can't distinguish real code from a mention inside a comment or string —
 only full-line comments are filtered via ``_skip()``. Checks where that
 distinction matters (dangerous calls that are also common in docstrings)
-belong in :mod:`tripwire.checks.ast_checks` instead.
+belong in :mod:`fenceline.checks.ast_checks` instead.
 """
 
 from __future__ import annotations
@@ -14,9 +14,9 @@ import ast
 import re
 from pathlib import Path
 
-from tripwire.ast_helpers import _LOG_METHOD_CALL_ANY_RE, _LOG_METHOD_CALL_RE, _skip
-from tripwire.models import Finding
-from tripwire.scanner import _rel
+from fenceline.ast_helpers import _LOG_METHOD_CALL_ANY_RE, _LOG_METHOD_CALL_RE, _skip
+from fenceline.models import Finding
+from fenceline.scanner import _rel
 
 __all__ = [
     "check_pickle",

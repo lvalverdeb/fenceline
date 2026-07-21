@@ -2,13 +2,13 @@
 
 Each entry is ``(display_name, check_fn)``; ``check_fn`` receives
 ``(path, lines, tree)`` and returns ``list[Finding]``. See
-:mod:`tripwire.checks.ast_checks`, :mod:`tripwire.checks.text_checks`,
-and :mod:`tripwire.checks.manifest_checks` for the implementations.
+:mod:`fenceline.checks.ast_checks`, :mod:`fenceline.checks.text_checks`,
+and :mod:`fenceline.checks.manifest_checks` for the implementations.
 """
 
 from __future__ import annotations
 
-from tripwire.checks.ast_checks import (
+from fenceline.checks.ast_checks import (
     check_decode_exec_chains,
     check_eval_exec,
     check_except_pass,
@@ -23,11 +23,11 @@ from tripwire.checks.ast_checks import (
     check_request_timeout,
     check_torch_load,
 )
-from tripwire.checks.manifest_checks import (
+from fenceline.checks.manifest_checks import (
     check_dependency_cve,
     check_unbounded_pins,
 )
-from tripwire.checks.text_checks import (
+from fenceline.checks.text_checks import (
     check_arbitrary_write,
     check_assert_security,
     check_bind_all_interfaces,

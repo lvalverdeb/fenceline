@@ -17,14 +17,14 @@ def _find_workspace_root(start: Path) -> Path | None:
 
     Deliberately not ``boti.core.ProjectService.detect_project_root``: that
     helper stops at the *nearest* marker file (any ``pyproject.toml``,
-    ``.git``, or ``.env``), which would incorrectly resolve to tripwire's own
-    package root — tripwire ships its own ``pyproject.toml`` one level below
+    ``.git``, or ``.env``), which would incorrectly resolve to fenceline's own
+    package root — fenceline ships its own ``pyproject.toml`` one level below
     the true workspace root. This search specifically requires the
     ``[tool.uv.workspace]`` table, so it walks past package-local markers to
     find the actual workspace root.
 
     Returns ``None`` rather than raising when no such ancestor exists —
-    tripwire is pip-installable and importable standalone (e.g. in this
+    fenceline is pip-installable and importable standalone (e.g. in this
     package's own standalone CI checkout, which has no sibling ``boti``/etc.
     directories and no ambient workspace at all), and a bare import must not
     crash. Callers fall back to scanning only explicitly-provided
@@ -57,7 +57,7 @@ DEFAULT_PACKAGES: dict[str, Path] = (
             "boti": WORKSPACE_ROOT / "boti" / "src" / "boti",
             "boti-data": WORKSPACE_ROOT / "boti-data" / "src" / "boti_data",
             "boti-dask": WORKSPACE_ROOT / "boti-dask" / "src" / "boti_dask",
-            "tripwire": WORKSPACE_ROOT / "tripwire" / "src" / "tripwire",
+            "fenceline": WORKSPACE_ROOT / "fenceline" / "src" / "fenceline",
         }.items()
         if is_secure_path(path, [WORKSPACE_ROOT])
     }

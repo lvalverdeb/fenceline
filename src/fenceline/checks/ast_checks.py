@@ -12,7 +12,7 @@ import ast
 import re
 from pathlib import Path
 
-from tripwire.ast_helpers import (
+from fenceline.ast_helpers import (
     _call_name,
     _full_attr,
     _handler_has_diagnostic,
@@ -22,8 +22,8 @@ from tripwire.ast_helpers import (
     _node_line,
     _skip,
 )
-from tripwire.models import Finding
-from tripwire.scanner import _rel
+from fenceline.models import Finding
+from fenceline.scanner import _rel
 
 __all__ = [
     "check_eval_exec",

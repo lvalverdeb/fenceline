@@ -1,4 +1,4 @@
-"""Core data model for tripwire findings."""
+"""Core data model for fenceline findings."""
 
 from __future__ import annotations
 

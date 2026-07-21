@@ -1,5 +1,5 @@
 """AST and text-matching helpers shared by the check functions in
-:mod:`tripwire.checks`.
+:mod:`fenceline.checks`.
 """
 
 from __future__ import annotations
