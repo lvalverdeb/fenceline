@@ -1,7 +1,7 @@
 # Proposal: A Rust Port of Tripwire
 
-**Status**: Draft, unspiked. Nothing built yet — this is a sketch for discussion, modeled on [`spaghetti`'s own port proposal](../spaghetti/RUST_PORT_PROPOSAL.md), which went from proposal to a finished, conformance-verified `spaghetti-rs` (674/674 issues identical to Python). That project is the template for structure and phasing here, not a reason to assume this one is equally low-risk — §7 lays out where tripwire's risk profile actually differs.
-**Author**: Luis Valverde, 2026-07-20
+**Status**: Draft. Both of Phase 0's spikes are done (2026-07-21, local scratch spikes, not yet committed to any repo): §7.1's lookahead-regex question — rewrite, no `fancy-regex` needed, 133/133 test cases match Python — and §7.6's parser/AST-shape question — `rustpython-parser` 0.4.0 parses every shape tripwire's 12 AST checks need, 11/12 checks match Python exactly on a purpose-built fixture (the 12th's one-line discrepancy is an intentional AST-vs-text scope split in the spike, not a parser gap), plus a fresh 436-file/0-failure real-code parse sweep covering tripwire itself and three repos spaghetti-rs's original proof never touched. Nothing else built yet — this remains a sketch for discussion, modeled on [`spaghetti`'s own port proposal](../spaghetti/RUST_PORT_PROPOSAL.md), which went from proposal to a finished, conformance-verified `spaghetti-rs` (674/674 issues identical to Python). That project is the template for structure and phasing here, not a reason to assume this one is equally low-risk — §7 lays out where tripwire's risk profile actually differs.
+**Author**: Luis Valverde, 2026-07-20 (§7.1 spike added 2026-07-21, §7.6 spike added 2026-07-21)
 **Companion doc**: none yet — tripwire has no SDD.md; §4 below is this proposal's own inventory of current shape.
 
 ## 1. Summary
@@ -27,7 +27,7 @@ tripwire is arguably a **better-shaped** port candidate than spaghetti was: it's
 
 | Area | File | LOC | Port complexity |
 |---|---|---|---|
-| AST-based checks (12 rules) | `checks/ast_checks.py` | 635 | Low-medium — walks a handful of `ast.Call`/`ast.ExceptHandler`/`ast.Assign` node types; no exotic AST features beyond what spaghetti-rs already handles |
+| AST-based checks (12 rules) | `checks/ast_checks.py` | 635 | Low-medium — walks a handful of `ast.Call`/`ast.ExceptHandler`/`ast.Assign` node types; confirmed by spike (§7.6) to need nothing beyond what spaghetti-rs's `rustpython-ast` setup already handles |
 | Text/regex-based checks (~38 rules) | `checks/text_checks.py` | 1,230 | Low, with two exceptions — pure line-based regex; two patterns use lookahead (§7.1) |
 | Manifest checks (2 rules: CVE scan, unbounded pins) | `checks/manifest_checks.py` | 147 | Low — line-based regex over `pyproject.toml`/`requirements.txt`/`Pipfile` text, not real TOML parsing (no `toml` crate dependency needed here, unlike spaghetti's workspace-root walk) |
 | Shared AST/text helpers | `ast_helpers.py` | 174 | Low — logging-call detection, nested-scope-aware exception-handler walk, attribute-chain flattening |
@@ -67,9 +67,9 @@ Reuses spaghetti-rs's already-validated choices wherever the same problem recurs
 
 | Concern | Python | Rust choice | Why |
 |---|---|---|---|
-| Python parsing → AST | `ast` (stdlib) | `rustpython-parser` + `rustpython-ast` (same version spaghetti-rs pins) | Already proven against this exact workspace's real files (111/111, 0 failures) — no reason to re-spike a parser choice spaghetti-rs already settled. |
+| Python parsing → AST | `ast` (stdlib) | `rustpython-parser` + `rustpython-ast` (same version spaghetti-rs pins) | Proven twice now: spaghetti-rs's original 111/111-file sweep, plus a fresh spike (§7.6) covering tripwire's own source and three repos that sweep never touched (436/436 files, 0 failures) and confirming every AST shape tripwire's 12 checks need is exposed correctly. |
 | CLI parsing | `argparse` | `clap` (derive) | Direct match to tripwire's small flag set (`--json`, `--quiet`/`-q`, `--package`, `--fail-on`). |
-| Line-based regex checks | `re` (stdlib) | `regex` crate, **plus `fancy-regex` for the two lookahead patterns** | See §7.1 — this is the one place tripwire's dependency list needs to diverge from spaghetti-rs's. |
+| Line-based regex checks | `re` (stdlib) | `regex` crate only | Both lookahead patterns rewrite cleanly (§7.1, spiked) — no `fancy-regex` needed, dependency list matches spaghetti-rs's exactly. |
 | Manifest text scanning | `re` (stdlib) over `.toml`/`.txt` **as plain text** | `regex` crate, no TOML parser needed | Confirmed by reading `manifest_checks.py`: both `check_dependency_cve` and `check_unbounded_pins` regex over raw lines, never `tomllib.loads()` the manifest — so, unlike spaghetti's workspace-root walk, this needs no `toml` crate dependency at all. |
 | JSON output | `json` (stdlib) | `serde_json` | Direct match; also the fixture-diffing wire format per §5. |
 | Sandboxing (`is_secure_path`) | `boti.core` | Inline reimplementation (§4.3) | ~10 lines, no crate needed. |
@@ -78,25 +78,35 @@ Reuses spaghetti-rs's already-validated choices wherever the same problem recurs
 
 ## 7. Parity risk register
 
-Unspiked — these are the concrete things a Phase 0 spike needs to answer before committing to the phasing in §8, ranked by how much they could change the plan.
+Phase 0's two spikes (§7.1 regex, §7.6 parser/AST) are both done, below, along with the smaller items they touched in passing (§7.2). Ranked by how much each could have changed the plan, not by resolution order.
 
-### 7.1 Two regex patterns use lookahead — Rust's `regex` crate doesn't support it, needs a spike to confirm the fallback
+### 7.1 Two regex patterns use lookahead — **spiked 2026-07-21, resolved: rewrite, no `fancy-regex` needed**
 
 Found by grepping both check files for `(?=`/`(?<=`/`\1`-style backreferences:
 
 - `checks/manifest_checks.py:75` — `check_dependency_cve`'s dependency-name matcher: `rf'(?:^|["\'=,\s]){re.escape(dep_base)}(?=["\':,<>=!\s]|$)'`, using lookahead to assert a word boundary after the dependency name without consuming it.
 - `checks/text_checks.py:929` — a weak-hash-adjacent-to-security-context check: `r"hashlib\.md5\b.*(?=.*\b(?:sign|hmac|sig|token|password|hash\b))"`, using lookahead to check "does a security-sounding word appear later on this line" without anchoring the match's end to it.
 
-Rust's mainline `regex` crate deliberately excludes all lookaround (lookahead/lookbehind) to preserve its linear-time matching guarantee — this isn't a missing feature that'll appear in a future version, it's a permanent design constraint. Two options, both viable, needing a spike to pick:
+Rust's mainline `regex` crate deliberately excludes all lookaround (lookahead/lookbehind) to preserve its linear-time matching guarantee — a permanent design constraint, not a missing feature. Checked both call sites in `manifest_checks.py`/`text_checks.py` first: **neither ever calls `.group()` on anything past the lookahead, and neither uses `.finditer()` for multiple non-overlapping matches on the same line** — both are pure `.search()` truthiness checks. That means the lookahead's defining property (zero-width, non-consuming) is never actually exercised by the code that uses it, which makes a consuming rewrite safe rather than just convenient.
 
-1. **`fancy-regex`** (backtracking, supports lookaround) for just these two patterns, `regex` for the other ~50. Keeps the patterns textually identical to Python's, at the cost of two dependencies doing overlapping jobs.
-2. **Rewrite both patterns without lookahead** — both are checking "is there a word boundary/security-term after this point" which is expressible without lookahead by restructuring the capture (e.g. matching the boundary character into a non-capturing group and checking it separately, or scanning for the security term anywhere in the line as a second, independent regex rather than one combined pattern). Zero extra dependencies, but means the Rust source no longer textually mirrors the Python regex — the conformance suite becomes the only proof they're equivalent, not "read the two side by side."
+Rewrote both and verified empirically rather than by argument alone — a small Rust spike (`regex` crate) and the real Python patterns run side-by-side against 133 shared test cases (120 dependency-name/line combinations covering substring-not-word-boundary traps like `boti-dask` vs `dask` and `pandas2` vs `pandas`, plus quote/comma/whitespace delimiter variations; 13 MD5-context lines covering true positives (`sig`/`token`/`hmac`/`password` context), true negatives (unrelated `md5_of_something`, non-security `sha256`), and case-insensitivity):
 
-No strong recommendation yet pending a quick spike: try rewriting `hashlib\.md5` first (it's checking two independent conditions ANDed together — that decomposes cleanly into two separate `regex` searches with no lookahead needed at all, likely resolving 1 of 2 without `fancy-regex`), then decide whether the remaining `check_dependency_cve` pattern is worth a second dependency or also decomposes.
+| Pattern | Rewrite | Result |
+|---|---|---|
+| `dep_pattern` | `(?=["\':,<>=!\s]\|$)` → `(?:["\':,<>=!\s]\|$)` — mechanical swap from lookahead to a consuming non-capturing group | 120/120 match Python |
+| MD5-context | `hashlib\.md5\b.*(?=.*\b(?:sign\|hmac\|sig\|token\|password\|hash\b))` → `hashlib\.md5\b.*\b(?:sign\|hmac\|sig\|token\|password\|hash\b)` — the outer `.*` before the lookahead was already redundant with the `.*` inside it, so dropping the lookahead parens entirely and letting the outer `.*` consume through to the security term is a legal simplification, not just a syntax substitution | 13/13 match Python |
 
-### 7.2 Deprecated `ast` node aliases used in one helper — likely a non-issue, worth confirming
+**0 mismatches across all 133 cases.** Both patterns compile and run correctly in the plain `regex` crate.
 
-`ast_helpers.py:108`'s `_has_dynamic_arg` checks `isinstance(arg, (ast.Constant, ast.Str, ast.Num, ast.NameConstant))` — `ast.Str`/`ast.Num`/`ast.NameConstant` are deprecated-since-3.8 aliases that Python's `ast` module still resolves (via `__instancecheck__` trickery) to plain `ast.Constant` under the hood. `rustpython-ast` is a fresh implementation with no such back-compat aliasing baggage, so the Rust port's equivalent almost certainly just matches the single `Constant` expression variant — this is a simplification, not a gap, but worth a one-line confirmation during the spike rather than assumed.
+**Decision: reject `fancy-regex`.** Neither pattern needs it — rewrite both as ordinary consuming regexes, keep the dependency list exactly what spaghetti-rs already has (`regex` crate only, no second regex engine). This removes what would have been tripwire-rs's only crate-selection divergence from spaghetti-rs's proven dependency set (§6's table can drop the `fancy-regex` caveat).
+
+One consequence worth carrying into Phase 1 (§5): the Rust source no longer textually mirrors the Python regex for these two patterns (the lookahead is gone, not just relocated), so these two specifically need a fixture in the shared conformance corpus, rather than relying on "read the two patterns side by side and see they match" the way most of the other ~50 checks can be spot-checked.
+
+### 7.2 Deprecated `ast` node aliases used in one helper — **spiked 2026-07-21, confirmed non-issue**
+
+`ast_helpers.py:108`'s `_has_dynamic_arg` checks `isinstance(arg, (ast.Constant, ast.Str, ast.Num, ast.NameConstant))` — `ast.Str`/`ast.Num`/`ast.NameConstant` are deprecated-since-3.8 aliases that Python's `ast` module still resolves (via `__instancecheck__` trickery) to plain `ast.Constant` under the hood. Confirmed directly from `rustpython-ast` 0.4.0's source (`builtin.rs`): its `Constant` is a single enum (`None`, `Bool(bool)`, `Str(String)`, `Bytes(Vec<u8>)`, `Int(BigInt)`, `Tuple(...)`, `Float(f64)`, `Complex{..}`, `Ellipsis`) with no separate legacy variants — so the Rust equivalent is just `matches!(expr, Expr::Constant(_))`, one match arm covering everything the four Python aliases jointly cover. Simplification confirmed, not assumed.
+
+A related, more consequential confirmation from the same read: `Constant::Bool(bool)` is its own variant, distinct from `Int(BigInt)` — so `weights_only=True`/`allow_pickle=True` (`check_torch_load`, `check_numpy_load`, `check_insecure_default`) map to a clean `matches!(c.value, Constant::Bool(true))` check, exactly matching Python's `kw.value.value is True` identity check (which relies on Python `bool` being a real, distinguishable type from `int` at the object level, not just "truthy"). Verified empirically as part of §7.6's fixture, not just by reading the enum definition — `check_torch_load`/`check_numpy_load`/`check_insecure_default`'s spike results all matched Python exactly.
 
 ### 7.3 The CVE table is a data-maintenance problem, not a porting problem — flagging so it isn't accidentally solved twice
 
@@ -110,6 +120,22 @@ No strong recommendation yet pending a quick spike: try rewriting `hashlib\.md5`
 
 Same requirement as spaghetti §7.5: `_read()`'s `path.read_text(encoding="utf-8")` (with an exception caught and treated as "unreadable, skip" per `scanner.py`) must have a non-panicking equivalent in Rust — a scan shouldn't die on one malformed file in a large external codebase.
 
+### 7.6 Parser/AST-shape coverage for the 12 AST checks — **spiked 2026-07-21, resolved: `rustpython-parser` covers everything needed**
+
+Two separate questions, both closed by one spike:
+
+**(a) Does the parser/AST crate expose every node shape tripwire's 12 `checks/ast_checks.py` functions touch?** Read every check (§4's inventory) and catalogued the shapes: `Call` (func as bare `Name` or `Attribute` chain, `args`, `keywords`), `ExceptHandler` (`type_`/`name`/`body`, including the bare-vs-`Exception`-vs-other distinction), `FunctionDef`/`AsyncFunctionDef` (`args.posonlyargs`/`args`/`kwonlyargs`/`defaults`/`kw_defaults` for `check_insecure_default`'s parameter-default scan), `Assign`/`AnnAssign` targets, `ClassDef` methods (for `__arrow_ext_deserialize__`), and `Constant` (for the `allow_pickle=True`/`weights_only=True` literal checks). All present in `rustpython-ast` 0.4.0, confirmed by reading `gen/generic.rs` directly rather than assuming parity with Python's `ast` module — e.g. `Arguments.args`/`posonlyargs`/`kwonlyargs` are `Vec<ArgWithDefault>`, each pairing its own `arg` with its own `Option<default>` directly, which is actually **simpler to port** than Python's design (`ast_helpers.py`'s `_allow_pickle_default_lines` has to zip `args.defaults` against the *tail* of `args.args` by hand, since Python's parallel-array design doesn't pair a default with its arg directly — the Rust port skips that alignment logic entirely).
+
+**(b) Does a Visitor built the way spaghetti-rs's was actually reach every `Call` node, no matter how it's nested?** This is the load-bearing question, because every one of tripwire's 12 AST checks is fundamentally "walk every `Call` node in the file and pattern-match it" — if the walker misses a `Call` wherever it's nested, the check silently misses the finding. spaghetti-rs already discovered (its §7.6) that `rustpython-ast`'s generated `Visitor`'s default `generic_visit_*` for four "support struct" node kinds — `Arguments`, `Comprehension`, `Keyword`, `WithItem` — are no-op stubs that don't descend into their children at all. Since tripwire's checks have the same "any `Call`, anywhere" shape, this matters here too, not just for spaghetti's rules.
+
+Built a small spike crate (`rustpython-ast`/`rustpython-parser` 0.4.0, same pin as spaghetti-rs) with a `Visitor` that overrides `visit_arguments`/`visit_comprehension`/`visit_keyword`/`visit_withitem` using spaghetti-rs's exact fixed logic (copied directly from its `ast_helpers.rs`, not re-derived), plus a synthetic fixture (`fixture.py`) exercising all 12 checks' shapes — including three `eval()` calls placed deliberately in the exact spots spaghetti-rs's bug hid in: a comprehension's `if` filter, a function parameter's default value, and a call's keyword-argument value. Ran the real, unmodified `tripwire.checks.ast_checks` functions against the same fixture as ground truth.
+
+**Result: 11 of 12 checks match Python's findings exactly, line-for-line — including all three deliberately-buried `eval()` calls.** The one apparent mismatch (`check_decode_exec_chains`: Python finds 2 findings at line 148, the spike finds 1) isn't a parser gap — that check has two independent detection paths in the Python source, a `Call`-based one (which the spike implements and which matched) and a separate multi-line text/regex scan needing no AST at all (which the spike deliberately left out of scope, per its own code comment, since it's a parser-capability spike, not a full reimplementation).
+
+Also re-ran a parser-coverage sweep (not the full spike, just `rustpython_parser::parse` with no further processing) across every `.py` file in **tripwire itself** plus `etl-core`, `etl-demo`, and `ibis-etl-fastapi` — three repos spaghetti-rs's original 111-file proof never touched, since spaghetti-rs only scanned `boti`/`boti-data`/`boti-dask`/`spaghetti`. **436 files, 0 parse failures.**
+
+**Decision: no parser blocker.** `rustpython-parser`/`rustpython-ast` 0.4.0, with spaghetti-rs's four walk-fix overrides carried over verbatim, is sufficient for all 12 AST checks. Nothing here changes the crate choice already recorded in §6.
+
 ## 8. Distribution & packaging
 
 Same shape as spaghetti-rs (spaghetti §8, §11.3): prebuilt binaries via `cargo-dist` across the same platform set, published to crates.io as `cargo install tripwire`. No `pip`-installable wheel planned initially, for the same reason spaghetti deferred it — build only if real demand for a `pip`-native path shows up.
@@ -122,7 +148,7 @@ New sibling repo, `tripwire-rs`, matching `spaghetti-rs`'s placement decision (s
 
 | Phase | Deliverable | Gate to move on |
 |---|---|---|
-| 0 | Spike: confirm `rustpython-parser` handles every AST shape tripwire's 12 AST checks need (expected: yes, since spaghetti-rs already exercises a superset); resolve §7.1's two lookahead patterns (rewrite vs. `fancy-regex`); confirm §7.2 is a non-issue. | Both spikes resolved, no open parser/regex questions |
+| 0 | ✅ **Done (2026-07-21)**. §7.1: both lookahead regex patterns rewrite cleanly, no `fancy-regex` needed (133/133 test cases match Python). §7.6: `rustpython-parser`/`rustpython-ast` 0.4.0 expose every AST shape tripwire's 12 checks need; a Visitor reusing spaghetti-rs's four walk-fix overrides finds every `Call` node including three deliberately-buried ones (comprehension filter, parameter default, call keyword) — 11/12 checks match Python exactly on a purpose-built fixture (12th's gap is an intentionally out-of-scope text-based sub-check, not a parser issue); a fresh 436-file/0-failure sweep extends parser coverage to tripwire itself plus 3 repos spaghetti-rs's own proof never touched. §7.2 confirmed a non-issue in passing. | Both spikes resolved — met |
 | 1 | Build fixture corpus for the ~40 checks with no existing Python test (§5) — this is Python-side work, valuable independent of whether the port proceeds. Extract `vuln_deps` into shared data (§7.3). | Every check has at least one fixture with a known-correct expected `Finding` |
 | 2 | Port `models.rs`, `config.rs` (workspace-root walk — can likely copy spaghetti-rs's `_find_workspace_root` equivalent near-verbatim), `scanner.rs` (incl. self-scan exclusion, §7.4), `reporting.rs`. | Fixture-driven output for a handful of hand-picked checks matches Python byte-for-byte |
 | 3 | Port all 52 checks in batches (grouping by file: `ast_checks` batch, `text_checks` batches, `manifest_checks` batch), checked in after each batch against the fixture corpus. | Fixture corpus green for every ported check |
