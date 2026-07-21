@@ -4,7 +4,10 @@ requirements.txt, setup.py, Pipfile) rather than Python source files."""
 from __future__ import annotations
 
 import ast
+import json
 import re
+from functools import lru_cache
+from importlib import resources
 from pathlib import Path
 
 from fenceline.ast_helpers import _skip
@@ -12,6 +15,16 @@ from fenceline.models import Finding
 from fenceline.scanner import _rel
 
 __all__ = ["check_dependency_cve", "check_unbounded_pins"]
+
+
+@lru_cache(maxsize=1)
+def _load_vuln_deps() -> list[tuple[str, str]]:
+    """Loads the known-vulnerable dependency table from vuln_deps.json --
+    shared data (not Python-specific logic) so a future Rust port reads the
+    identical file instead of maintaining a second hardcoded copy that can
+    silently drift out of sync on the next CVE addition."""
+    raw = resources.files("fenceline").joinpath("vuln_deps.json").read_text()
+    return [(entry["dep"], entry["cve"]) for entry in json.loads(raw)]
 
 
 def check_dependency_cve(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
@@ -22,52 +35,7 @@ def check_dependency_cve(path: Path, lines: list[str], tree: ast.Module | None) 
     results: list[Finding] = []
     content = "\n".join(lines).lower()
 
-    vuln_deps: list[tuple[str, str, str]] = [
-        (
-            "urllib3<1.26.19",
-            "urllib3 <1.26.19",
-            "CVE-2024-37891 — HTTP redirect race condition (CVSS 6.1)",
-        ),
-        (
-            "requests<2.32.0",
-            "requests <2.32.0",
-            "CVE-2024-35195 — content-length mismatch (CVSS 5.9)",
-        ),
-        (
-            "cryptography<42.0.0",
-            "cryptography <42.0.0",
-            "CVE-2024-26131 — null-pointer dereference in X.509 (CVSS 5.5)",
-        ),
-        (
-            "jinja2<3.1.5",
-            "jinja2 <3.1.5",
-            "CVE-2025-27516 — SSTI via template filename injection (CVSS 7.5)",
-        ),
-        (
-            "werkzeug<3.0.6",
-            "werkzeug <3.0.6",
-            "CVE-2024-49766 — DoS via malicious multipart data (CVSS 7.5)",
-        ),
-        (
-            "dask<2024.8.1",
-            "dask <2024.8.1",
-            "CVE-2024-45187 — remote code execution via untrusted YAML (CVSS 9.8)",
-        ),
-        ("pyarrow<15.0.2", "pyarrow <15.0.2", "CVE-2024-39135 — buffer overflow in IPC (CVSS 7.3)"),
-        ("pandas<2.2.1", "pandas <2.2.1", "CVE-2024-42992 — zip slip in read_parquet (CVSS 5.5)"),
-        (
-            "aiohttp<3.10.11",
-            "aiohttp <3.10.11",
-            "CVE-2024-52304 — request smuggling via chunked encoding (CVSS 7.5)",
-        ),
-        (
-            "fsspec<2024.10.0",
-            "fsspec <2024.10.0",
-            "CVE-2024-40332 — path traversal in HTTP filesystem (CVSS 6.5)",
-        ),
-    ]
-
-    for version_str, dep_name, cve_info in vuln_deps:
+    for dep_name, cve_info in _load_vuln_deps():
         dep_base = dep_name.split("<")[0].strip()
         max_ver = dep_name.split("<")[1].strip()
         # Build a pattern that matches the dependency name as a word boundary,

@@ -54,7 +54,7 @@ where = ["src"]
 include = ["fenceline*"]
 
 [tool.setuptools.package-data]
-fenceline = ["py.typed"]
+fenceline = ["py.typed", "vuln_deps.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
