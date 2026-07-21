@@ -54,7 +54,7 @@ def _read(path: Path) -> list[str]:
 def _ast_parse(path: Path) -> ast.Module | None:
     try:
         return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    except SyntaxError:
+    except (SyntaxError, OSError, UnicodeDecodeError):
         return None
 
 

@@ -23,7 +23,7 @@ from fenceline.checks.text_checks import (
 )
 from fenceline.config import DEFAULT_PACKAGES, WORKSPACE_ROOT, _find_workspace_root
 from fenceline.models import Finding
-from fenceline.scanner import _is_self_scan_exclusion, _iter_py
+from fenceline.scanner import _ast_parse, _is_self_scan_exclusion, _iter_py
 from fenceline.suppression import apply_suppressions
 
 
@@ -201,6 +201,16 @@ def test_is_self_scan_exclusion_matches_by_suffix_not_absolute_path():
     assert _is_self_scan_exclusion(Path("/other/checkout/fenceline/checks/text_checks.py"))
     assert not _is_self_scan_exclusion(Path("/anywhere/src/fenceline/cli.py"))
     assert not _is_self_scan_exclusion(Path("/anywhere/src/boti_data/reporting.py"))
+
+
+def test_ast_parse_returns_none_on_malformed_utf8_instead_of_raising(tmp_path):
+    # Regression test: _ast_parse's own read_text() call had no guard against
+    # a decode error, unlike _read()'s -- and this call happens outside
+    # cli.py's per-check try/except, so a single malformed-UTF8 .py file
+    # would have crashed the entire scan rather than just being skipped.
+    bad_file = tmp_path / "bad.py"
+    bad_file.write_bytes(b"import os\nx = '\xff\xfe invalid utf8'\n")
+    assert _ast_parse(bad_file) is None
 
 
 def test_default_packages_resolve_inside_workspace_root():
