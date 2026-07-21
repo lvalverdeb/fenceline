@@ -107,7 +107,9 @@ def test_check_weak_tls_version_flags_deprecated_protocols():
     assert findings[0].severity == "HIGH"
     assert findings[0].cwe_id == "CWE-326"
 
-    findings = _findings(check_weak_tls_version, "ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_SSLv3)\n")
+    findings = _findings(
+        check_weak_tls_version, "ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_SSLv3)\n"
+    )
     assert len(findings) == 1
 
 
@@ -373,9 +375,7 @@ def test_discover_plugin_checks_loads_registered_entry_point(monkeypatch):
         def load(self):
             return fake_check
 
-    monkeypatch.setattr(
-        "fenceline.checks.entry_points", lambda group: [FakeEntryPoint()]
-    )
+    monkeypatch.setattr("fenceline.checks.entry_points", lambda group: [FakeEntryPoint()])
     discovered = _discover_plugin_checks()
     assert discovered == [("My Plugin Check (CWE-000)", fake_check)]
 
@@ -387,9 +387,7 @@ def test_discover_plugin_checks_skips_a_broken_plugin_without_crashing(monkeypat
         def load(self):
             raise ImportError("third-party package not installed")
 
-    monkeypatch.setattr(
-        "fenceline.checks.entry_points", lambda group: [BrokenEntryPoint()]
-    )
+    monkeypatch.setattr("fenceline.checks.entry_points", lambda group: [BrokenEntryPoint()])
     # Must not raise -- one broken third-party plugin shouldn't take down
     # discovery for every other check.
     assert _discover_plugin_checks() == []

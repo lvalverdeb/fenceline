@@ -1327,7 +1327,9 @@ def check_weak_tls_version(path: Path, lines: list[str], tree: ast.Module | None
     return results
 
 
-def check_bind_all_interfaces(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+def check_bind_all_interfaces(
+    path: Path, lines: list[str], tree: ast.Module | None
+) -> list[Finding]:
     """B104 / CWE-1327. A server bound to 0.0.0.0 listens on every network
     interface, not just localhost — reachable from outside the host unless
     something else (firewall, container network policy) restricts it."""
