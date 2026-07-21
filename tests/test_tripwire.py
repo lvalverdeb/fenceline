@@ -6,8 +6,18 @@ import sys
 from pathlib import Path
 
 from tripwire.checks import CHECKS
-from tripwire.checks.ast_checks import check_numpy_load, check_pandas_eval
-from tripwire.checks.text_checks import check_pickle
+from tripwire.checks.ast_checks import (
+    check_huggingface_unsafe_download,
+    check_numpy_load,
+    check_pandas_eval,
+)
+from tripwire.checks.text_checks import (
+    check_bind_all_interfaces,
+    check_legacy_pycrypto,
+    check_pickle,
+    check_weak_hash,
+    check_weak_tls_version,
+)
 from tripwire.config import DEFAULT_PACKAGES, WORKSPACE_ROOT, _find_workspace_root
 from tripwire.models import Finding
 from tripwire.scanner import _is_self_scan_exclusion, _iter_py
@@ -21,7 +31,7 @@ def _findings(check_fn, src: str) -> list[Finding]:
 def test_checks_registry_has_every_check_once():
     names = [fn.__name__ for _, fn in CHECKS]
     assert len(names) == len(set(names))
-    assert len(CHECKS) == 52
+    assert len(CHECKS) == 56
 
 
 def test_every_check_is_callable_and_returns_a_list():
@@ -61,6 +71,97 @@ def test_check_numpy_load_flags_explicit_allow_pickle_true_only():
     findings = _findings(check_numpy_load, "np.load(f, allow_pickle=True)\n")
     assert len(findings) == 1
     assert findings[0].severity == "HIGH"
+
+
+def test_check_bind_all_interfaces_flags_host_bound_to_all_interfaces():
+    findings = _findings(check_bind_all_interfaces, 'uvicorn.run(app, host="0.0.0.0", port=7700)\n')
+    assert len(findings) == 1
+    assert findings[0].severity == "MEDIUM"
+    assert findings[0].cwe_id == "CWE-1327"
+
+
+def test_check_weak_hash_flags_direct_call_and_new_indirection():
+    direct = _findings(check_weak_hash, "hashlib.md5(data).hexdigest()\n")
+    assert len(direct) == 1
+    assert direct[0].cwe_id == "CWE-328"
+
+    # Regression target: hashlib.new("md5", data) reaches the same weak
+    # algorithm through the generic constructor rather than the dedicated
+    # hashlib.md5() function — a direct-call-only pattern misses it.
+    indirect = _findings(check_weak_hash, 'hashlib.new("md5", data).hexdigest()\n')
+    assert len(indirect) == 1
+    assert indirect[0].cwe_id == "CWE-328"
+
+
+def test_check_weak_hash_ignores_strong_new_algorithm():
+    assert _findings(check_weak_hash, 'hashlib.new("sha256", data).hexdigest()\n') == []
+
+
+def test_check_weak_tls_version_flags_deprecated_protocols():
+    findings = _findings(check_weak_tls_version, "ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)\n")
+    assert len(findings) == 1
+    assert findings[0].severity == "HIGH"
+    assert findings[0].cwe_id == "CWE-326"
+
+    findings = _findings(check_weak_tls_version, "ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_SSLv3)\n")
+    assert len(findings) == 1
+
+
+def test_check_weak_tls_version_ignores_modern_protocols():
+    # TLSv1_2/TLSv1_3 must not match: the word-boundary check after
+    # "PROTOCOL_TLSv1" fails to find a boundary before the following "_"
+    # (both are \w characters), so the pattern can't partially match here.
+    assert _findings(check_weak_tls_version, "ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)\n") == []
+    assert _findings(check_weak_tls_version, "ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)\n") == []
+
+
+def test_check_legacy_pycrypto_flags_old_package_import():
+    findings = _findings(check_legacy_pycrypto, "from Crypto.Cipher import AES\n")
+    assert len(findings) == 1
+    assert findings[0].cwe_id == "CWE-1104"
+    assert _findings(check_legacy_pycrypto, "import Crypto\n") != []
+
+
+def test_check_legacy_pycrypto_ignores_maintained_fork():
+    # "Cryptodome" must not match: there's no word boundary between the "o"
+    # ending "Crypto" and the "d" starting "dome" (both are \w characters).
+    assert _findings(check_legacy_pycrypto, "from Cryptodome.Cipher import AES\n") == []
+    assert _findings(check_legacy_pycrypto, "import Cryptodome\n") == []
+
+
+def test_check_huggingface_unsafe_download_flags_trust_remote_code():
+    findings = _findings(
+        check_huggingface_unsafe_download,
+        'AutoModel.from_pretrained("org/model", trust_remote_code=True)\n',
+    )
+    assert len(findings) == 1
+    assert findings[0].severity == "CRITICAL"
+    assert findings[0].cwe_id == "CWE-94"
+
+
+def test_check_huggingface_unsafe_download_flags_unpinned_revision():
+    findings = _findings(
+        check_huggingface_unsafe_download, 'AutoTokenizer.from_pretrained("org/model")\n'
+    )
+    assert len(findings) == 1
+    assert findings[0].severity == "MEDIUM"
+    assert findings[0].cwe_id == "CWE-1104"
+
+
+def test_check_huggingface_unsafe_download_ignores_pinned_revision():
+    findings = _findings(
+        check_huggingface_unsafe_download,
+        'AutoModel.from_pretrained("org/model", revision="a1b2c3d")\n',
+    )
+    assert findings == []
+
+
+def test_check_bind_all_interfaces_ignores_cidr_ranges():
+    # A CIDR range like "0.0.0.0/0" (or "10.0.0.0/8") is a network/ACL
+    # notation, not a literal bind-to-all-interfaces host string — the
+    # trailing "/N" means the closing quote never immediately follows
+    # "0.0.0.0", so the pattern must not fire on it.
+    assert _findings(check_bind_all_interfaces, 'ipaddress.ip_network("0.0.0.0/0")\n') == []
 
 
 def test_iter_py_excludes_tripwires_own_check_definition_files(tmp_path):

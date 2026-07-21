@@ -58,6 +58,9 @@ __all__ = [
     "check_pandas_xml_xxe",
     "check_pth_startup_hooks",
     "check_model_file_load",
+    "check_bind_all_interfaces",
+    "check_weak_tls_version",
+    "check_legacy_pycrypto",
 ]
 
 
@@ -683,6 +686,10 @@ def check_ldap(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
 
 
 def check_weak_hash(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """CWE-328. Direct hashlib.md5()/sha1() calls, plus the hashlib.new("md5"/...)
+    indirection (B324) — same weak algorithms, reached through the generic
+    constructor instead of the dedicated function, so a direct-call-only
+    pattern misses it entirely."""
     pk = _rel(path)
     results: list[Finding] = []
     for lineno, line in enumerate(lines, 1):
@@ -699,6 +706,21 @@ def check_weak_hash(path: Path, lines: list[str], tree: ast.Module | None) -> li
                     line=lineno,
                     code_snippet=line.strip(),
                     description="Use of MD5/SHA-1 — collision-prone, use SHA-256 or better.",
+                )
+            )
+        if re.search(r'hashlib\.new\s*\(\s*["\'](?:md5|md4|md2|sha1)["\']', line, re.I):
+            results.append(
+                Finding(
+                    cwe_id="CWE-328",
+                    cwe_name="Weak Cryptographic Hash",
+                    severity="MEDIUM",
+                    package="",
+                    file=pk,
+                    line=lineno,
+                    code_snippet=line.strip(),
+                    description="hashlib.new() with a weak algorithm name (MD5/MD4/MD2/SHA-1) — "
+                    "same collision risk as calling hashlib.md5()/sha1() directly, "
+                    "just reached through the generic constructor. Use SHA-256 or better.",
                 )
             )
     return results
@@ -1225,6 +1247,109 @@ def check_model_file_load(path: Path, lines: list[str], tree: ast.Module | None)
                     description="tf.keras.models.load_model() can deserialize arbitrary Python objects "
                     "via custom layers/optimizers. Prefer SafeTensors for untrusted models.",
                     zero_day_relevance="OWASP ML06: Keras H5 format carries pickle-like deserialization risk.",
+                )
+            )
+    return results
+
+
+def check_legacy_pycrypto(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """CWE-1104. `import Crypto` / `from Crypto import ...` pulls in the old,
+    unmaintained PyCrypto package (last released 2013, several unpatched
+    CVEs) — distinct from check_weak_crypto, which flags weak *algorithms*
+    regardless of package. This flags the package itself, correctly used or
+    not. `Cryptodome`/`pycryptodome` is the maintained drop-in replacement;
+    the word-boundary check naturally excludes it (no boundary between the
+    "o" ending "Crypto" and the "d" starting "dome")."""
+    pk = _rel(path)
+    results: list[Finding] = []
+    legacy_import_pat = re.compile(r"^(?:from|import)\s+Crypto\b")
+
+    for lineno, line in enumerate(lines, 1):
+        if _skip(line):
+            continue
+        stripped = line.strip()
+        if legacy_import_pat.search(stripped):
+            results.append(
+                Finding(
+                    cwe_id="CWE-1104",
+                    cwe_name="Supply Chain — Unmaintained Dependency",
+                    severity="MEDIUM",
+                    package="",
+                    file=pk,
+                    line=lineno,
+                    code_snippet=stripped,
+                    description="Imports the old PyCrypto package (unmaintained since 2013, several "
+                    "unpatched CVEs) — migrate to pycryptodome (`import Cryptodome` / "
+                    "`from Cryptodome import ...`), a maintained drop-in replacement.",
+                    zero_day_relevance="PyCrypto has no security fixes for over a decade; several "
+                    "known vulnerabilities (e.g. weak RNG seeding in old releases) remain unpatched.",
+                )
+            )
+    return results
+
+
+def check_weak_tls_version(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """B502/B503/B504 / CWE-326. Explicit use of a broken or obsolete SSL/TLS
+    protocol version — distinct from check_tls_verify (CWE-295), which is
+    about *disabled* certificate/hostname verification, not protocol
+    downgrade. SSLv2/SSLv3/TLSv1.0/TLSv1.1 are all deprecated (RFC 8996 for
+    the TLS 1.0/1.1 case) and vulnerable to known plaintext-recovery/
+    downgrade attacks (POODLE, BEAST)."""
+    pk = _rel(path)
+    results: list[Finding] = []
+    weak_tls_pat = re.compile(r"PROTOCOL_(?:SSLv2|SSLv3|TLSv1)\b")
+
+    for lineno, line in enumerate(lines, 1):
+        if _skip(line):
+            continue
+        stripped = line.strip()
+        match = weak_tls_pat.search(stripped)
+        if match:
+            results.append(
+                Finding(
+                    cwe_id="CWE-326",
+                    cwe_name="Inadequate Encryption Strength",
+                    severity="HIGH",
+                    package="",
+                    file=pk,
+                    line=lineno,
+                    code_snippet=stripped,
+                    description=f"{match.group()} — explicitly requests a deprecated, broken SSL/TLS "
+                    "protocol version. Use ssl.PROTOCOL_TLS_CLIENT/SERVER (or omit ssl_version "
+                    "entirely) to let Python negotiate the strongest mutually-supported version.",
+                    zero_day_relevance="B502/B503/B504: SSLv3 enables POODLE, TLSv1.0/1.1 are formally "
+                    "deprecated by RFC 8996 — still found in legacy integration code talking to old servers.",
+                )
+            )
+    return results
+
+
+def check_bind_all_interfaces(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """B104 / CWE-1327. A server bound to 0.0.0.0 listens on every network
+    interface, not just localhost — reachable from outside the host unless
+    something else (firewall, container network policy) restricts it."""
+    pk = _rel(path)
+    results: list[Finding] = []
+    bind_all_pat = re.compile(r'["\']0\.0\.0\.0["\']')
+
+    for lineno, line in enumerate(lines, 1):
+        if _skip(line):
+            continue
+        stripped = line.strip()
+        if bind_all_pat.search(stripped):
+            results.append(
+                Finding(
+                    cwe_id="CWE-1327",
+                    cwe_name="Binding to an Unrestricted IP Address",
+                    severity="MEDIUM",
+                    package="",
+                    file=pk,
+                    line=lineno,
+                    code_snippet=stripped,
+                    description="Host bound to 0.0.0.0 — listens on every network interface, not just "
+                    "localhost. Bind to 127.0.0.1 unless external access is actually required.",
+                    zero_day_relevance="B104: services accidentally exposed on all interfaces are a common "
+                    "initial-access vector once a container/VM's network boundary is misconfigured.",
                 )
             )
     return results

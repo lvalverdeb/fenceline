@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 
 from tripwire.ast_helpers import (
+    _call_name,
     _full_attr,
     _handler_has_diagnostic,
     _has_dynamic_arg,
@@ -37,6 +38,7 @@ __all__ = [
     "check_numpy_load",
     "check_parquet_arrow_deserialize",
     "check_decode_exec_chains",
+    "check_huggingface_unsafe_download",
 ]
 
 
@@ -632,4 +634,68 @@ def check_decode_exec_chains(
                                 zero_day_relevance="pydepgate: inline decode-exec chains found in compromised wheels.",
                             )
                         )
+    return results
+
+
+def check_huggingface_unsafe_download(
+    path: Path, lines: list[str], tree: ast.Module | None
+) -> list[Finding]:
+    """B615 / OWASP ML06. HuggingFace-style `from_pretrained(...)` calls.
+
+    Two distinct risks, both about trusting an upstream model repo:
+    - `trust_remote_code=True` executes arbitrary Python shipped in the
+      model repo at load time — CWE-94, the more severe of the two.
+    - No `revision=` pin means `from_pretrained` follows the repo's moving
+      `main` ref, so the repo owner (or anyone who compromises their
+      account) can swap weights/code under an already-reviewed call site
+      with no local diff to catch it — CWE-1104, supply-chain.
+    """
+    pk = _rel(path)
+    results: list[Finding] = []
+    for node in ast.walk(tree) if tree else []:
+        if not isinstance(node, ast.Call):
+            continue
+        if _call_name(node) != "from_pretrained":
+            continue
+        line = _node_line(node)
+        code = lines[line - 1].strip() if 1 <= line <= len(lines) else ""
+        kw_names = {kw.arg for kw in node.keywords if kw.arg is not None}
+        trust_remote_code = any(
+            kw.arg == "trust_remote_code" and _is_true(kw.value) for kw in node.keywords
+        )
+
+        if trust_remote_code:
+            results.append(
+                Finding(
+                    cwe_id="CWE-94",
+                    cwe_name="Code Injection (HuggingFace trust_remote_code)",
+                    severity="CRITICAL",
+                    package="",
+                    file=pk,
+                    line=line,
+                    code_snippet=code,
+                    description="from_pretrained(trust_remote_code=True) executes arbitrary Python "
+                    "shipped in the model repo at load time — equivalent to running code from "
+                    "an untrusted third party.",
+                    zero_day_relevance="Malicious HuggingFace repos with trust_remote_code payloads "
+                    "have been used for real supply-chain RCE against ML pipelines.",
+                )
+            )
+        elif "revision" not in kw_names:
+            results.append(
+                Finding(
+                    cwe_id="CWE-1104",
+                    cwe_name="Supply Chain — Unpinned Model Revision",
+                    severity="MEDIUM",
+                    package="",
+                    file=pk,
+                    line=line,
+                    code_snippet=code,
+                    description="from_pretrained(...) with no revision= pin follows the model repo's "
+                    "moving main ref — weights or code can change under this call site with no "
+                    "local diff to review. Pin revision= to a specific commit SHA or tag.",
+                    zero_day_relevance="OWASP ML06: unpinned model sources are a supply-chain vector — "
+                    "a compromised or malicious upstream repo push propagates silently on next load.",
+                )
+            )
     return results

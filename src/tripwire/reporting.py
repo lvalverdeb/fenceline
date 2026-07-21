@@ -134,7 +134,9 @@ CWE-502  numpy.load + read_pickle   ✓   CWE-114  numpy lib injection  ✓
 CWE-611  pandas read_xml XXE        ✓
 CWE-829  .pth Startup Hooks         ✓   CWE-502  Parquet Arrow Ext     ✓
 CWE-1104 Unbounded Dep Pins        ✓   CWE-502  ML Model File Load    ✓
-CWE-94   Decode-then-Execute Chains ✓
+CWE-94   Decode-then-Execute Chains ✓   CWE-1327 Bind All Interfaces (B104) ✓
+CWE-326  Weak TLS Version (B502-504) ✓   CWE-1104 Legacy PyCrypto Import   ✓
+CWE-94   HF trust_remote_code (B615)  ✓   CWE-1104 HF Unpinned Revision     ✓
 
 Referenced CVE Database
 =======================
