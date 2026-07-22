@@ -1,6 +1,8 @@
 # fenceline
 
-Zero-day security scanner for the Boti workspace.
+Zero-day security scanner for Python codebases. Generic, pip-install-anywhere
+tool — `pip install fenceline && fenceline` scans whatever's under the
+current directory, no project-specific setup required.
 
 ## Installation
 
@@ -24,6 +26,7 @@ uv run fenceline --json > report.json
 uv run fenceline -q
 uv run fenceline --fail-on critical
 uv run fenceline --package my-lib=my-lib/src/my_lib
+uv run fenceline --packages my-lib other-lib
 ```
 
 Exit codes: `0` (no findings at or above `--fail-on`), `1` (one or more).
@@ -36,11 +39,26 @@ Exit codes: `0` (no findings at or above `--fail-on`), `1` (one or more).
 | `--quiet` / `-q` | off | Suppress the banner |
 | `--fail-on` | `high` | Severity threshold (`critical`\|`high`\|`medium`\|`low`\|`info`) for the exit code |
 | `--confidence-min` | `low` | Drop findings below this confidence (`high`\|`medium`\|`low`) |
-| `--package NAME=PATH` | — | Add or override a scan target package (repeatable) |
+| `--package NAME=PATH` | — | Add a scan target package (repeatable); replaces cwd auto-discovery entirely when given |
+| `--packages NAME [NAME ...]` | all | Scan only these names from the resolved registry |
 | `--baseline PATH` | — | Only report/fail on findings not already present in this baseline |
 | `--write-baseline PATH` | — | Snapshot current findings to PATH and exit 0 |
 
-By default, fenceline scans `boti`, `boti-data`, `boti-dask`, and itself.
+### What gets scanned by default
+
+A bare `fenceline` invocation (no `--package`) auto-discovers packages from
+the current directory: every immediate subdirectory containing at least one
+`.py` file anywhere in its subtree becomes its own named package, skipping
+noise directories (`.venv`, `.git`, `__pycache__`, `node_modules`, `build`,
+`dist`, `*.egg-info`, and similar caches — also excluded *within* a scanned
+subtree, not just at the top level). Loose `.py` files sitting directly in
+the current directory (outside any subdirectory) are scanned too, grouped
+into a package named after the directory itself.
+
+Pass `--package NAME=PATH` (repeatable) to scan an explicit set of
+directories instead — this replaces auto-discovery entirely rather than
+adding to it. Use `--packages NAME [NAME ...]` afterwards to narrow down to
+a subset of whichever registry was resolved.
 
 ### Severity vs. confidence
 

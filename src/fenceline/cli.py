@@ -6,17 +6,15 @@ import argparse
 import sys
 from pathlib import Path
 
-from boti.core import is_secure_path
-
 from fenceline.baseline import load_baseline, split_by_baseline, write_baseline
 from fenceline.checks import CHECKS
-from fenceline.config import DEP_MANIFEST_FILES, PACKAGES, WORKSPACE_ROOT
+from fenceline.config import DEP_MANIFEST_FILES, WORKSPACE_ROOT, is_secure_path
 from fenceline.models import CONFIDENCE_ORDER, SEVERITY_ORDER, Finding
 from fenceline.reporting import print_report
 from fenceline.scanner import _ast_parse, _iter_py, _read, _rel
 from fenceline.suppression import apply_suppressions
 
-__all__ = ["main"]
+__all__ = ["main", "discover_cwd_packages"]
 
 
 def _find_manifest_files(root: Path, *, ceiling: Path | None) -> list[Path]:
@@ -68,8 +66,70 @@ def _parse_package_args(entries: list[str], *, cwd: Path) -> dict[str, Path]:
     return resolved
 
 
+_NOISE_DIR_NAMES = frozenset({"__pycache__", "node_modules", "build", "dist", "site-packages"})
+
+# Path-substring patterns skipped while walking a cwd-auto-discovered
+# package's subtree -- same convention as spaghetti's own
+# DEFAULT_CWD_EXCLUDES, so a virtualenv/cache/vendored-dependency tree
+# nested *under* a scanned directory (not just at the top level, which
+# _is_noise_dir already handles) doesn't get scanned as if it were the
+# user's own code.
+DEFAULT_CWD_EXCLUDES: list[str] = [
+    "/.venv/",
+    "/venv/",
+    "/.git/",
+    "/__pycache__/",
+    "/node_modules/",
+    "/build/",
+    "/dist/",
+    ".egg-info",
+    "/.mypy_cache/",
+    "/.pytest_cache/",
+    "/.ruff_cache/",
+    "/.tox/",
+    "/site-packages/",
+]
+
+
+def _is_noise_dir(name: str) -> bool:
+    return name.startswith(".") or name in _NOISE_DIR_NAMES or name.endswith(".egg-info")
+
+
+def discover_cwd_packages(cwd: Path) -> tuple[dict[str, Path], str | None]:
+    """Auto-discover a ``{name: path}`` registry from *cwd* for a bare
+    ``fenceline`` invocation (no ``--package`` given) — this is what makes
+    fenceline a generic, pip-install-anywhere tool instead of one that only
+    knows how to scan this workspace's own boti/boti-data/boti-dask/fenceline
+    layout: a bare invocation scans whatever's actually under the current
+    directory, matching ``spaghetti``'s own ``discover_cwd_packages``.
+
+    Each immediate, non-noise subdirectory of *cwd* containing at least one
+    ``.py`` file anywhere in its subtree becomes its own named package.
+    ``.py`` files sitting directly in *cwd* (outside any subdirectory) are
+    grouped into one additional package named after *cwd* itself — the
+    second return value is that package's name (``None`` if there were no
+    such loose files), so the caller can scan it non-recursively and avoid
+    double-scanning the subdirectories already registered on their own.
+    """
+    packages: dict[str, Path] = {}
+    for entry in sorted(cwd.iterdir()):
+        if not entry.is_dir() or _is_noise_dir(entry.name):
+            continue
+        if next(entry.rglob("*.py"), None) is not None:
+            packages[entry.name] = entry
+
+    loose_root_name: str | None = None
+    if next(cwd.glob("*.py"), None) is not None:
+        loose_root_name = cwd.resolve().name or str(cwd.resolve())
+        if loose_root_name in packages:
+            loose_root_name = f"{loose_root_name} (root)"
+        packages[loose_root_name] = cwd
+
+    return packages, loose_root_name
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Zero-day vulnerability scanner for the workspace")
+    parser = argparse.ArgumentParser(description="Zero-day vulnerability scanner for Python code")
     parser.add_argument("--json", action="store_true", help="JSON output")
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress banner")
     parser.add_argument(
@@ -77,7 +137,21 @@ def main() -> int:
         action="append",
         default=[],
         metavar="NAME=PATH",
-        help="Add or override a scan target package (repeatable)",
+        help=(
+            "Add a scan target package as NAME=PATH (repeatable). Replaces the "
+            "cwd auto-discovered registry entirely when given, rather than "
+            "adding to it — pass one --package per target to scan more than one."
+        ),
+    )
+    parser.add_argument(
+        "--packages",
+        nargs="*",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Names to scan from the resolved registry (default: all — see "
+            "--package for how the registry is built)"
+        ),
     )
     parser.add_argument(
         "--fail-on",
@@ -107,15 +181,39 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    packages = dict(PACKAGES)
-    packages.update(_parse_package_args(args.package, cwd=Path.cwd()))
-    if not packages:
-        parser.error(
-            "no packages to scan — no ambient workspace was found and no "
-            "--package NAME=PATH was given"
-        )
+    cwd = Path.cwd()
 
-    total_files = sum(1 for root in packages.values() for _ in _iter_py(root))
+    # A bare invocation (no --package) must never silently fall back to this
+    # workspace's own boti/boti-data/boti-dask/fenceline registry — instead
+    # it auto-discovers whatever's actually under the current directory,
+    # same fix spaghetti's own CLI already applies for the same reason.
+    # --package opts back into an explicit, non-cwd-derived registry.
+    non_recursive: frozenset[str] = frozenset()
+    exclude: list[str] = []
+    if not args.package:
+        packages, loose_root_name = discover_cwd_packages(cwd)
+        exclude = DEFAULT_CWD_EXCLUDES
+        if loose_root_name is not None:
+            non_recursive = frozenset({loose_root_name})
+    else:
+        packages = _parse_package_args(args.package, cwd=cwd)
+
+    if not packages:
+        parser.error("no packages to scan — the resolved package registry is empty")
+
+    selected = args.packages if args.packages is not None else list(packages.keys())
+    unknown = [name for name in selected if name not in packages]
+    if unknown:
+        parser.error(
+            f"unknown package(s): {', '.join(unknown)}. Available: {', '.join(sorted(packages))}"
+        )
+    packages = {name: packages[name] for name in selected}
+
+    total_files = sum(
+        1
+        for name, root in packages.items()
+        for _ in _iter_py(root, recursive=name not in non_recursive, exclude=exclude)
+    )
 
     # JSON mode keeps stdout machine-parseable: banner is suppressed and
     # diagnostics go to stderr.
@@ -136,7 +234,7 @@ def main() -> int:
     # on the resolved path can't reliably recover the owning package).
     path_package: dict[Path, str] = {}
     for name, root in packages.items():
-        for path in _iter_py(root):
+        for path in _iter_py(root, recursive=name not in non_recursive, exclude=exclude):
             path_package.setdefault(path, name)
         for path in _find_manifest_files(root, ceiling=WORKSPACE_ROOT):
             path_package.setdefault(path, name)

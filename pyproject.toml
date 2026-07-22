@@ -1,7 +1,7 @@
 [project]
 name = "fenceline"
 version = "1.0.2"
-description = "Zero-day security scanner for the Boti workspace"
+description = "Zero-day security scanner for Python codebases"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"
@@ -20,9 +20,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Topic :: Security",
 ]
-dependencies = [
-    "boti>=1.0.0",
-]
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/lvalverdeb/fenceline"

@@ -21,7 +21,8 @@ from fenceline.checks.text_checks import (
     check_weak_hash,
     check_weak_tls_version,
 )
-from fenceline.config import DEFAULT_PACKAGES, WORKSPACE_ROOT, _find_workspace_root
+from fenceline.cli import discover_cwd_packages
+from fenceline.config import DEFAULT_PACKAGES, WORKSPACE_ROOT, _find_workspace_root, is_secure_path
 from fenceline.models import Finding
 from fenceline.scanner import _ast_parse, _is_self_scan_exclusion, _iter_py
 from fenceline.suppression import apply_suppressions
@@ -493,3 +494,109 @@ def test_cli_write_baseline_then_baseline_suppresses_pre_existing_findings(tmp_p
     pkg_findings = [f for f in payload["findings"] if f["file"].endswith("mod.py")]
     assert pkg_findings == []
     assert payload.get("baseline_suppressed", 0) >= 1
+
+
+def test_is_secure_path_inlined_matches_boti_core_semantics(tmp_path):
+    # fenceline no longer depends on boti at runtime (§ generic pip-install
+    # story) -- is_secure_path is reimplemented locally in config.py and
+    # must behave the same: accept nested paths, reject paths outside every
+    # allowed root.
+    nested = tmp_path / "a"
+    nested.mkdir()
+    other = tmp_path.parent / "definitely-not-a-real-sibling-dir-xyz"
+    assert is_secure_path(nested, [tmp_path])
+    assert not is_secure_path(other, [tmp_path])
+
+
+def test_discover_cwd_packages_registers_each_subdir_containing_python(tmp_path):
+    (tmp_path / "pkg_a").mkdir()
+    (tmp_path / "pkg_a" / "mod.py").write_text("x = 1\n")
+    (tmp_path / "pkg_b" / "nested").mkdir(parents=True)
+    (tmp_path / "pkg_b" / "nested" / "mod.py").write_text("y = 2\n")
+    (tmp_path / "no_python").mkdir()
+    (tmp_path / "no_python" / "readme.txt").write_text("nothing here\n")
+
+    packages, loose_root_name = discover_cwd_packages(tmp_path)
+
+    assert set(packages) == {"pkg_a", "pkg_b"}
+    assert loose_root_name is None
+
+
+def test_discover_cwd_packages_groups_loose_root_files_separately(tmp_path):
+    (tmp_path / "loose.py").write_text("z = 3\n")
+    (tmp_path / "pkg_a").mkdir()
+    (tmp_path / "pkg_a" / "mod.py").write_text("x = 1\n")
+
+    packages, loose_root_name = discover_cwd_packages(tmp_path)
+
+    assert loose_root_name == tmp_path.resolve().name
+    assert set(packages) == {"pkg_a", loose_root_name}
+    assert packages[loose_root_name] == tmp_path
+
+
+def test_discover_cwd_packages_skips_noise_directories(tmp_path):
+    for noise in (".venv", "__pycache__", "node_modules", ".git"):
+        (tmp_path / noise).mkdir()
+        (tmp_path / noise / "junk.py").write_text("# not real code\n")
+    (tmp_path / "real_pkg").mkdir()
+    (tmp_path / "real_pkg" / "mod.py").write_text("x = 1\n")
+
+    packages, _ = discover_cwd_packages(tmp_path)
+
+    assert set(packages) == {"real_pkg"}
+
+
+def test_cli_bare_invocation_auto_discovers_cwd_instead_of_erroring(tmp_path):
+    # The core "generic pip-install-anywhere" behaviour: no --package given,
+    # no ambient uv workspace at tmp_path -- must scan tmp_path itself
+    # instead of failing with "no packages to scan".
+    pkg_dir = tmp_path / "myproject"
+    pkg_dir.mkdir()
+    (pkg_dir / "mod.py").write_text("pickle.loads(data)\n")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--json", "--quiet"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode in (0, 1)
+    payload = json.loads(result.stdout)
+    cwe_ids = {f["cwe_id"] for f in payload["findings"] if f["file"].endswith("mod.py")}
+    assert "CWE-502" in cwe_ids
+
+
+def test_cli_packages_selector_filters_resolved_registry(tmp_path):
+    (tmp_path / "pkg_a").mkdir()
+    (tmp_path / "pkg_a" / "mod.py").write_text("pickle.loads(data)\n")
+    (tmp_path / "pkg_b").mkdir()
+    (tmp_path / "pkg_b" / "mod.py").write_text("eval(user_input)\n")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--packages", "pkg_a", "--json", "--quiet"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode in (0, 1)
+    payload = json.loads(result.stdout)
+    files = {f["file"] for f in payload["findings"]}
+    assert any("pkg_a" in f for f in files)
+    assert not any("pkg_b" in f for f in files)
+
+
+def test_cli_packages_selector_rejects_unknown_name(tmp_path):
+    (tmp_path / "pkg_a").mkdir()
+    (tmp_path / "pkg_a" / "mod.py").write_text("x = 1\n")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--packages", "not-a-real-package"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode != 0
+    assert "unknown package" in result.stderr

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Sequence
 from pathlib import Path
 
 from fenceline.config import WORKSPACE_ROOT
@@ -40,8 +41,32 @@ def _is_self_scan_exclusion(path: Path) -> bool:
     return any(path.parts[-len(pattern.parts) :] == pattern.parts for pattern in _SELF_SCAN_EXCLUDE)
 
 
-def _iter_py(root: Path) -> list[Path]:
-    return sorted(p for p in root.rglob("*.py") if not _is_self_scan_exclusion(p))
+def _iter_py(root: Path, *, recursive: bool = True, exclude: Sequence[str] = ()) -> list[Path]:
+    """Every ``.py`` file under *root*, sorted for deterministic output.
+
+    ``recursive=False`` globs only *root* itself (non-recursive) — used for
+    the cwd auto-discovery "loose root" package, whose files sit directly in
+    the invoking directory and whose subdirectories are already registered
+    as their own separate packages (scanning both would double-count them).
+
+    ``exclude`` is a list of path-substring patterns (e.g. ``"/.venv/"``) to
+    skip, same convention as ``spaghetti``'s own ``ScanConfig.exclude`` —
+    lets cwd auto-discovery step around virtualenvs, caches, and vendored
+    dependency trees that happen to sit under a scanned directory instead of
+    being filtered out at the top level.
+    """
+    glob_fn = root.rglob if recursive else root.glob
+    found = []
+    for path in glob_fn("*.py"):
+        path_str = str(path)
+        if "__pycache__" in path_str:
+            continue
+        if any(pattern in path_str for pattern in exclude):
+            continue
+        if _is_self_scan_exclusion(path):
+            continue
+        found.append(path)
+    return sorted(found)
 
 
 def _read(path: Path) -> list[str]:

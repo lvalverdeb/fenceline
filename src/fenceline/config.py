@@ -7,9 +7,30 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-from boti.core import is_secure_path
+__all__ = [
+    "WORKSPACE_ROOT",
+    "DEFAULT_PACKAGES",
+    "PACKAGES",
+    "DEP_MANIFEST_FILES",
+    "is_secure_path",
+]
 
-__all__ = ["WORKSPACE_ROOT", "DEFAULT_PACKAGES", "PACKAGES", "DEP_MANIFEST_FILES"]
+
+def is_secure_path(target: Path, allowed_dirs: list[Path]) -> bool:
+    """Verifies *target* resolves inside one of *allowed_dirs* — a defensive
+    sandbox check for a *security* tool's own file access, since fenceline
+    reads and reports the contents of whatever it's pointed at.
+
+    Inlined rather than imported from ``boti.core`` so fenceline has no
+    runtime dependency on an unrelated internal package — a generic,
+    pip-install-anywhere security scanner shouldn't drag in this workspace's
+    own tooling as a hard dependency.
+    """
+    try:
+        resolved = target.resolve()
+        return any(resolved.is_relative_to(allowed.resolve()) for allowed in allowed_dirs)
+    except (ValueError, RuntimeError, OSError):
+        return False
 
 
 def _find_workspace_root(start: Path) -> Path | None:
