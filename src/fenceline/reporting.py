@@ -55,6 +55,15 @@ def print_report(
             payload["nosec_suppressed"] = nosec_suppressed
         if test_suppressed:
             payload["test_suppressed"] = test_suppressed
+        if data and not baseline_suppressed and not nosec_suppressed:
+            # Real-world feedback: a reader who only ever looks at --json
+            # output has no way to discover # nosec/--baseline exist at all
+            # -- the equivalent text-mode footer hint never reaches them.
+            payload["suppression_hint"] = (
+                "Confirmed a finding is a false positive or accepted risk? Suppress it with "
+                "# nosec [CWE-ID] on that line, or adopt fenceline on an existing codebase "
+                "with --write-baseline/--baseline — see README.md."
+            )
         print(_json.dumps(payload, indent=2))
         return
 

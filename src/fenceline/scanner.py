@@ -102,17 +102,19 @@ def _rel(path: Path) -> str:
 _TEST_DIR_NAMES = frozenset({"tests", "test"})
 
 
-def _is_test_path(file_path: str) -> bool:
+def _is_test_path(file_path: str, extra_dir_names: frozenset[str] = frozenset()) -> bool:
     """True if *file_path* looks like test code by common pytest
     convention: a ``tests``/``test`` directory component, a
     ``test_*.py``/``*_test.py`` filename, or ``conftest.py``.
 
-    Deliberately narrow to these well-established naming conventions —
-    doesn't attempt to recognize codebase-specific "not quite production"
-    directories (e.g. an app's own ``evaluation/`` benchmark harness),
-    since a name like that means different things in different codebases
-    and guessing wrong risks silently suppressing real production findings
-    under a misleadingly broad match.
+    Deliberately narrow to these well-established naming conventions by
+    default — doesn't attempt to recognize codebase-specific "not quite
+    production" directories (e.g. an app's own ``evaluation/`` benchmark
+    harness), since a name like that means different things in different
+    codebases and guessing wrong risks silently suppressing real production
+    findings under a misleadingly broad match. A project that has its own
+    such directories can name them explicitly via *extra_dir_names* (see
+    ``cli.py``'s ``--test-paths`` flag) rather than fenceline guessing.
     """
     parts = file_path.replace("\\", "/").split("/")
     name = parts[-1]
@@ -120,4 +122,4 @@ def _is_test_path(file_path: str) -> bool:
         return True
     if name.endswith(".py") and (name.startswith("test_") or name.endswith("_test.py")):
         return True
-    return any(part in _TEST_DIR_NAMES for part in parts[:-1])
+    return any(part in _TEST_DIR_NAMES or part in extra_dir_names for part in parts[:-1])

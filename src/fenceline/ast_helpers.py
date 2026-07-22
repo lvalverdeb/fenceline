@@ -200,11 +200,23 @@ def _skip(line: str) -> bool:
 
 
 def _collect_scope_names(stmts: list[ast.stmt]) -> tuple[dict[str, ast.expr], frozenset[str]]:
-    """``(name -> assigned value, names bound by import statements)`` for
-    every simple ``Name = value``/``Name: T = value`` assignment and
-    ``import``/``from ... import`` statement directly in *stmts* — not
-    nested inside a further function/class body (mirrors
+    """``(name -> assigned value, names bound by import statements or
+    sibling function definitions)`` for every simple ``Name = value``/
+    ``Name: T = value`` assignment, ``import``/``from ... import``
+    statement, and ``def``/``async def`` directly in *stmts* — not nested
+    inside a further function/class body (mirrors
     ``_walk_skip_nested_scopes``'s own scope boundary).
+
+    A locally-defined helper function's *name* is folded into the same
+    "known safe reference" set as imports: calling ``build_request(BASE,
+    path)`` only depends on whether ``BASE``/``path`` are themselves safe
+    (checked recursively via each argument), exactly like calling
+    ``requests.get(...)`` doesn't require inspecting ``requests``' own
+    internals. Without this, routing a call through any local helper
+    function — rather than inlining it — made `_is_locally_safe_expr`
+    treat the whole expression as unsafe regardless of its arguments,
+    since a bare reference to the helper's name resolved to neither an
+    import nor an assigned literal.
     """
     literals: dict[str, ast.expr] = {}
     imports: set[str] = set()
@@ -223,6 +235,8 @@ def _collect_scope_names(stmts: list[ast.stmt]) -> tuple[dict[str, ast.expr], fr
             elif isinstance(node, (ast.Import, ast.ImportFrom)):
                 for alias in node.names:
                     imports.add(alias.asname or alias.name.split(".")[0])
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                imports.add(node.name)
     return literals, frozenset(imports)
 
 

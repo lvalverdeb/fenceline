@@ -44,6 +44,8 @@ Exit codes: `0` (no findings at or above `--fail-on`), `1` (one or more).
 | `--baseline PATH` | — | Only report/fail on findings not already present in this baseline |
 | `--write-baseline PATH` | — | Snapshot current findings to PATH and exit 0 |
 | `--include-tests` | off | Include CWE-798/617/918/770 findings inside test code (see "Test code" below) |
+| `--test-paths DIRNAME [DIRNAME ...]` | — | Extra directory names to treat as non-production, alongside the built-in `tests`/`test`/`conftest.py` conventions (see "Test code" below) |
+| `--version` | — | Print the installed fenceline version and exit |
 
 ### Test code
 
@@ -57,8 +59,10 @@ pattern in a production request handler, and scoring them identically drowns
 out real findings in the same category. Pass `--include-tests` to see them
 anyway. Production code paths are unaffected either way. This is a
 naming-convention heuristic only — a codebase-specific directory like an
-`evaluation/` benchmark harness isn't recognized, since that name means
-different things in different codebases.
+`evaluation/` benchmark harness isn't recognized by name alone, since that
+name means different things in different codebases. Declare your own such
+directories explicitly with `--test-paths`, e.g. `--test-paths evaluation
+benchmarks` — they're unioned with the built-in conventions above.
 
 ### What gets scanned by default
 

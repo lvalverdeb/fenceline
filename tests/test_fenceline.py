@@ -491,6 +491,22 @@ def test_report_omits_suppression_hint_once_suppression_is_already_in_use(capsys
     assert "# nosec [CWE-ID]" not in out
 
 
+def test_json_report_also_hints_at_suppression_mechanisms_when_none_used_yet(capsys):
+    # Real-world feedback: a reader who only ever looks at --json output
+    # never sees the text-mode footer hint at all -- the JSON payload
+    # itself needs its own equivalent.
+    print_report([_sample_finding()], json_output=True)
+    payload = json.loads(capsys.readouterr().out)
+    assert "# nosec" in payload["suppression_hint"]
+    assert "--baseline" in payload["suppression_hint"]
+
+
+def test_json_report_omits_suppression_hint_once_suppression_is_already_in_use(capsys):
+    print_report([_sample_finding()], json_output=True, nosec_suppressed=2)
+    payload = json.loads(capsys.readouterr().out)
+    assert "suppression_hint" not in payload
+
+
 def test_discover_plugin_checks_loads_registered_entry_point(monkeypatch):
     def fake_check(path, lines, tree):
         return []
@@ -775,10 +791,70 @@ def test_is_test_path_ignores_production_code():
     assert not _is_test_path("pkg/mod.py")
     assert not _is_test_path("pkg/attestation.py")  # contains "test" as a substring, not a token
     assert not _is_test_path("pkg/testing_utils.py")  # not test_*/​*_test naming convention
-    # "evaluation/" is deliberately NOT recognized -- see _is_test_path's
-    # own docstring for why a codebase-specific directory name isn't safe
-    # to hardcode as a universal "not production" signal.
+    # "evaluation/" is deliberately NOT recognized by default -- see
+    # _is_test_path's own docstring for why a codebase-specific directory
+    # name isn't safe to hardcode as a universal "not production" signal.
     assert not _is_test_path("evaluation/load_test_identify.py")
+
+
+def test_is_test_path_recognizes_extra_dir_names_when_given():
+    # Real-world feedback follow-up: a project's own non-production
+    # directory (e.g. an "evaluation/" load-test harness) can be declared
+    # explicitly via --test-paths rather than fenceline guessing.
+    assert _is_test_path("evaluation/load_test_identify.py", frozenset({"evaluation"}))
+    assert not _is_test_path("evaluation/load_test_identify.py", frozenset({"benchmarks"}))
+
+
+def test_cli_test_paths_suppresses_findings_in_custom_directory(tmp_path):
+    # Filename deliberately doesn't match test_*.py/*_test.py/conftest.py --
+    # only the --test-paths directory declaration should suppress this one.
+    (tmp_path / "evaluation").mkdir()
+    (tmp_path / "evaluation" / "load_scenario.py").write_text("urllib.request.urlopen(some_url)\n")
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "mod.py").write_text("urllib.request.urlopen(some_url)\n")
+
+    default_run = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--json", "--quiet"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    default_payload = json.loads(default_run.stdout)
+    default_files = {f["file"] for f in default_payload["findings"]}
+    assert any("evaluation/" in f for f in default_files)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "fenceline.cli",
+            "--test-paths",
+            "evaluation",
+            "--json",
+            "--quiet",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    payload = json.loads(result.stdout)
+    files = {f["file"] for f in payload["findings"]}
+    assert not any("evaluation/" in f for f in files)
+    assert any("pkg/" in f for f in files)
+    assert payload.get("test_suppressed", 0) >= 1
+
+
+def test_cli_version_flag_reports_installed_version():
+    result = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--version"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0
+    assert "fenceline" in result.stdout
 
 
 def test_cli_deprioritized_cwes_suppressed_by_default_in_test_paths(tmp_path):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from fenceline.baseline import load_baseline, split_by_baseline, write_baseline
@@ -15,6 +16,19 @@ from fenceline.scanner import _ast_parse, _is_test_path, _iter_py, _read, _rel
 from fenceline.suppression import apply_suppressions
 
 __all__ = ["main", "discover_cwd_packages"]
+
+
+def _fenceline_version() -> str:
+    """Installed ``fenceline`` version, read from package metadata (not
+    hardcoded) so it can never drift from ``pyproject.toml`` — exists so a
+    user can confirm which version they actually have installed (real-world
+    feedback: ambiguity over whether an installed binary predated a check
+    or the check simply didn't fire couldn't be resolved without this)."""
+    try:
+        return version("fenceline")
+    except PackageNotFoundError:
+        return "unknown"
+
 
 # CWE categories where test-code context (an ephemeral testcontainers
 # password, a test assertion, a hardcoded localhost URL, a small committed
@@ -160,6 +174,12 @@ def discover_cwd_packages(cwd: Path) -> tuple[dict[str, Path], str | None]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Zero-day vulnerability scanner for Python code")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"fenceline {_fenceline_version()}",
+        help="Print the installed fenceline version and exit",
+    )
     parser.add_argument("--json", action="store_true", help="JSON output")
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress banner")
     parser.add_argument(
@@ -203,6 +223,18 @@ def main() -> int:
             f"({', '.join(sorted(_TEST_DEPRIORITIZED_CWES))}) when they occur in a "
             "tests/ directory, test_*.py/*_test.py file, or conftest.py. "
             "Off by default; production code paths are unaffected either way."
+        ),
+    )
+    parser.add_argument(
+        "--test-paths",
+        nargs="*",
+        default=[],
+        metavar="DIRNAME",
+        help=(
+            "Extra directory names to treat as non-production for the same "
+            "CWE-category suppression --include-tests governs, alongside the "
+            "built-in tests/test/conftest.py conventions (e.g. --test-paths "
+            "evaluation benchmarks). Ignored if --include-tests is also given."
         ),
     )
     parser.add_argument(
@@ -307,9 +339,10 @@ def main() -> int:
 
     test_suppressed = 0
     if not args.include_tests:
+        extra_test_dirs = frozenset(args.test_paths)
         kept_findings: list[Finding] = []
         for f in all_findings:
-            if f.cwe_id in _TEST_DEPRIORITIZED_CWES and _is_test_path(f.file):
+            if f.cwe_id in _TEST_DEPRIORITIZED_CWES and _is_test_path(f.file, extra_test_dirs):
                 test_suppressed += 1
             else:
                 kept_findings.append(f)
