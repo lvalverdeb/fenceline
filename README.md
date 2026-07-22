@@ -43,6 +43,22 @@ Exit codes: `0` (no findings at or above `--fail-on`), `1` (one or more).
 | `--packages NAME [NAME ...]` | all | Scan only these names from the resolved registry |
 | `--baseline PATH` | — | Only report/fail on findings not already present in this baseline |
 | `--write-baseline PATH` | — | Snapshot current findings to PATH and exit 0 |
+| `--include-tests` | off | Include CWE-798/617/918/770 findings inside test code (see "Test code" below) |
+
+### Test code
+
+By default, findings for CWE-798 (hardcoded credentials), CWE-617 (reachable
+assert), CWE-918 (SSRF), and CWE-770 (unbounded resource allocation) are
+suppressed when they occur in a `tests/`/`test/` directory, a
+`test_*.py`/`*_test.py` file, or `conftest.py` — an ephemeral
+`testcontainers` password, a `pytest` assertion, a hardcoded localhost test
+URL, or a small committed fixture read isn't the same risk as the identical
+pattern in a production request handler, and scoring them identically drowns
+out real findings in the same category. Pass `--include-tests` to see them
+anyway. Production code paths are unaffected either way. This is a
+naming-convention heuristic only — a codebase-specific directory like an
+`evaluation/` benchmark harness isn't recognized, since that name means
+different things in different codebases.
 
 ### What gets scanned by default
 

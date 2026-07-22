@@ -11,10 +11,18 @@ from fenceline.checks import CHECKS
 from fenceline.config import DEP_MANIFEST_FILES, WORKSPACE_ROOT, is_secure_path
 from fenceline.models import CONFIDENCE_ORDER, SEVERITY_ORDER, Finding
 from fenceline.reporting import print_report
-from fenceline.scanner import _ast_parse, _iter_py, _read, _rel
+from fenceline.scanner import _ast_parse, _is_test_path, _iter_py, _read, _rel
 from fenceline.suppression import apply_suppressions
 
 __all__ = ["main", "discover_cwd_packages"]
+
+# CWE categories where test-code context (an ephemeral testcontainers
+# password, a test assertion, a hardcoded localhost URL, a small committed
+# fixture read) changes the finding from "real risk" to "not applicable"
+# often enough that treating it identically to a production hit drowns out
+# genuine findings in the same category -- real-world feedback report,
+# see README.md's "Test code" section for the full rationale per category.
+_TEST_DEPRIORITIZED_CWES = frozenset({"CWE-798", "CWE-617", "CWE-918", "CWE-770"})
 
 
 def _find_manifest_files(root: Path, *, ceiling: Path | None) -> list[Path]:
@@ -35,6 +43,28 @@ def _find_manifest_files(root: Path, *, ceiling: Path | None) -> list[Path]:
         if candidate == ceiling:
             break
     return []
+
+
+def _manifest_package_label(manifest_path: Path, packages: dict[str, Path]) -> str:
+    """Package name for a manifest file, derived from the file's own parent
+    directory rather than which package's upward ``_find_manifest_files``
+    search happened to reach it first.
+
+    A manifest genuinely local to a package (its parent directory *is* that
+    package's own root) gets that package's name. A manifest shared above
+    every package's root — most commonly the scanned project's own
+    top-level ``pyproject.toml``, found by every package's upward walk once
+    it climbs past its own directory — previously got silently attributed
+    to whichever package's ``dict.setdefault`` reached it first, an
+    arbitrary artifact of iteration order rather than anything about the
+    file itself. Falls back to the manifest's own parent directory name,
+    which is always at least traceable to where the file actually lives.
+    """
+    parent = manifest_path.parent
+    for name, root in packages.items():
+        if root == parent:
+            return name
+    return parent.name or "root"
 
 
 def _parse_package_args(entries: list[str], *, cwd: Path) -> dict[str, Path]:
@@ -166,6 +196,16 @@ def main() -> int:
         help="Drop findings below this confidence level (default: low, i.e. no filtering)",
     )
     parser.add_argument(
+        "--include-tests",
+        action="store_true",
+        help=(
+            "Include findings for CWE categories that are usually noise in test code "
+            f"({', '.join(sorted(_TEST_DEPRIORITIZED_CWES))}) when they occur in a "
+            "tests/ directory, test_*.py/*_test.py file, or conftest.py. "
+            "Off by default; production code paths are unaffected either way."
+        ),
+    )
+    parser.add_argument(
         "--baseline",
         type=Path,
         default=None,
@@ -237,7 +277,7 @@ def main() -> int:
         for path in _iter_py(root, recursive=name not in non_recursive, exclude=exclude):
             path_package.setdefault(path, name)
         for path in _find_manifest_files(root, ceiling=WORKSPACE_ROOT):
-            path_package.setdefault(path, name)
+            path_package.setdefault(path, _manifest_package_label(path, packages))
 
     nosec_suppressed = 0
     for path in sorted(path_package):
@@ -265,9 +305,24 @@ def main() -> int:
         f for f in all_findings if CONFIDENCE_ORDER.get(f.confidence, 0) <= conf_threshold
     ]
 
+    test_suppressed = 0
+    if not args.include_tests:
+        kept_findings: list[Finding] = []
+        for f in all_findings:
+            if f.cwe_id in _TEST_DEPRIORITIZED_CWES and _is_test_path(f.file):
+                test_suppressed += 1
+            else:
+                kept_findings.append(f)
+        all_findings = kept_findings
+
     if args.write_baseline is not None:
         write_baseline(all_findings, args.write_baseline)
-        print_report(all_findings, json_output=args.json, nosec_suppressed=nosec_suppressed)
+        print_report(
+            all_findings,
+            json_output=args.json,
+            nosec_suppressed=nosec_suppressed,
+            test_suppressed=test_suppressed,
+        )
         if not args.quiet and not args.json:
             print(f"  Wrote baseline with {len(all_findings)} finding(s) to {args.write_baseline}")
         return 0
@@ -282,6 +337,7 @@ def main() -> int:
         json_output=args.json,
         baseline_suppressed=baseline_suppressed,
         nosec_suppressed=nosec_suppressed,
+        test_suppressed=test_suppressed,
     )
     threshold = SEVERITY_ORDER[args.fail_on.upper()]
     gating = [f for f in all_findings if SEVERITY_ORDER.get(f.severity, 99) <= threshold]

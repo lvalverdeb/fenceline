@@ -14,7 +14,15 @@ import ast
 import re
 from pathlib import Path
 
-from fenceline.ast_helpers import _LOG_METHOD_CALL_ANY_RE, _LOG_METHOD_CALL_RE, _skip
+from fenceline.ast_helpers import (
+    _LOG_METHOD_CALL_ANY_RE,
+    _LOG_METHOD_CALL_RE,
+    _full_attr,
+    _is_locally_safe_expr,
+    _iter_calls_in_scope,
+    _node_line,
+    _skip,
+)
 from fenceline.models import Finding
 from fenceline.scanner import _rel
 
@@ -156,10 +164,53 @@ def check_command_injection(path: Path, lines: list[str], tree: ast.Module | Non
     return results
 
 
+_SQL_EXEC_METHOD_NAMES = frozenset({"execute", "exec_driver_sql"})
+
+
+def _fully_safe_fstring_exec_lines(
+    tree: ast.Module | None, method_names: frozenset[str]
+) -> set[int]:
+    """Line numbers of ``.execute(f"...")``/``.exec_driver_sql(f"...")``-shaped
+    calls (whichever of *method_names* apply) where every interpolated
+    value resolves to a locally-safe origin (see
+    ``ast_helpers._is_locally_safe_expr`` — a string literal, a same-scope
+    constant, or a call/attribute chain built from imported names, never a
+    function parameter or another unresolvable name).
+
+    Real-world false-positive report: every one of 7 CRITICAL findings on
+    an Alembic migration fired on an f-string whose only interpolated
+    values were a module-level string constant and a value derived
+    entirely from the database's own read-only introspection (e.g.
+    ``current_database()``) — neither reachable from any request path.
+    Severity previously fired uniformly whenever the syntactic pattern
+    matched; this suppresses it specifically when nothing in the query is
+    traceable to anything outside this function/module.
+
+    Empty when *tree* is ``None`` (file failed to parse) — falls back to
+    unconditional regex-based flagging in that case, same as this check's
+    own encoding-tolerance convention elsewhere.
+    """
+    if tree is None:
+        return set()
+    safe_lines: set[int] = set()
+    for call, params, literals, imports in _iter_calls_in_scope(tree):
+        if not (
+            isinstance(call.func, ast.Attribute)
+            and call.func.attr in method_names
+            and call.args
+            and isinstance(call.args[0], ast.JoinedStr)
+        ):
+            continue
+        if _is_locally_safe_expr(call.args[0], params, literals, imports):
+            safe_lines.add(_node_line(call))
+    return safe_lines
+
+
 def check_sql_injection(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-89 rank #2."""
     pk = _rel(path)
     results: list[Finding] = []
+    safe_lines = _fully_safe_fstring_exec_lines(tree, _SQL_EXEC_METHOD_NAMES)
     patterns = [
         (r'execute\s*\(\s*f["\']', "f-string in execute() — probable SQL injection"),
         (
@@ -169,7 +220,7 @@ def check_sql_injection(path: Path, lines: list[str], tree: ast.Module | None) -
         (r"\.execute\s*\([^)]*\+", "String concatenation in execute() — probable SQL injection"),
     ]
     for lineno, line in enumerate(lines, 1):
-        if _skip(line):
+        if _skip(line) or lineno in safe_lines:
             continue
         for pat, desc in patterns:
             if re.search(pat, line):
@@ -328,17 +379,59 @@ def check_xxe(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fin
     return results
 
 
+_SSRF_METHOD_NAMES = frozenset(
+    {"get", "post", "put", "patch", "delete", "head", "options", "request"}
+)
+
+
+def _fully_safe_ssrf_call_lines(tree: ast.Module | None) -> set[int]:
+    """Line numbers of ``requests.*``/``httpx.*``/``urllib.request.urlopen(...)``
+    calls whose URL argument resolves to a locally-safe origin (see
+    ``ast_helpers._is_locally_safe_expr``).
+
+    SSRF is fundamentally about *attacker-influenced* destination
+    selection — a finding that fires whenever the syntactic pattern
+    matches, regardless of whether any part of the URL is externally
+    influenced, isn't measuring that. Real-world false-positive report:
+    both SSRF findings in one run were a bare string literal
+    (``"http://127.0.0.1:8000"``) and a URL built entirely from
+    ``testcontainers``-managed local values.
+
+    Empty when *tree* is ``None`` (file failed to parse) — falls back to
+    unconditional regex-based flagging in that case.
+    """
+    if tree is None:
+        return set()
+    safe_lines: set[int] = set()
+    for call, params, literals, imports in _iter_calls_in_scope(tree):
+        if not call.args:
+            continue
+        is_requests_httpx = (
+            isinstance(call.func, ast.Attribute)
+            and call.func.attr in _SSRF_METHOD_NAMES
+            and isinstance(call.func.value, ast.Name)
+            and call.func.value.id in ("requests", "httpx")
+        )
+        is_urlopen = _full_attr(call) == "urllib.request.urlopen"
+        if not (is_requests_httpx or is_urlopen):
+            continue
+        if _is_locally_safe_expr(call.args[0], params, literals, imports):
+            safe_lines.add(_node_line(call))
+    return safe_lines
+
+
 def check_ssrf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-918 rank #22."""
     pk = _rel(path)
     results: list[Finding] = []
+    safe_lines = _fully_safe_ssrf_call_lines(tree)
     http_pattern = re.compile(
         r"(?:requests|httpx)\.(?:get|post|put|patch|delete|head|options|request)\s*\("
         r"|urllib\.request\.urlopen\s*\("
         r"|aiohttp\.ClientSession"
     )
     for lineno, line in enumerate(lines, 1):
-        if _skip(line):
+        if _skip(line) or lineno in safe_lines:
             continue
         if http_pattern.search(line):
             results.append(
@@ -458,8 +551,9 @@ def check_exec_driver_sql(path: Path, lines: list[str], tree: ast.Module | None)
     """Verify exec_driver_sql calls use pre-compiled SQL with proper param binding."""
     pk = _rel(path)
     results: list[Finding] = []
+    safe_lines = _fully_safe_fstring_exec_lines(tree, frozenset({"exec_driver_sql"}))
     for lineno, line in enumerate(lines, 1):
-        if _skip(line):
+        if _skip(line) or lineno in safe_lines:
             continue
         if re.search(r'exec_driver_sql\s*\(\s*f["\']', line):
             results.append(

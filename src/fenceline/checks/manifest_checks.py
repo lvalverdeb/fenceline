@@ -71,6 +71,29 @@ def check_dependency_cve(path: Path, lines: list[str], tree: ast.Module | None) 
     return results
 
 
+_LOCKFILE_NAMES = ("uv.lock", "poetry.lock", "Pipfile.lock")
+
+
+def _sibling_lockfile_exists(manifest_path: Path) -> bool:
+    """True if a recognized lockfile sits alongside *manifest_path*.
+
+    When a project is locked (``uv``/``poetry``/``Pipfile``/``pip-compile``),
+    the manifest's own loose version ranges only matter at upgrade time -- a
+    deliberate, reviewable ``uv lock --upgrade`` (or equivalent) that commits
+    a new lockfile -- not at every install/sync, which resolves from the
+    lockfile rather than re-resolving the manifest's ranges. "Any version
+    satisfying >=X might install silently" is true for an unlocked project
+    and false for a locked one.
+    """
+    parent = manifest_path.parent
+    if any((parent / name).exists() for name in _LOCKFILE_NAMES):
+        return True
+    # pip-compile: requirements.txt is itself the generated lockfile, so its
+    # presence only counts when *this* manifest isn't that same file (e.g.
+    # scanning pyproject.toml or a requirements.in source alongside it).
+    return manifest_path.name != "requirements.txt" and (parent / "requirements.txt").exists()
+
+
 def check_unbounded_pins(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CVE-2026-42208 pattern: >=<version> without upper bound allows
     pip to resolve to a compromised wheel."""
@@ -78,6 +101,7 @@ def check_unbounded_pins(path: Path, lines: list[str], tree: ast.Module | None) 
         return []
     pk = _rel(path)
     results: list[Finding] = []
+    locked = _sibling_lockfile_exists(path)
 
     lower_bound_pat = re.compile(r'["\']([\w.-]+)\s*>=\s*(\d+\.\d+(?:\.\d+)?)["\']')
     for lineno, line in enumerate(lines, 1):
@@ -97,18 +121,29 @@ def check_unbounded_pins(path: Path, lines: list[str], tree: ast.Module | None) 
             # Check if the line has an upper bound in multi-constraint format like ">=X,<Y"
             if re.search(r",\s*<\s*", stripped):
                 continue
+            if locked:
+                description = (
+                    f"'{dep_name}>={version}' has no upper bound, but a lockfile alongside this "
+                    f"manifest means installs resolve from the lockfile, not this range directly — "
+                    f"the residual risk is at upgrade-time review (`lock --upgrade` or equivalent), "
+                    f"not silent install-time drift. Still worth bounding for when that upgrade happens."
+                )
+            else:
+                description = (
+                    f"'{dep_name}>={version}' has no upper bound — pip resolves to latest "
+                    f"matching version. A compromised wheel at a higher version propagates silently. "
+                    f"Use '{dep_name}>={version},<next_major' to bound."
+                )
             results.append(
                 Finding(
                     cwe_id="CWE-1104",
                     cwe_name="Supply Chain — Unbounded Dependency Pin",
-                    severity="LOW",
+                    severity="INFO" if locked else "LOW",
                     package="",
                     file=pk,
                     line=lineno,
                     code_snippet=stripped,
-                    description=f"'{dep_name}>={version}' has no upper bound — pip resolves to latest "
-                    f"matching version. A compromised wheel at a higher version propagates silently. "
-                    f"Use '{dep_name}>={version},<next_major' to bound.",
+                    description=description,
                     zero_day_relevance="CVE-2026-42208: litellm>=1.61.3 with no upper bound led to "
                     "..pth backdoor via transitive dep (semantic-router).",
                 )

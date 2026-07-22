@@ -14,6 +14,7 @@ from fenceline.checks.ast_checks import (
     check_pandas_eval,
     check_unbounded_pydantic_field,
 )
+from fenceline.checks.manifest_checks import check_unbounded_pins
 from fenceline.checks.text_checks import (
     check_bind_all_interfaces,
     check_debug_mode,
@@ -22,10 +23,11 @@ from fenceline.checks.text_checks import (
     check_weak_hash,
     check_weak_tls_version,
 )
-from fenceline.cli import discover_cwd_packages
+from fenceline.cli import _manifest_package_label, discover_cwd_packages
 from fenceline.config import _find_workspace_root, is_secure_path
 from fenceline.models import Finding
-from fenceline.scanner import _ast_parse, _is_self_scan_exclusion, _iter_py
+from fenceline.reporting import print_report
+from fenceline.scanner import _ast_parse, _is_self_scan_exclusion, _is_test_path, _iter_py
 from fenceline.suppression import apply_suppressions
 
 
@@ -221,6 +223,38 @@ def test_check_unbounded_pydantic_field_ignores_config_class_by_name():
     # the real signal on genuine network-facing request bodies.
     src = "class FilesystemConfig(BaseModel):\n    fs_path: str\n"
     assert _findings(check_unbounded_pydantic_field, src) == []
+
+
+def test_check_unbounded_pins_severity_downgraded_when_locked(tmp_path):
+    # Real-world feedback: an unbounded ">=" pin is a much smaller risk when
+    # a lockfile means installs resolve from it, not the manifest's own
+    # range -- residual risk is at upgrade-review time, not silent install
+    # drift.
+    manifest = tmp_path / "pyproject.toml"
+    manifest.write_text('"alembic>=1.14",\n')
+    lines = manifest.read_text().splitlines()
+
+    unlocked = check_unbounded_pins(manifest, lines, None)
+    assert len(unlocked) == 1
+    assert unlocked[0].severity == "LOW"
+
+    (tmp_path / "uv.lock").write_text("")
+    locked = check_unbounded_pins(manifest, lines, None)
+    assert len(locked) == 1
+    assert locked[0].severity == "INFO"
+
+
+def test_check_unbounded_pins_recognizes_pip_compile_lockfile(tmp_path):
+    # A project might declare loose ranges in pyproject.toml but lock via a
+    # separately pip-compile-generated requirements.txt sitting alongside it.
+    manifest = tmp_path / "pyproject.toml"
+    manifest.write_text('"alembic>=1.14",\n')
+    lines = manifest.read_text().splitlines()
+
+    assert check_unbounded_pins(manifest, lines, None)[0].severity == "LOW"
+
+    (tmp_path / "requirements.txt").write_text("alembic==1.14.0\n")
+    assert check_unbounded_pins(manifest, lines, None)[0].severity == "INFO"
 
 
 def test_check_bind_all_interfaces_ignores_cidr_ranges():
@@ -428,6 +462,35 @@ def test_baseline_matches_by_fingerprint_not_line_number(tmp_path):
     assert suppressed == 1
 
 
+def _sample_finding() -> Finding:
+    return Finding(
+        cwe_id="CWE-502",
+        cwe_name="Deserialization of Untrusted Data",
+        severity="CRITICAL",
+        package="pkg",
+        file="mod.py",
+        line=1,
+        code_snippet="pickle.loads(data)",
+        description="...",
+    )
+
+
+def test_report_hints_at_suppression_mechanisms_when_none_used_yet(capsys):
+    # Real-world feedback: a first-time reader of the report has no way to
+    # discover that # nosec/--baseline exist at all unless they already
+    # know to look in the README.
+    print_report([_sample_finding()], json_output=False)
+    out = capsys.readouterr().out
+    assert "# nosec" in out
+    assert "--baseline" in out
+
+
+def test_report_omits_suppression_hint_once_suppression_is_already_in_use(capsys):
+    print_report([_sample_finding()], json_output=False, nosec_suppressed=2)
+    out = capsys.readouterr().out
+    assert "# nosec [CWE-ID]" not in out
+
+
 def test_discover_plugin_checks_loads_registered_entry_point(monkeypatch):
     def fake_check(path, lines, tree):
         return []
@@ -598,6 +661,26 @@ def test_discover_cwd_packages_skips_noise_directories(tmp_path):
     assert set(packages) == {"real_pkg"}
 
 
+def test_manifest_package_label_uses_owning_package_when_manifest_is_local(tmp_path):
+    packages = {"evaluation": tmp_path / "evaluation", "migrations": tmp_path / "migrations"}
+    manifest = tmp_path / "evaluation" / "pyproject.toml"
+    assert _manifest_package_label(manifest, packages) == "evaluation"
+
+
+def test_manifest_package_label_falls_back_to_parent_dir_name_for_shared_manifest():
+    # Real-world bug report: a manifest shared above every package's own
+    # root (the scanned project's top-level pyproject.toml, found by every
+    # package's upward search once it climbs past its own directory) must
+    # not be attributed to whichever package's dict.setdefault reached it
+    # first -- it should be traceable to where it actually lives instead.
+    packages = {
+        "evaluation": Path("/proj/evaluation"),
+        "migrations": Path("/proj/migrations"),
+    }
+    manifest = Path("/proj/pyproject.toml")
+    assert _manifest_package_label(manifest, packages) == "proj"
+
+
 def test_cli_bare_invocation_auto_discovers_cwd_instead_of_erroring(tmp_path):
     # The core "generic pip-install-anywhere" behaviour: no --package given,
     # no ambient uv workspace at tmp_path -- must scan tmp_path itself
@@ -652,3 +735,85 @@ def test_cli_packages_selector_rejects_unknown_name(tmp_path):
     )
     assert result.returncode != 0
     assert "unknown package" in result.stderr
+
+
+def test_cli_shared_root_manifest_not_misattributed_to_first_scanned_package(tmp_path):
+    # End-to-end reproduction of a real bug report: a root-level
+    # pyproject.toml shared above two auto-discovered packages must not be
+    # attributed to whichever one happens first in scan order.
+    (tmp_path / "pyproject.toml").write_text('"alembic>=1.14",\n')
+    (tmp_path / "evaluation").mkdir()
+    (tmp_path / "evaluation" / "mod.py").write_text("x = 1\n")
+    (tmp_path / "migrations").mkdir()
+    (tmp_path / "migrations" / "mod.py").write_text("y = 2\n")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--json", "--quiet"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    payload = json.loads(result.stdout)
+    manifest_findings = [f for f in payload["findings"] if f["file"].endswith("pyproject.toml")]
+    assert manifest_findings
+    for f in manifest_findings:
+        assert f["package"] not in ("evaluation", "migrations")
+        assert f["package"] == tmp_path.name
+
+
+def test_is_test_path_recognizes_pytest_conventions():
+    assert _is_test_path("tests/test_foo.py")
+    assert _is_test_path("pkg/tests/helpers.py")
+    assert _is_test_path("pkg/test_foo.py")
+    assert _is_test_path("pkg/foo_test.py")
+    assert _is_test_path("pkg/conftest.py")
+    assert _is_test_path("test/foo.py")
+
+
+def test_is_test_path_ignores_production_code():
+    assert not _is_test_path("pkg/mod.py")
+    assert not _is_test_path("pkg/attestation.py")  # contains "test" as a substring, not a token
+    assert not _is_test_path("pkg/testing_utils.py")  # not test_*/​*_test naming convention
+    # "evaluation/" is deliberately NOT recognized -- see _is_test_path's
+    # own docstring for why a codebase-specific directory name isn't safe
+    # to hardcode as a universal "not production" signal.
+    assert not _is_test_path("evaluation/load_test_identify.py")
+
+
+def test_cli_deprioritized_cwes_suppressed_by_default_in_test_paths(tmp_path):
+    # Real-world feedback: CWE-798/617/918/770 findings inside test code
+    # (testcontainers fixtures, pytest assertions, hardcoded localhost test
+    # URLs, small fixture reads) fired at the same severity as a genuine
+    # production hit, drowning out real findings in the same category.
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "conftest.py").write_text(
+        'password = "hunter2"\nurllib.request.urlopen("http://127.0.0.1:8000")\n'
+    )
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "mod.py").write_text('password = "hunter2"\n')
+
+    default_run = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--json", "--quiet"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    default_payload = json.loads(default_run.stdout)
+    default_files = {f["file"] for f in default_payload["findings"]}
+    assert not any("tests/" in f for f in default_files)
+    assert any("pkg/" in f for f in default_files)
+    assert default_payload.get("test_suppressed", 0) >= 1
+
+    included_run = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--include-tests", "--json", "--quiet"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    included_payload = json.loads(included_run.stdout)
+    included_files = {f["file"] for f in included_payload["findings"]}
+    assert any("tests/" in f for f in included_files)
+    assert "test_suppressed" not in included_payload

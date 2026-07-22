@@ -8,7 +8,14 @@ from pathlib import Path
 
 from fenceline.config import WORKSPACE_ROOT
 
-__all__ = ["_iter_py", "_read", "_ast_parse", "_rel", "_is_self_scan_exclusion"]
+__all__ = [
+    "_iter_py",
+    "_read",
+    "_ast_parse",
+    "_rel",
+    "_is_self_scan_exclusion",
+    "_is_test_path",
+]
 
 # fenceline's own check-definition, shared-detection-helper, and
 # reporting files necessarily contain, as string literals, the exact regex
@@ -90,3 +97,27 @@ def _rel(path: Path) -> str:
         return str(path.relative_to(WORKSPACE_ROOT))
     except ValueError:
         return str(path)
+
+
+_TEST_DIR_NAMES = frozenset({"tests", "test"})
+
+
+def _is_test_path(file_path: str) -> bool:
+    """True if *file_path* looks like test code by common pytest
+    convention: a ``tests``/``test`` directory component, a
+    ``test_*.py``/``*_test.py`` filename, or ``conftest.py``.
+
+    Deliberately narrow to these well-established naming conventions —
+    doesn't attempt to recognize codebase-specific "not quite production"
+    directories (e.g. an app's own ``evaluation/`` benchmark harness),
+    since a name like that means different things in different codebases
+    and guessing wrong risks silently suppressing real production findings
+    under a misleadingly broad match.
+    """
+    parts = file_path.replace("\\", "/").split("/")
+    name = parts[-1]
+    if name == "conftest.py":
+        return True
+    if name.endswith(".py") and (name.startswith("test_") or name.endswith("_test.py")):
+        return True
+    return any(part in _TEST_DIR_NAMES for part in parts[:-1])

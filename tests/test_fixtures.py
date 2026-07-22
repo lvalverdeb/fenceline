@@ -56,7 +56,15 @@ def _fingerprint(cwe_id: str, severity: str, confidence: str, line: int) -> tupl
     CASES,
     ids=[f"{c[0]}/{c[1].stem}" for c in CASES],
 )
-def test_fixture_case(check_name, py_file, expected_file):
+def test_fixture_case(check_name, py_file, expected_file, tmp_path, monkeypatch):
+    # Fixture cases use a fake, often-relative path label (path_name) that's
+    # never actually written to disk -- a check that does its own real
+    # filesystem lookups relative to that path (e.g. checking for a sibling
+    # lockfile) would otherwise silently resolve against wherever pytest's
+    # cwd happens to be (this repo's own root), not an empty directory as
+    # intended. Running from an empty tmp_path makes every fixture case's
+    # filesystem view consistently empty regardless of invocation directory.
+    monkeypatch.chdir(tmp_path)
     check_fn = _CHECK_BY_NAME[check_name]
     source = py_file.read_text()
     expected_data = json.loads(expected_file.read_text())

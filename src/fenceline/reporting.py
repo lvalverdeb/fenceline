@@ -29,6 +29,7 @@ def print_report(
     *,
     baseline_suppressed: int = 0,
     nosec_suppressed: int = 0,
+    test_suppressed: int = 0,
 ) -> None:
     if json_output:
         data = []
@@ -52,6 +53,8 @@ def print_report(
             payload["baseline_suppressed"] = baseline_suppressed
         if nosec_suppressed:
             payload["nosec_suppressed"] = nosec_suppressed
+        if test_suppressed:
+            payload["test_suppressed"] = test_suppressed
         print(_json.dumps(payload, indent=2))
         return
 
@@ -62,6 +65,8 @@ def print_report(
             print(f"  ({baseline_suppressed} pre-existing finding(s) suppressed by baseline)")
         if nosec_suppressed:
             print(f"  ({nosec_suppressed} finding(s) suppressed by # nosec)")
+        if test_suppressed:
+            print(f"  ({test_suppressed} finding(s) in test code suppressed — see --include-tests)")
         print(f"  {'=' * 72}")
         print()
         return
@@ -75,6 +80,8 @@ def print_report(
         print(f"  ({baseline_suppressed} pre-existing finding(s) suppressed by baseline)")
     if nosec_suppressed:
         print(f"  ({nosec_suppressed} finding(s) suppressed by # nosec)")
+    if test_suppressed:
+        print(f"  ({test_suppressed} finding(s) in test code suppressed — see --include-tests)")
     print(f"  {'=' * 72}\n")
 
     for f in all_findings:
@@ -106,6 +113,12 @@ def print_report(
         if c:
             print(f"  {c:>4} × {conf} confidence")
     print(f"  {'─' * 72}\n")
+    if not baseline_suppressed and not nosec_suppressed:
+        print(
+            "  Confirmed a finding is a false positive or accepted risk? Suppress it with "
+            "`# nosec [CWE-ID]` on that line, or adopt fenceline on an existing codebase with "
+            "`--write-baseline`/`--baseline` — see README.md.\n"
+        )
     print(CWE_REFERENCE)
 
 
