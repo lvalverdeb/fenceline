@@ -22,11 +22,11 @@ def _find_manifest_files(root: Path, *, ceiling: Path | None) -> list[Path]:
     *root* (the package's importable source dir) to *ceiling* (the workspace
     root), stopping at the first ancestor where any manifest file exists.
 
-    Not a fixed-depth ``root.parent`` lookup: DEFAULT_PACKAGES points at the
-    innermost ``src/<pkg>`` dir (two levels below the package's
-    pyproject.toml), but a ``--package`` entry may point at a flat-layout
-    root where the manifest sits one level up, or even at the manifest's own
-    directory. Searching upward handles both without assuming a fixed depth.
+    Not a fixed-depth ``root.parent`` lookup: a cwd-auto-discovered package
+    root sits right next to its own manifest, but a ``--package`` entry may
+    point at a flat-layout root where the manifest sits one level up, or
+    even at the manifest's own directory. Searching upward handles both
+    without assuming a fixed depth.
     """
     for candidate in (root, *root.parents):
         found = [candidate / df for df in DEP_MANIFEST_FILES if (candidate / df).exists()]

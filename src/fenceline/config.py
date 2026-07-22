@@ -1,5 +1,5 @@
-"""Package-wide configuration: workspace root discovery, the scan-target
-package registry, and dependency-manifest filenames.
+"""Package-wide configuration: workspace root discovery, the path-security
+sandbox check, and dependency-manifest filenames.
 """
 
 from __future__ import annotations
@@ -9,8 +9,6 @@ from pathlib import Path
 
 __all__ = [
     "WORKSPACE_ROOT",
-    "DEFAULT_PACKAGES",
-    "PACKAGES",
     "DEP_MANIFEST_FILES",
     "is_secure_path",
 ]
@@ -65,28 +63,6 @@ def _find_workspace_root(start: Path) -> Path | None:
 
 
 WORKSPACE_ROOT: Path | None = _find_workspace_root(Path(__file__).resolve().parent)
-
-# Every default scan target must resolve inside the workspace root — a
-# defensive sandbox check for a *security* tool's own file access, using the
-# same primitive boti-data and boti's own ResourceConfig gating rely on.
-# Empty when no ambient workspace was found (see _find_workspace_root):
-# there's nothing to default to, the caller must pass --package explicitly.
-DEFAULT_PACKAGES: dict[str, Path] = (
-    {
-        name: path
-        for name, path in {
-            "boti": WORKSPACE_ROOT / "boti" / "src" / "boti",
-            "boti-data": WORKSPACE_ROOT / "boti-data" / "src" / "boti_data",
-            "boti-dask": WORKSPACE_ROOT / "boti-dask" / "src" / "boti_dask",
-            "fenceline": WORKSPACE_ROOT / "fenceline" / "src" / "fenceline",
-        }.items()
-        if is_secure_path(path, [WORKSPACE_ROOT])
-    }
-    if WORKSPACE_ROOT is not None
-    else {}
-)
-
-PACKAGES: dict[str, Path] = dict(DEFAULT_PACKAGES)
 
 # Dependency-manifest filenames probed alongside each package's source tree
 # for check_dependency_cve / check_unbounded_pins.

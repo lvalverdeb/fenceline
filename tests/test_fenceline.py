@@ -22,7 +22,7 @@ from fenceline.checks.text_checks import (
     check_weak_tls_version,
 )
 from fenceline.cli import discover_cwd_packages
-from fenceline.config import DEFAULT_PACKAGES, WORKSPACE_ROOT, _find_workspace_root, is_secure_path
+from fenceline.config import _find_workspace_root, is_secure_path
 from fenceline.models import Finding
 from fenceline.scanner import _ast_parse, _is_self_scan_exclusion, _iter_py
 from fenceline.suppression import apply_suppressions
@@ -212,14 +212,6 @@ def test_ast_parse_returns_none_on_malformed_utf8_instead_of_raising(tmp_path):
     bad_file = tmp_path / "bad.py"
     bad_file.write_bytes(b"import os\nx = '\xff\xfe invalid utf8'\n")
     assert _ast_parse(bad_file) is None
-
-
-def test_default_packages_resolve_inside_workspace_root():
-    # Vacuously true when no ambient workspace was found (e.g. fenceline's own
-    # standalone CI checkout) — DEFAULT_PACKAGES is empty in that case.
-    for path in DEFAULT_PACKAGES.values():
-        assert WORKSPACE_ROOT is not None
-        assert path.is_relative_to(WORKSPACE_ROOT)
 
 
 def test_find_workspace_root_returns_none_when_absent(tmp_path):
