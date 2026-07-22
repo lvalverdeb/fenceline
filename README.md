@@ -14,7 +14,7 @@ Maps every finding to a CWE from the 2025 CWE Top 25, OWASP Top 10:2025, and kno
 Python zero-day exploit patterns (pickle bypass CVE-2026-56315, PyYAML shadow
 vulnerability CVE-2026-24009, LangChain SSTI CVE-2025-68664, dependency confusion
 CVE-2025-61774, and more — see the CWE reference printed at the end of every
-text-mode report). 56 checks total: most are AST-based (won't false-positive on a
+text-mode report). 57 checks total: most are AST-based (won't false-positive on a
 dangerous call mentioned in a docstring or comment); the rest are line-regex checks
 for surface-syntax patterns that don't need full parsing.
 

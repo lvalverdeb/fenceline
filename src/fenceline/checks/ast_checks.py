@@ -39,6 +39,7 @@ __all__ = [
     "check_parquet_arrow_deserialize",
     "check_decode_exec_chains",
     "check_huggingface_unsafe_download",
+    "check_unbounded_pydantic_field",
 ]
 
 
@@ -717,6 +718,161 @@ def check_huggingface_unsafe_download(
                     "local diff to review. Pin revision= to a specific commit SHA or tag.",
                     zero_day_relevance="OWASP ML06: unpinned model sources are a supply-chain vector — "
                     "a compromised or malicious upstream repo push propagates silently on next load.",
+                )
+            )
+    return results
+
+
+def _expr_dotted_name(node: ast.expr) -> str:
+    """Dotted name for a bare ``Name``/``Attribute`` chain, e.g.
+    ``pydantic.BaseModel`` -> ``"pydantic.BaseModel"``. Mirrors
+    ``_full_attr``, but for a general expression (a class base) rather
+    than specifically a ``Call``'s ``.func``. Empty string for anything
+    else (a subscript, a call, ...)."""
+    parts: list[str] = []
+    cur = node
+    while isinstance(cur, ast.Attribute):
+        parts.append(cur.attr)
+        cur = cur.value
+    if isinstance(cur, ast.Name):
+        parts.append(cur.id)
+        parts.reverse()
+        return ".".join(parts)
+    return ""
+
+
+def _is_pydantic_base(node: ast.expr) -> bool:
+    name = _expr_dotted_name(node)
+    return name == "BaseModel" or name.endswith(".BaseModel")
+
+
+# Pydantic's BaseModel is used for internal config/settings objects just as
+# often as for network-facing request bodies -- an unbounded str field on a
+# config class isn't a real attack surface. Narrowing to conventional
+# request/input-DTO name suffixes (matching FastAPI community convention,
+# and the exact EnrollRequest/VerifyRequest/IdentifyRequest names this check
+# was written to catch) keeps the signal-to-noise ratio usable rather than
+# flagging every settings class in a codebase.
+_REQUEST_MODEL_SUFFIXES = ("Request", "Input", "Payload", "Body", "Params")
+
+
+def _looks_like_request_model(class_name: str) -> bool:
+    return class_name.endswith(_REQUEST_MODEL_SUFFIXES)
+
+
+def _str_or_bytes_base_type(annotation: ast.expr) -> str | None:
+    """``"str"``/``"bytes"`` if *annotation* is a bare, ``Optional``-wrapped,
+    ``| None``-wrapped, or ``Annotated``-wrapped ``str``/``bytes`` type;
+    ``None`` otherwise.
+
+    Deliberately narrow: an annotation that's itself a ``Call``
+    (``constr(...)``, a custom validator type) is left alone on the
+    assumption that whoever wrote it already thought about constraints, and
+    anything that isn't ``str``/``bytes`` at all (``int``, a collection, a
+    custom model) isn't this check's concern.
+    """
+    if isinstance(annotation, ast.Name) and annotation.id in ("str", "bytes"):
+        return annotation.id
+    if isinstance(annotation, ast.Subscript) and isinstance(annotation.value, ast.Name):
+        if (
+            annotation.value.id == "Optional"
+            and isinstance(annotation.slice, ast.Name)
+            and annotation.slice.id in ("str", "bytes")
+        ):
+            return annotation.slice.id
+        if (
+            annotation.value.id == "Annotated"
+            and isinstance(annotation.slice, ast.Tuple)
+            and annotation.slice.elts
+            and isinstance(annotation.slice.elts[0], ast.Name)
+            and annotation.slice.elts[0].id in ("str", "bytes")
+        ):
+            return annotation.slice.elts[0].id
+    if isinstance(annotation, ast.BinOp) and isinstance(annotation.op, ast.BitOr):
+        for side in (annotation.left, annotation.right):
+            if isinstance(side, ast.Name) and side.id in ("str", "bytes"):
+                return side.id
+    return None
+
+
+def _field_call_has_max_length(node: ast.expr) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and _call_name(node) in ("Field", "StringConstraints")
+        and any(kw.arg == "max_length" for kw in node.keywords)
+    )
+
+
+def _has_length_constraint(annotation: ast.expr, default: ast.expr | None) -> bool:
+    if default is not None and _field_call_has_max_length(default):
+        return True
+    if (
+        isinstance(annotation, ast.Subscript)
+        and isinstance(annotation.value, ast.Name)
+        and annotation.value.id == "Annotated"
+        and isinstance(annotation.slice, ast.Tuple)
+    ):
+        return any(_field_call_has_max_length(item) for item in annotation.slice.elts[1:])
+    return False
+
+
+def check_unbounded_pydantic_field(
+    path: Path, lines: list[str], tree: ast.Module | None
+) -> list[Finding]:
+    """OWASP API4:2023 / CWE-770. A Pydantic ``BaseModel`` field typed
+    ``str``/``bytes`` with no length constraint (``Field(max_length=...)``,
+    ``Annotated[str, Field(max_length=...)]``) accepts an arbitrarily large
+    request body — a client can force expensive decode/validation work
+    (e.g. a base64-encoded image field) before any handler logic runs, with
+    no size check anywhere in the request pipeline.
+
+    Only checks direct ``BaseModel`` subclasses — a field on a class that
+    inherits from an intermediate local base class (not textually
+    ``BaseModel`` itself) is a known false negative, same class of
+    limitation as this codebase's other single-hop heuristic checks. Also
+    restricted to classes named like a request/input DTO (``*Request``,
+    ``*Input``, ``*Payload``, ``*Body``, ``*Params``) — see
+    ``_looks_like_request_model`` for why: without this, every internal
+    config/settings ``BaseModel`` in a codebase fires too, drowning out the
+    real signal.
+    """
+    pk = _rel(path)
+    results: list[Finding] = []
+    for node in ast.walk(tree) if tree else []:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        if not _looks_like_request_model(node.name):
+            continue
+        if not any(_is_pydantic_base(base) for base in node.bases):
+            continue
+        for stmt in node.body:
+            if not isinstance(stmt, ast.AnnAssign) or not isinstance(stmt.target, ast.Name):
+                continue
+            base_type = _str_or_bytes_base_type(stmt.annotation)
+            if base_type is None:
+                continue
+            if _has_length_constraint(stmt.annotation, stmt.value):
+                continue
+            line = _node_line(stmt)
+            code = lines[line - 1].strip() if 1 <= line <= len(lines) else ""
+            results.append(
+                Finding(
+                    cwe_id="CWE-770",
+                    cwe_name="Unbounded Request Field Size",
+                    severity="MEDIUM",
+                    confidence="MEDIUM",
+                    package="",
+                    file=pk,
+                    line=line,
+                    code_snippet=code,
+                    description=(
+                        f"'{stmt.target.id}: {base_type}' has no length constraint — a client "
+                        "can send an arbitrarily large value, forcing expensive decode/validation "
+                        "work before any handler logic runs. Add Field(max_length=...) or an "
+                        "Annotated[str, StringConstraints(max_length=...)]."
+                    ),
+                    zero_day_relevance="OWASP API4:2023: Unrestricted Resource Consumption — "
+                    "unbounded request fields are a common DoS vector in FastAPI/Pydantic APIs.",
                 )
             )
     return results

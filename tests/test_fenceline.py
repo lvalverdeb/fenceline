@@ -12,6 +12,7 @@ from fenceline.checks.ast_checks import (
     check_huggingface_unsafe_download,
     check_numpy_load,
     check_pandas_eval,
+    check_unbounded_pydantic_field,
 )
 from fenceline.checks.text_checks import (
     check_bind_all_interfaces,
@@ -36,7 +37,7 @@ def _findings(check_fn, src: str) -> list[Finding]:
 def test_checks_registry_has_every_check_once():
     names = [fn.__name__ for _, fn in CHECKS]
     assert len(names) == len(set(names))
-    assert len(CHECKS) == 56
+    assert len(CHECKS) == 57
 
 
 def test_every_check_is_callable_and_returns_a_list():
@@ -161,6 +162,65 @@ def test_check_huggingface_unsafe_download_ignores_pinned_revision():
         'AutoModel.from_pretrained("org/model", revision="a1b2c3d")\n',
     )
     assert findings == []
+
+
+def test_check_unbounded_pydantic_field_flags_bare_str_field():
+    # This is the real-world gap reported from a scanned FastAPI app:
+    # EnrollRequest.image: str had no size limit, letting a client force
+    # expensive base64 decode/CPU work with an arbitrarily large payload.
+    findings = _findings(
+        check_unbounded_pydantic_field,
+        "class EnrollRequest(BaseModel):\n    image: str\n",
+    )
+    assert len(findings) == 1
+    assert findings[0].cwe_id == "CWE-770"
+    assert findings[0].severity == "MEDIUM"
+
+
+def test_check_unbounded_pydantic_field_ignores_field_max_length():
+    src = "class EnrollRequest(BaseModel):\n    image: str = Field(max_length=15_000_000)\n"
+    assert _findings(check_unbounded_pydantic_field, src) == []
+
+
+def test_check_unbounded_pydantic_field_ignores_annotated_field_max_length():
+    src = (
+        "class EnrollRequest(BaseModel):\n    image: Annotated[str, Field(max_length=15_000_000)]\n"
+    )
+    assert _findings(check_unbounded_pydantic_field, src) == []
+
+
+def test_check_unbounded_pydantic_field_flags_optional_str_without_constraint():
+    src = "class EnrollRequest(BaseModel):\n    note: Optional[str] = None\n"
+    findings = _findings(check_unbounded_pydantic_field, src)
+    assert len(findings) == 1
+
+
+def test_check_unbounded_pydantic_field_ignores_non_str_fields():
+    src = "class EnrollRequest(BaseModel):\n    count: int\n    ratio: float\n"
+    assert _findings(check_unbounded_pydantic_field, src) == []
+
+
+def test_check_unbounded_pydantic_field_ignores_non_basemodel_classes():
+    # A plain class (not a BaseModel subclass) with an unconstrained str
+    # attribute isn't network-facing request input by construction.
+    src = "class NotARequestModel:\n    image: str\n"
+    assert _findings(check_unbounded_pydantic_field, src) == []
+
+
+def test_check_unbounded_pydantic_field_ignores_constr_annotation():
+    # A field whose annotation is itself a call (constr(...)) is assumed
+    # already constrained by whoever wrote it -- not this check's concern.
+    src = "class EnrollRequest(BaseModel):\n    image: constr(max_length=100)\n"
+    assert _findings(check_unbounded_pydantic_field, src) == []
+
+
+def test_check_unbounded_pydantic_field_ignores_config_class_by_name():
+    # A BaseModel subclass that isn't named like a request/input DTO (e.g.
+    # an internal config/settings model) is out of scope -- without this
+    # narrowing, every settings class in a codebase fires, drowning out
+    # the real signal on genuine network-facing request bodies.
+    src = "class FilesystemConfig(BaseModel):\n    fs_path: str\n"
+    assert _findings(check_unbounded_pydantic_field, src) == []
 
 
 def test_check_bind_all_interfaces_ignores_cidr_ranges():

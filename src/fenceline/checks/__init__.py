@@ -42,6 +42,7 @@ from fenceline.checks.ast_checks import (
     check_parquet_arrow_deserialize,
     check_request_timeout,
     check_torch_load,
+    check_unbounded_pydantic_field,
 )
 from fenceline.checks.manifest_checks import (
     check_dependency_cve,
@@ -153,6 +154,7 @@ _BUILTIN_CHECKS: list[tuple[str, CheckFn]] = [
     ("Weak TLS Protocol Version (CWE-326)", check_weak_tls_version),
     ("Legacy PyCrypto Import (CWE-1104)", check_legacy_pycrypto),
     ("HuggingFace Unsafe Download (OWASP ML06 / B615)", check_huggingface_unsafe_download),
+    ("Unbounded Request Field Size (OWASP API4:2023 / CWE-770)", check_unbounded_pydantic_field),
 ]
 
 _PLUGIN_GROUP = "fenceline.checks"
