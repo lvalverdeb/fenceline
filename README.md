@@ -25,6 +25,8 @@ uv run fenceline
 uv run fenceline --json > report.json
 uv run fenceline -q
 uv run fenceline --fail-on critical
+uv run fenceline --exclude tests/ examples/
+uv run fenceline --config fenceline.toml
 uv run fenceline --package my-lib=my-lib/src/my_lib
 uv run fenceline --packages my-lib other-lib
 ```
@@ -37,10 +39,12 @@ Exit codes: `0` (no findings at or above `--fail-on`), `1` (one or more).
 | --- | --- | --- |
 | `--json` | off | Machine-readable output |
 | `--quiet` / `-q` | off | Suppress the banner |
+| `--config` | none | TOML file with a `packages` table of `name = "path"` entries (see below); replaces cwd auto-discovery |
+| `--package` | none | Add or override one package as `NAME=PATH` (repeatable); applied on top of `--config` |
+| `--packages` | all resolved packages | Names to scan from the resolved registry |
+| `--exclude` | none | Path substrings to exclude from scanning |
 | `--fail-on` | `high` | Severity threshold (`critical`\|`high`\|`medium`\|`low`\|`info`) for the exit code |
 | `--confidence-min` | `low` | Drop findings below this confidence (`high`\|`medium`\|`low`) |
-| `--package NAME=PATH` | — | Add a scan target package (repeatable); replaces cwd auto-discovery entirely when given |
-| `--packages NAME [NAME ...]` | all | Scan only these names from the resolved registry |
 | `--baseline PATH` | — | Only report/fail on findings not already present in this baseline |
 | `--write-baseline PATH` | — | Snapshot current findings to PATH and exit 0 |
 | `--include-tests` | off | Include CWE-798/617/918/770 findings inside test code (see "Test code" below) |
@@ -66,7 +70,7 @@ benchmarks` — they're unioned with the built-in conventions above.
 
 ### What gets scanned by default
 
-A bare `fenceline` invocation (no `--package`) auto-discovers packages from
+A bare `fenceline` invocation (no `--config`/`--package`) auto-discovers packages from
 the current directory: every immediate subdirectory containing at least one
 `.py` file anywhere in its subtree becomes its own named package, skipping
 noise directories (`.venv`, `.git`, `__pycache__`, `node_modules`, `build`,
@@ -75,10 +79,41 @@ subtree, not just at the top level). Loose `.py` files sitting directly in
 the current directory (outside any subdirectory) are scanned too, grouped
 into a package named after the directory itself.
 
-Pass `--package NAME=PATH` (repeatable) to scan an explicit set of
-directories instead — this replaces auto-discovery entirely rather than
-adding to it. Use `--packages NAME [NAME ...]` afterwards to narrow down to
-a subset of whichever registry was resolved.
+To point it at other packages — in this workspace, another workspace, or
+any directory on disk — use `--config` and/or `--package`:
+
+1. No `--config`/`--package` → cwd auto-discovery, as above.
+2. `--config` given → its `packages` table is used as the full set,
+   explicitly rather than auto-discovered.
+3. `--package NAME=PATH` entries are then overlaid on top of whichever set
+   (1) or (2) produced — adding new names or overriding ones already
+   defined, so a config file plus a quick ad-hoc addition both work
+   together.
+
+Use `--packages NAME [NAME ...]` afterwards to narrow down to a subset of
+whichever registry was resolved. Use `--exclude SUBSTR [SUBSTR ...]` to skip
+additional path substrings on top of the built-in noise-directory list.
+
+#### `--config`: TOML file
+
+```toml
+# fenceline.toml
+[packages]
+my-lib = "my-lib/src/my_lib"
+other = "../other/src/other"
+```
+
+```bash
+uv run fenceline --config fenceline.toml
+```
+
+TOML rather than YAML deliberately: fenceline's own dependency list is
+intentionally empty, and the PyYAML shadow vulnerability (CVE-2026-24009,
+mentioned above) is itself one of the patterns fenceline scans for — adding
+a YAML dependency to a tool that flags YAML-library CVEs would be ironic.
+Python's stdlib `tomllib` covers this without adding one. Paths resolve
+relative to the config file, and every resolved path passes the same
+path-security sandbox check `--package` entries get.
 
 ### Severity vs. confidence
 

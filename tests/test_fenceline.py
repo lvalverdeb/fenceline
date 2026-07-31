@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from fenceline.baseline import load_baseline, split_by_baseline, write_baseline
 from fenceline.checks import CHECKS, _discover_plugin_checks
 from fenceline.checks.ast_checks import (
@@ -23,7 +25,12 @@ from fenceline.checks.text_checks import (
     check_weak_hash,
     check_weak_tls_version,
 )
-from fenceline.cli import _manifest_package_label, discover_cwd_packages
+from fenceline.cli import (
+    _load_packages_from_config,
+    _manifest_package_label,
+    discover_cwd_packages,
+    resolve_packages,
+)
 from fenceline.config import _find_workspace_root, is_secure_path
 from fenceline.models import Finding
 from fenceline.reporting import print_report
@@ -351,6 +358,113 @@ def test_cli_json_output_is_well_formed(tmp_path):
     assert result.returncode in (0, 1)
     payload = json.loads(result.stdout)
     assert "findings" in payload and "count" in payload
+
+
+# ── Generic package registry: --config / --package / resolve_packages ──────
+
+
+def test_load_packages_from_config_resolves_relative_to_config_dir(tmp_path):
+    config_dir = tmp_path / "conf"
+    config_dir.mkdir()
+    (config_dir / "fenceline.toml").write_text('[packages]\nmy-lib = "src/my_lib"\n')
+
+    packages = _load_packages_from_config(config_dir / "fenceline.toml", cwd=tmp_path)
+
+    assert packages == {"my-lib": (config_dir / "src" / "my_lib").resolve()}
+
+
+def test_load_packages_from_config_rejects_path_outside_allowed_roots(tmp_path):
+    config_dir = tmp_path / "conf"
+    config_dir.mkdir()
+    (config_dir / "fenceline.toml").write_text('[packages]\nevil = "../../../etc"\n')
+
+    with pytest.raises(SystemExit, match="outside the allowed roots"):
+        _load_packages_from_config(config_dir / "fenceline.toml", cwd=tmp_path)
+
+
+def test_load_packages_from_config_missing_packages_key_errors(tmp_path):
+    config_path = tmp_path / "fenceline.toml"
+    config_path.write_text("not_packages = {}\n")
+
+    with pytest.raises(SystemExit, match="must define a top-level 'packages' table"):
+        _load_packages_from_config(config_path, cwd=tmp_path)
+
+
+def test_load_packages_from_config_bad_toml_errors(tmp_path):
+    config_path = tmp_path / "fenceline.toml"
+    config_path.write_text("this is not valid toml [[[\n")
+
+    with pytest.raises(SystemExit, match="could not parse --config"):
+        _load_packages_from_config(config_path, cwd=tmp_path)
+
+
+def test_load_packages_from_config_missing_file_errors(tmp_path):
+    with pytest.raises(SystemExit, match="could not read --config"):
+        _load_packages_from_config(tmp_path / "does-not-exist.toml", cwd=tmp_path)
+
+
+def test_resolve_packages_package_args_overlay_config(tmp_path):
+    config_path = tmp_path / "fenceline.toml"
+    config_path.write_text('[packages]\nconfigured = "src/configured"\n')
+
+    result = resolve_packages(
+        config_path=config_path,
+        package_args=["extra=src/extra", "configured=src/override"],
+        cwd=tmp_path,
+    )
+
+    assert result == {
+        "configured": (tmp_path / "src" / "override").resolve(),
+        "extra": (tmp_path / "src" / "extra").resolve(),
+    }
+
+
+def test_resolve_packages_package_args_alone_no_config(tmp_path):
+    result = resolve_packages(config_path=None, package_args=["only=src/only"], cwd=tmp_path)
+    assert result == {"only": (tmp_path / "src" / "only").resolve()}
+
+
+def test_cli_config_flag_scans_configured_package(tmp_path):
+    pkg_dir = tmp_path / "pkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "mod.py").write_text("pickle.loads(data)\n")
+    (tmp_path / "fenceline.toml").write_text('[packages]\npkg = "pkg"\n')
+
+    result = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--config", "fenceline.toml", "--json", "--quiet"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    payload = json.loads(result.stdout)
+    assert payload["count"] == 1
+
+
+def test_cli_exclude_flag_skips_matching_paths(tmp_path):
+    pkg_dir = tmp_path / "pkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "mod.py").write_text("pickle.loads(data)\n")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "fenceline.cli",
+            "--package",
+            "pkg=pkg",
+            "--exclude",
+            "mod.py",
+            "--json",
+            "--quiet",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    payload = json.loads(result.stdout)
+    assert payload["count"] == 0
 
 
 def test_finding_confidence_defaults_to_medium():

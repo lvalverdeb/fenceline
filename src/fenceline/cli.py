@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tomllib
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
@@ -15,7 +16,7 @@ from fenceline.reporting import print_report
 from fenceline.scanner import _ast_parse, _is_test_path, _iter_py, _read, _rel
 from fenceline.suppression import apply_suppressions
 
-__all__ = ["main", "discover_cwd_packages"]
+__all__ = ["main", "resolve_packages", "discover_cwd_packages"]
 
 
 def _fenceline_version() -> str:
@@ -110,6 +111,66 @@ def _parse_package_args(entries: list[str], *, cwd: Path) -> dict[str, Path]:
     return resolved
 
 
+def _load_packages_from_config(config_path: Path, *, cwd: Path) -> dict[str, Path]:
+    """Load a ``{name: path}`` package registry from a TOML config file.
+
+    Same shape as spaghetti's own ``--config`` (a ``packages`` table of
+    ``name = "path"`` entries), but TOML rather than YAML: fenceline's own
+    dependency list is intentionally empty (its README lists the PyYAML
+    shadow vulnerability as one of the exploit patterns it scans for), and
+    ``tomllib`` is already used elsewhere in this package for workspace-root
+    discovery, so this adds no new dependency.
+
+    Every resolved path goes through the same ``is_secure_path`` sandbox
+    check ``--package`` entries get — a config-supplied path is just as
+    capable of pointing outside the allowed roots as a CLI one. The config
+    file's own directory is added to the allowed roots alongside the
+    workspace root and cwd, since the caller explicitly pointed ``--config``
+    at it.
+    """
+    try:
+        raw = tomllib.loads(config_path.read_text())
+    except OSError as exc:
+        raise SystemExit(f"error: could not read --config {config_path}: {exc}") from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise SystemExit(f"error: could not parse --config {config_path}: {exc}") from exc
+
+    if not isinstance(raw.get("packages"), dict):
+        raise SystemExit(
+            f"error: {config_path} must define a top-level 'packages' table "
+            f'of name = "path" entries, e.g.:\n\n[packages]\nmy-pkg = "my-pkg/src/my_pkg"\n'
+        )
+
+    base_dir = config_path.resolve().parent
+    allowed_roots = [root for root in (WORKSPACE_ROOT, cwd, base_dir) if root is not None]
+    resolved: dict[str, Path] = {}
+    for name, rel_path in raw["packages"].items():
+        candidate = (base_dir / str(rel_path)).resolve()
+        if not is_secure_path(candidate, allowed_roots):
+            raise SystemExit(
+                f"error: --config package {name!r}={rel_path!r} resolves to {candidate}, "
+                f"which is outside the allowed roots {allowed_roots}."
+            )
+        resolved[str(name)] = candidate
+    return resolved
+
+
+def resolve_packages(
+    *,
+    config_path: Path | None,
+    package_args: list[str],
+    cwd: Path,
+) -> dict[str, Path]:
+    """Build the effective ``{name: path}`` package registry for one run,
+    combining ``--config`` and ``--package`` the same way spaghetti's own
+    ``resolve_packages`` does: config first, then ``--package`` entries
+    overlaid on top (adding new names or overriding ones already defined).
+    """
+    packages = _load_packages_from_config(config_path, cwd=cwd) if config_path is not None else {}
+    packages.update(_parse_package_args(package_args, cwd=cwd))
+    return packages
+
+
 _NOISE_DIR_NAMES = frozenset({"__pycache__", "node_modules", "build", "dist", "site-packages"})
 
 # Path-substring patterns skipped while walking a cwd-auto-discovered
@@ -183,14 +244,25 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="JSON output")
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress banner")
     parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "TOML file with a 'packages' table of name = \"path\" entries, "
+            "replacing the cwd auto-discovered registry. Paths resolve "
+            "relative to the config file."
+        ),
+    )
+    parser.add_argument(
         "--package",
         action="append",
         default=[],
         metavar="NAME=PATH",
         help=(
-            "Add a scan target package as NAME=PATH (repeatable). Replaces the "
-            "cwd auto-discovered registry entirely when given, rather than "
-            "adding to it — pass one --package per target to scan more than one."
+            "Add or override one package as NAME=PATH (repeatable). Applied "
+            "on top of --config; replaces the cwd auto-discovered registry "
+            "entirely when either is given, rather than adding to it."
         ),
     )
     parser.add_argument(
@@ -200,8 +272,15 @@ def main() -> int:
         metavar="NAME",
         help=(
             "Names to scan from the resolved registry (default: all — see "
-            "--package for how the registry is built)"
+            "--config/--package for how the registry is built)"
         ),
+    )
+    parser.add_argument(
+        "--exclude",
+        nargs="*",
+        default=[],
+        metavar="SUBSTR",
+        help="Extra path substrings to exclude from scanning (default: none)",
     )
     parser.add_argument(
         "--fail-on",
@@ -255,20 +334,21 @@ def main() -> int:
 
     cwd = Path.cwd()
 
-    # A bare invocation (no --package) must never silently fall back to this
-    # workspace's own boti/boti-data/boti-dask/fenceline registry — instead
-    # it auto-discovers whatever's actually under the current directory,
-    # same fix spaghetti's own CLI already applies for the same reason.
-    # --package opts back into an explicit, non-cwd-derived registry.
+    # A bare invocation (no --config/--package) must never silently fall back
+    # to this workspace's own boti/boti-data/boti-dask/fenceline registry —
+    # instead it auto-discovers whatever's actually under the current
+    # directory, same fix spaghetti's own CLI already applies for the same
+    # reason. --config/--package (in any combination) opt back into an
+    # explicit, non-cwd-derived registry.
     non_recursive: frozenset[str] = frozenset()
-    exclude: list[str] = []
-    if not args.package:
+    exclude: list[str] = args.exclude
+    if args.config is None and not args.package:
         packages, loose_root_name = discover_cwd_packages(cwd)
-        exclude = DEFAULT_CWD_EXCLUDES
+        exclude = args.exclude + DEFAULT_CWD_EXCLUDES
         if loose_root_name is not None:
             non_recursive = frozenset({loose_root_name})
     else:
-        packages = _parse_package_args(args.package, cwd=cwd)
+        packages = resolve_packages(config_path=args.config, package_args=args.package, cwd=cwd)
 
     if not packages:
         parser.error("no packages to scan — the resolved package registry is empty")
