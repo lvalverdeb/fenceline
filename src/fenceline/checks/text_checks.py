@@ -279,7 +279,9 @@ def check_path_traversal(path: Path, lines: list[str], tree: ast.Module | None) 
 
 
 def check_hardcoded_secrets(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-798 (was #35 in 2025)."""
+    """CWE-798 (was #35 in 2025). Matched case-insensitively — UPPER_SNAKE_CASE
+    module constants (``PASSWORD = "..."``) are the standard Python
+    convention for exactly this kind of value and were otherwise invisible."""
     pk = _rel(path)
     results: list[Finding] = []
     patterns: list[tuple[str, str, str]] = [
@@ -299,7 +301,7 @@ def check_hardcoded_secrets(path: Path, lines: list[str], tree: ast.Module | Non
         if _skip(line):
             continue
         for pat, sev, desc in patterns:
-            if re.search(pat, line) and not _is_secret_false_positive(line):
+            if re.search(pat, line, re.IGNORECASE) and not _is_secret_false_positive(line):
                 results.append(
                     Finding(
                         cwe_id="CWE-798",
@@ -332,13 +334,21 @@ def _is_secret_false_positive(line: str) -> bool:
 
 
 def check_yaml_deserialize(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-502 via PyYAML.  Zero-day: CVE-2026-24009 Docling RCE."""
+    """CWE-502 via PyYAML.  Zero-day: CVE-2026-24009 Docling RCE.
+
+    ``yaml.unsafe_load()`` is PyYAML's own alias for
+    ``yaml.load(x, Loader=yaml.UnsafeLoader)`` — same RCE, different call
+    name — so it's matched directly rather than relying on the
+    ``yaml.load(`` pattern below, which never appears in that call at all.
+    """
     pk = _rel(path)
     results: list[Finding] = []
     for lineno, line in enumerate(lines, 1):
         if _skip(line):
             continue
-        if re.search(r"yaml\.load\s*\(", line) and "SafeLoader" not in line:
+        loose_load = re.search(r"yaml\.load\s*\(", line) and "SafeLoader" not in line
+        unsafe_load = re.search(r"yaml\.unsafe_load\s*\(", line)
+        if loose_load or unsafe_load:
             results.append(
                 Finding(
                     cwe_id="CWE-502",
@@ -348,7 +358,7 @@ def check_yaml_deserialize(path: Path, lines: list[str], tree: ast.Module | None
                     file=pk,
                     line=lineno,
                     code_snippet=line.strip(),
-                    description="yaml.load() without SafeLoader — enables arbitrary code execution.",
+                    description="yaml.load()/yaml.unsafe_load() without SafeLoader — enables arbitrary code execution.",
                     zero_day_relevance="CVE-2026-24009: Docling RCE via PyYAML shadow vulnerability. "
                     "Transitive YAML deps can introduce RCE without a direct yaml import.",
                 )
@@ -356,13 +366,44 @@ def check_yaml_deserialize(path: Path, lines: list[str], tree: ast.Module | None
     return results
 
 
+def _lxml_etree_alias(tree: ast.Module | None) -> str | None:
+    """Local name bound to ``lxml.etree`` — ``from lxml import etree``
+    (optionally aliased) or ``import lxml.etree`` (optionally aliased) — or
+    ``None`` if not imported.
+
+    ``lxml.etree`` is the standard XML library alternative to the stdlib
+    ``xml.etree``/``xml.dom``/``xml.sax`` modules this check already
+    covers, and in production code is more common than any of them — but
+    it's almost always imported under a bare ``etree`` name, so the
+    ``xml.etree.``-style prefix match below never fires on lxml usage
+    (including the textbook OWASP XXE-enabling pattern,
+    ``etree.XMLParser(resolve_entities=True)``).
+    """
+    if tree is None:
+        return None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "lxml":
+            for alias in node.names:
+                if alias.name == "etree":
+                    return alias.asname or "etree"
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "lxml.etree":
+                    return alias.asname or "lxml.etree"
+    return None
+
+
 def check_xxe(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     pk = _rel(path)
     results: list[Finding] = []
+    lxml_alias = _lxml_etree_alias(tree)
+    lxml_pattern = re.compile(rf"\b{re.escape(lxml_alias)}\.") if lxml_alias else None
     for lineno, line in enumerate(lines, 1):
         if _skip(line):
             continue
-        if re.search(r"(?:xml\.etree|xml\.dom|xml\.sax)\.", line):
+        if re.search(r"(?:xml\.etree|xml\.dom|xml\.sax)\.", line) or (
+            lxml_pattern and lxml_pattern.search(line)
+        ):
             results.append(
                 Finding(
                     cwe_id="CWE-611",
@@ -420,20 +461,67 @@ def _fully_safe_ssrf_call_lines(tree: ast.Module | None) -> set[int]:
     return safe_lines
 
 
+_SSRF_SESSION_CONSTRUCTORS = frozenset({"requests.Session", "httpx.Client", "httpx.AsyncClient"})
+
+
+def _ssrf_session_call_lines(tree: ast.Module | None) -> tuple[set[int], set[int]]:
+    """``(flagged_lines, safe_lines)`` for ``<var>.<http_method>(...)`` calls
+    whose ``<var>`` resolves, in its own function/module scope, to a
+    ``requests.Session()``/``httpx.Client()``/``httpx.AsyncClient()``
+    binding (plain assignment or ``with ... as``) — the connection-reuse
+    pattern the module-prefix regex in ``check_ssrf`` doesn't see, since the
+    request is made on the bound variable rather than the module.
+
+    Deliberately scoped per call via ``_iter_calls_in_scope`` rather than a
+    file-global name match: ``session``/``client`` are some of the most
+    reused variable names in Python, and an unrelated same-named object in
+    a *different* function scope — a SQLAlchemy ``session.get(Model, pk)``/
+    ``session.delete(obj)``, for instance — is a realistic collision that a
+    file-wide regex would wrongly flag as SSRF. Safe-line suppression
+    reuses the same ``_is_locally_safe_expr`` check already applied to
+    direct ``requests.get(...)``/``httpx.get(...)`` calls, so a
+    session-based call with a locally-safe literal URL isn't held to a
+    stricter standard than the module-call form is.
+    """
+    if tree is None:
+        return set(), set()
+    flagged: set[int] = set()
+    safe: set[int] = set()
+    for call, params, literals, imports in _iter_calls_in_scope(tree):
+        if not (
+            isinstance(call.func, ast.Attribute)
+            and call.func.attr in _SSRF_METHOD_NAMES
+            and isinstance(call.func.value, ast.Name)
+        ):
+            continue
+        bound = literals.get(call.func.value.id)
+        if not (isinstance(bound, ast.Call) and _full_attr(bound) in _SSRF_SESSION_CONSTRUCTORS):
+            continue
+        line = _node_line(call)
+        flagged.add(line)
+        if call.args and _is_locally_safe_expr(call.args[0], params, literals, imports):
+            safe.add(line)
+    return flagged, safe
+
+
 def check_ssrf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-918 rank #22."""
     pk = _rel(path)
     results: list[Finding] = []
     safe_lines = _fully_safe_ssrf_call_lines(tree)
+    session_flagged, session_safe = _ssrf_session_call_lines(tree)
+    method_alt = "|".join(sorted(_SSRF_METHOD_NAMES))
     http_pattern = re.compile(
-        r"(?:requests|httpx)\.(?:get|post|put|patch|delete|head|options|request)\s*\("
+        rf"(?:requests|httpx)\.(?:{method_alt})\s*\("
         r"|urllib\.request\.urlopen\s*\("
         r"|aiohttp\.ClientSession"
     )
     for lineno, line in enumerate(lines, 1):
-        if _skip(line) or lineno in safe_lines:
+        if _skip(line):
             continue
-        if http_pattern.search(line):
+        module_hit = lineno not in safe_lines and http_pattern.search(line)
+        session_hit = lineno in session_flagged and lineno not in session_safe
+        if module_hit or session_hit:
             results.append(
                 Finding(
                     cwe_id="CWE-918",
@@ -990,7 +1078,10 @@ def check_zipslip(path: Path, lines: list[str], tree: ast.Module | None) -> list
 
 
 def check_hardcoded_tokens(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-798 — extended: api_key, token, jwt, bearer, secret literal strings."""
+    """CWE-798 — extended: api_key, token, jwt, bearer, secret literal strings.
+    Matched case-insensitively — UPPER_SNAKE_CASE module constants
+    (``API_KEY = "..."``) are the standard Python convention for exactly
+    this kind of value and were otherwise invisible."""
     pk = _rel(path)
     results: list[Finding] = []
     # Look for: api_key = "actual-key", token = "eyJ...", bearer = "Bearer xyz", secret = "literal"
@@ -1011,7 +1102,7 @@ def check_hardcoded_tokens(path: Path, lines: list[str], tree: ast.Module | None
             continue
         stripped = line.strip()
         for pat, desc in patterns:
-            if re.search(pat, stripped) and not _is_secret_false_positive(stripped):
+            if re.search(pat, stripped, re.IGNORECASE) and not _is_secret_false_positive(stripped):
                 results.append(
                     Finding(
                         cwe_id="CWE-798",

@@ -173,6 +173,36 @@ def test_check_huggingface_unsafe_download_ignores_pinned_revision():
     assert findings == []
 
 
+def test_check_huggingface_unsafe_download_flags_trust_remote_code_on_load_dataset():
+    # Regression target: trust_remote_code=True carries the same RCE risk on
+    # datasets.load_dataset() as it does on from_pretrained(), but the
+    # original implementation only matched the from_pretrained call name.
+    findings = _findings(
+        check_huggingface_unsafe_download,
+        'load_dataset("org/dataset", trust_remote_code=True)\n',
+    )
+    assert len(findings) == 1
+    assert findings[0].severity == "CRITICAL"
+    assert findings[0].cwe_id == "CWE-94"
+
+
+def test_check_huggingface_unsafe_download_flags_trust_remote_code_on_pipeline():
+    findings = _findings(
+        check_huggingface_unsafe_download,
+        'pipeline("text-generation", model=name, trust_remote_code=True)\n',
+    )
+    assert len(findings) == 1
+    assert findings[0].severity == "CRITICAL"
+    assert findings[0].cwe_id == "CWE-94"
+
+
+def test_check_huggingface_unsafe_download_no_unpinned_revision_noise_on_load_dataset():
+    # The unpinned-revision heuristic (CWE-1104) is scoped to from_pretrained
+    # only -- load_dataset()/pipeline() without trust_remote_code shouldn't
+    # be flagged for a risk this check was never written to assess for them.
+    assert _findings(check_huggingface_unsafe_download, 'load_dataset("org/dataset")\n') == []
+
+
 def test_check_unbounded_pydantic_field_flags_bare_str_field():
     # This is the real-world gap reported from a scanned FastAPI app:
     # EnrollRequest.image: str had no size limit, letting a client force

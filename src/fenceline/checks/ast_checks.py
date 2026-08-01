@@ -657,6 +657,9 @@ def check_decode_exec_chains(
     return results
 
 
+_HF_TRUST_REMOTE_CODE_CALL_NAMES = frozenset({"from_pretrained", "load_dataset", "pipeline"})
+
+
 def check_huggingface_unsafe_download(
     path: Path, lines: list[str], tree: ast.Module | None
 ) -> list[Finding]:
@@ -664,18 +667,24 @@ def check_huggingface_unsafe_download(
 
     Two distinct risks, both about trusting an upstream model repo:
     - `trust_remote_code=True` executes arbitrary Python shipped in the
-      model repo at load time — CWE-94, the more severe of the two.
+      model repo at load time — CWE-94, the more severe of the two. The
+      same kwarg, with the same RCE semantics, is also accepted by
+      `datasets.load_dataset()` and `transformers.pipeline()` — not just
+      `from_pretrained` — so all three call names are checked for it.
     - No `revision=` pin means `from_pretrained` follows the repo's moving
       `main` ref, so the repo owner (or anyone who compromises their
       account) can swap weights/code under an already-reviewed call site
-      with no local diff to catch it — CWE-1104, supply-chain.
+      with no local diff to catch it — CWE-1104, supply-chain. Scoped to
+      `from_pretrained` only, the call name this heuristic was written
+      against.
     """
     pk = _rel(path)
     results: list[Finding] = []
     for node in ast.walk(tree) if tree else []:
         if not isinstance(node, ast.Call):
             continue
-        if _call_name(node) != "from_pretrained":
+        call_name = _call_name(node)
+        if call_name not in _HF_TRUST_REMOTE_CODE_CALL_NAMES:
             continue
         line = _node_line(node)
         code = lines[line - 1].strip() if 1 <= line <= len(lines) else ""
@@ -702,7 +711,7 @@ def check_huggingface_unsafe_download(
                     "have been used for real supply-chain RCE against ML pipelines.",
                 )
             )
-        elif "revision" not in kw_names:
+        elif call_name == "from_pretrained" and "revision" not in kw_names:
             results.append(
                 Finding(
                     cwe_id="CWE-1104",

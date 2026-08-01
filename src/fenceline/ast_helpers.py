@@ -237,6 +237,16 @@ def _collect_scope_names(stmts: list[ast.stmt]) -> tuple[dict[str, ast.expr], fr
                     imports.add(alias.asname or alias.name.split(".")[0])
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 imports.add(node.name)
+            elif isinstance(node, (ast.With, ast.AsyncWith)):
+                # `with X() as y:` binds `y` to X()'s result for the
+                # remainder of the block, same as `y = X()` would -- treated
+                # identically here so a name bound via a context manager
+                # (e.g. `with httpx.AsyncClient() as client:`) resolves the
+                # same way a plain assignment does for callers that walk
+                # this scope's `literals`.
+                for item in node.items:
+                    if isinstance(item.optional_vars, ast.Name):
+                        literals[item.optional_vars.id] = item.context_expr
     return literals, frozenset(imports)
 
 
