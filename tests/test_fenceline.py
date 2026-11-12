@@ -345,6 +345,17 @@ def test_ast_parse_returns_none_on_malformed_utf8_instead_of_raising(tmp_path):
     assert _ast_parse(bad_file) is None
 
 
+def test_ast_parse_returns_none_on_recursion_overflow_instead_of_raising(tmp_path):
+    # Regression test: a 20,000-term `1+1+...` expression makes ast.parse raise
+    # RecursionError (not SyntaxError) during AST construction. _ast_parse only
+    # caught SyntaxError/OSError/UnicodeDecodeError, so one such file aborted
+    # the whole scan with a traceback instead of being skipped like any other
+    # unparseable file.
+    wide_file = tmp_path / "wide.py"
+    wide_file.write_text("x = " + "+".join(["1"] * 20000) + "\n")
+    assert _ast_parse(wide_file) is None
+
+
 def test_find_workspace_root_returns_none_when_absent(tmp_path):
     # Regression test: this used to be a hard RuntimeError raised at import
     # time, which broke importing fenceline.config (and therefore this whole

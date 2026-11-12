@@ -86,7 +86,11 @@ def _read(path: Path) -> list[str]:
 def _ast_parse(path: Path) -> ast.Module | None:
     try:
         return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    except (SyntaxError, OSError, UnicodeDecodeError):
+    except (SyntaxError, OSError, UnicodeDecodeError, RecursionError):
+        # RecursionError: CPython's AST builder recurses per operand, so a
+        # pathologically wide expression (`1+1+...` tens of thousands of
+        # terms) overflows before SyntaxError would. Treat it like any other
+        # unparseable file -- text checks still run on it.
         return None
 
 
