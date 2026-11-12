@@ -14,9 +14,11 @@ Maps every finding to a CWE from the 2025 CWE Top 25, OWASP Top 10:2025, and kno
 Python zero-day exploit patterns (pickle bypass CVE-2026-56315, PyYAML shadow
 vulnerability CVE-2026-24009, LangChain SSTI CVE-2025-68664, dependency confusion
 CVE-2025-61774, and more — see the CWE reference printed at the end of every
-text-mode report). 57 checks total: most are AST-based (won't false-positive on a
-dangerous call mentioned in a docstring or comment); the rest are line-regex checks
-for surface-syntax patterns that don't need full parsing.
+text-mode report). 57 checks total: 14 walk the parsed AST; the rest are line-regex
+checks for surface-syntax patterns that don't need full parsing. Neither kind
+false-positives on a dangerous call quoted in a docstring or comment: the regex
+checks scan a copy of each file with comments and string-only statements blanked
+out (columns preserved), so only real code is matched.
 
 ## Usage
 
@@ -179,7 +181,9 @@ import is skipped with a warning rather than crashing the whole scan.
   entry-point discovery for third-party checks.
 - `fenceline.checks.ast_checks` — checks that walk the parsed AST (won't match
   a dangerous call mentioned in a docstring or string literal).
-- `fenceline.checks.text_checks` — checks that scan raw source lines for
+- `fenceline.checks.text_checks` — checks that regex-scan source lines (with
+  comments and docstrings blanked out by `scanner.mask_non_code`; Trojan Source
+  alone scans the raw lines, since bidi overrides hide in exactly those) for
   surface-syntax patterns.
 - `fenceline.checks.manifest_checks` — checks over dependency manifests
   (`pyproject.toml`, `requirements.txt`, etc.), not Python source.

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+import io
+import tokenize
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -12,6 +14,7 @@ __all__ = [
     "_iter_py",
     "_read",
     "_ast_parse",
+    "mask_non_code",
     "_rel",
     "_is_self_scan_exclusion",
     "_is_test_path",
@@ -92,6 +95,74 @@ def _ast_parse(path: Path) -> ast.Module | None:
         # terms) overflows before SyntaxError would. Treat it like any other
         # unparseable file -- text checks still run on it.
         return None
+
+
+def _byte_col_to_char_col(line: str, byte_col: int) -> int:
+    """``ast`` reports ``col_offset``/``end_col_offset`` in UTF-8 *bytes*;
+    the line-based checks index by character."""
+    return len(line.encode("utf-8")[:byte_col].decode("utf-8", errors="ignore"))
+
+
+def mask_non_code(path: Path, lines: list[str], tree: ast.Module | None) -> list[str]:
+    """A copy of *lines* with every comment and every string-only statement
+    (docstrings, and bare ``"..."`` statements used as block comments)
+    blanked out to spaces, so line numbers and columns are preserved
+    exactly. This is what the line-regex checks scan: a regex can't tell
+    ``os.system(`` in code from ``os.system(`` quoted in a docstring or
+    noted in a trailing comment, and on real code the latter dominated the
+    HIGH/CRITICAL false positives.
+
+    Non-``.py`` files (dependency manifests) are returned unchanged -- the
+    Python tokenizer has nothing to say about TOML. Comments come from
+    :mod:`tokenize` and are taken as far as the tokenizer gets on a file it
+    can't fully tokenize; string statements come from *tree* and so are only
+    masked when the file parsed. Trojan Source is the one check that
+    deliberately keeps scanning the raw lines (see ``checks.lines_for``).
+    """
+    if path.suffix != ".py":
+        return lines
+    spans: dict[int, list[tuple[int, int]]] = {}  # 1-based line -> [(start_col, end_col)]
+
+    if tree is not None:
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Expr)
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+            ):
+                continue
+            v = node.value
+            end_lineno = v.end_lineno if v.end_lineno is not None else v.lineno
+            for ln in range(v.lineno, end_lineno + 1):
+                line = lines[ln - 1] if ln - 1 < len(lines) else ""
+                start = _byte_col_to_char_col(line, v.col_offset) if ln == v.lineno else 0
+                end = (
+                    _byte_col_to_char_col(line, v.end_col_offset or 0)
+                    if ln == end_lineno
+                    else len(line)
+                )
+                spans.setdefault(ln, []).append((start, end))
+
+    try:
+        readline = io.StringIO("\n".join(lines) + "\n").readline
+        for tok in tokenize.generate_tokens(readline):
+            if tok.type == tokenize.COMMENT:
+                spans.setdefault(tok.start[0], []).append((tok.start[1], tok.end[1]))
+    except (tokenize.TokenError, SyntaxError, ValueError):
+        pass  # keep whatever was collected before the tokenizer gave up
+
+    if not spans:
+        return lines
+    masked = list(lines)
+    for ln, ranges in spans.items():
+        if ln - 1 >= len(masked):
+            continue
+        chars = list(masked[ln - 1])
+        for start, end in ranges:
+            for i in range(start, min(end, len(chars))):
+                chars[i] = " "
+        masked[ln - 1] = "".join(chars)
+    return masked
 
 
 def _rel(path: Path) -> str:

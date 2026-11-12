@@ -28,6 +28,7 @@ import sys
 from collections.abc import Callable
 from importlib.metadata import entry_points
 
+from fenceline.checks import text_checks as _text_checks
 from fenceline.checks.ast_checks import (
     check_decode_exec_chains,
     check_eval_exec,
@@ -158,6 +159,24 @@ _BUILTIN_CHECKS: list[tuple[str, CheckFn]] = [
 ]
 
 _PLUGIN_GROUP = "fenceline.checks"
+
+
+# Line-regex checks can't tell code from prose, so they run on the view of the
+# file produced by ``scanner.mask_non_code`` -- comments and string-only
+# statements blanked out. AST checks, manifest checks, and third-party plugin
+# checks see the raw lines (the first two don't regex-match prose; plugins
+# were written against raw lines). Trojan Source is the deliberate exception
+# among the text checks: bidi overrides hidden *inside* comments and strings
+# are exactly what it exists to catch.
+CODE_ONLY_CHECKS: frozenset[CheckFn] = frozenset(
+    fn for _, fn in _BUILTIN_CHECKS if fn.__module__ == _text_checks.__name__
+) - {check_trojan_source}
+
+
+def lines_for(check_fn: CheckFn, lines: list[str], code_lines: list[str]) -> list[str]:
+    """The line view *check_fn* should scan: ``code_lines`` for the regex
+    checks, the raw ``lines`` for everything else."""
+    return code_lines if check_fn in CODE_ONLY_CHECKS else lines
 
 
 def _discover_plugin_checks() -> list[tuple[str, CheckFn]]:

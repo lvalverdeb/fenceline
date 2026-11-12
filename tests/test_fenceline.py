@@ -34,7 +34,13 @@ from fenceline.cli import (
 from fenceline.config import _find_workspace_root, is_secure_path
 from fenceline.models import Finding
 from fenceline.reporting import print_report
-from fenceline.scanner import _ast_parse, _is_self_scan_exclusion, _is_test_path, _iter_py
+from fenceline.scanner import (
+    _ast_parse,
+    _is_self_scan_exclusion,
+    _is_test_path,
+    _iter_py,
+    mask_non_code,
+)
 from fenceline.suppression import apply_suppressions
 
 
@@ -1048,3 +1054,48 @@ def test_cli_deprioritized_cwes_suppressed_by_default_in_test_paths(tmp_path):
     included_files = {f["file"] for f in included_payload["findings"]}
     assert any("tests/" in f for f in included_files)
     assert "test_suppressed" not in included_payload
+
+
+def _mask(src: str, *, parse: bool = True) -> list[str]:
+    lines = src.splitlines()
+    tree = ast.parse(src) if parse else None
+    return mask_non_code(Path("x.py"), lines, tree)
+
+
+def test_mask_non_code_blanks_trailing_comment_but_keeps_code_columns():
+    code, comment = 'x = os.system("ls")', "  # os.popen( here is prose"
+    out = _mask(code + comment + "\n")
+    assert out == [code + " " * len(comment)]
+
+
+def test_mask_non_code_blanks_multiline_docstring_and_bare_string_statements():
+    src = (
+        "def f():\n"
+        '    """Example:\n'
+        "        os.system('rm -rf /')\n"
+        '    """\n'
+        "    'block comment with pickle.loads('\n"
+        "    return eval(x)\n"
+    )
+    out = _mask(src)
+    assert out[1].strip() == "" and out[2].strip() == "" and out[3].strip() == ""
+    assert out[4].strip() == ""
+    assert out[5] == "    return eval(x)"
+    assert [len(a) for a in out] == [len(b) for b in src.splitlines()]
+
+
+def test_mask_non_code_handles_non_ascii_before_a_docstring_end():
+    # ast reports byte offsets; the mask must convert to character columns.
+    doc, code, comment = '"""héllo wörld"""', "; y = 1", "  # tail"
+    out = _mask(f"class C:\n    {doc}{code}{comment}\n")
+    assert out[1] == "    " + " " * len(doc) + code + " " * len(comment)
+
+
+def test_mask_non_code_still_blanks_comments_when_file_does_not_parse():
+    out = _mask("def f(:\n    pass  # subprocess.run(\n", parse=False)
+    assert out[1] == "    pass                   "
+
+
+def test_mask_non_code_leaves_non_python_files_untouched():
+    lines = ["requests==2.0.0  # pinned"]
+    assert mask_non_code(Path("requirements.txt"), lines, None) is lines

@@ -22,7 +22,8 @@ from pathlib import Path
 
 import pytest
 
-from fenceline.checks import CHECKS
+from fenceline.checks import CHECKS, lines_for
+from fenceline.scanner import mask_non_code
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 TEST_FENCELINE_PATH = Path(__file__).parent / "test_fenceline.py"
@@ -73,7 +74,9 @@ def test_fixture_case(check_name, py_file, expected_file, tmp_path, monkeypatch)
     lines = source.splitlines()
     tree = ast.parse(source) if fake_path.suffix == ".py" else None
 
-    findings = check_fn(fake_path, lines, tree)
+    # Same dispatch as cli.py: regex checks see the comment/docstring-masked view.
+    code_lines = mask_non_code(fake_path, lines, tree)
+    findings = check_fn(fake_path, lines_for(check_fn, lines, code_lines), tree)
     actual = sorted(_fingerprint(f.cwe_id, f.severity, f.confidence, f.line) for f in findings)
     expected = sorted(
         _fingerprint(f["cwe_id"], f["severity"], f["confidence"], f["line"])

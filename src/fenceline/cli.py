@@ -9,11 +9,11 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from fenceline.baseline import load_baseline, split_by_baseline, write_baseline
-from fenceline.checks import CHECKS
+from fenceline.checks import CHECKS, lines_for
 from fenceline.config import DEP_MANIFEST_FILES, WORKSPACE_ROOT, is_secure_path
 from fenceline.models import CONFIDENCE_ORDER, SEVERITY_ORDER, Finding
 from fenceline.reporting import print_report
-from fenceline.scanner import _ast_parse, _is_test_path, _iter_py, _read, _rel
+from fenceline.scanner import _ast_parse, _is_test_path, _iter_py, _read, _rel, mask_non_code
 from fenceline.suppression import apply_suppressions
 
 __all__ = ["main", "resolve_packages", "discover_cwd_packages"]
@@ -395,12 +395,13 @@ def main() -> int:
     for path in sorted(path_package):
         lines = _read(path)
         tree = _ast_parse(path) if path.suffix == ".py" else None
+        code_lines = mask_non_code(path, lines, tree)
         pkg_name = path_package[path]
 
         file_findings: list[Finding] = []
         for check_name, check_fn in CHECKS:
             try:
-                findings = check_fn(path, lines, tree)
+                findings = check_fn(path, lines_for(check_fn, lines, code_lines), tree)
                 for f in findings:
                     f.package = pkg_name
                 file_findings.extend(findings)
