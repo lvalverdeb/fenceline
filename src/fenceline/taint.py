@@ -200,10 +200,171 @@ class _Scope:
     fields: dict[str, list[tuple[ast.expr, _Scope]]] = field(default_factory=dict)
 
 
+#: A guard on a name: ``(name, container)`` for ``name in container``, or
+#: ``(name, None)`` for a check that needs no container (an anchored regex
+#: match, an ``isdigit()``-style predicate, equality with a literal).
+_Guard = tuple[str, "ast.expr | None"]
+
+
 @dataclass
 class _Scopes:
     at: dict[int, _Scope]
     functions: dict[str, _Scope]
+    #: ``id(node) -> guards`` that hold where the node executes.
+    guards: dict[int, tuple[_Guard, ...]]
+
+
+_TERMINATING_CALLS = frozenset({"abort", "exit", "quit", "sys.exit", "os._exit"})
+_PREDICATE_METHODS = frozenset(
+    {"isdigit", "isalnum", "isalpha", "isidentifier", "isdecimal", "isnumeric"}
+)
+
+
+def _anchored_match_target(call: ast.Call) -> str | None:
+    """The name a call validates: ``re.fullmatch(p, x)``, ``re.match("...$", x)``,
+    ``PATTERN.fullmatch(x)``, or ``x.isdigit()``."""
+    func = call.func
+    if isinstance(func, ast.Attribute) and func.attr in _PREDICATE_METHODS:
+        return func.value.id if isinstance(func.value, ast.Name) and not call.args else None
+    dotted = _dotted_name(func) or ""
+    args = call.args
+    if dotted == "re.fullmatch" and len(args) >= 2 and isinstance(args[1], ast.Name):
+        return args[1].id
+    if (
+        dotted == "re.match"
+        and len(args) >= 2
+        and isinstance(args[1], ast.Name)
+        and isinstance(args[0], ast.Constant)
+        and isinstance(args[0].value, str)
+        and args[0].value.endswith(("$", "\\Z"))
+    ):
+        return args[1].id
+    if (
+        isinstance(func, ast.Attribute)
+        and func.attr == "fullmatch"
+        and len(args) == 1
+        and isinstance(args[0], ast.Name)
+    ):
+        return args[0].id
+    return None
+
+
+def _guard_names(test: ast.expr) -> tuple[list[_Guard], list[_Guard]]:
+    """``(when true, when false)``: the names *test* vouches for in each
+    branch. ``not`` swaps them; ``and`` keeps only the true side, ``or`` only
+    the false side, since one failing operand says nothing about the others."""
+    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+        pos, neg = _guard_names(test.operand)
+        return neg, pos
+    if isinstance(test, ast.BoolOp):
+        parts = [_guard_names(v) for v in test.values]
+        if isinstance(test.op, ast.And):
+            return [g for pos, _ in parts for g in pos], []
+        return [], [g for _, neg in parts for g in neg]
+    if isinstance(test, ast.Compare) and len(test.ops) == 1 and isinstance(test.left, ast.Name):
+        op, right = test.ops[0], test.comparators[0]
+        if isinstance(op, ast.In):
+            return [(test.left.id, right)], []
+        if isinstance(op, ast.NotIn):
+            return [], [(test.left.id, right)]
+        if isinstance(right, ast.Constant):
+            if isinstance(op, ast.Eq):
+                return [(test.left.id, None)], []
+            if isinstance(op, ast.NotEq):
+                return [], [(test.left.id, None)]
+        return [], []
+    if isinstance(test, ast.Call):
+        target = _anchored_match_target(test)
+        return ([(target, None)], []) if target else ([], [])
+    return [], []
+
+
+def _terminates(stmts: list[ast.stmt]) -> bool:
+    """The block never falls through: it raises, returns, breaks, continues
+    or calls an exit/abort helper last."""
+    if not stmts:
+        return False
+    last = stmts[-1]
+    if isinstance(last, (ast.Raise, ast.Return, ast.Continue, ast.Break)):
+        return True
+    return (
+        isinstance(last, ast.Expr)
+        and isinstance(last.value, ast.Call)
+        and (_dotted_name(last.value.func) or "") in _TERMINATING_CALLS
+    )
+
+
+def _bound_names(stmt: ast.stmt) -> set[str]:
+    """Every name any assignment anywhere inside *stmt* (nested scopes
+    excluded) binds: a guard on such a name no longer holds afterwards."""
+    names: set[str] = set()
+    for node in _walk_skip_nested_scopes(stmt):
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr, ast.For, ast.AsyncFor)):
+            targets = [node.target]
+        elif isinstance(node, (ast.With, ast.AsyncWith)):
+            targets = [i.optional_vars for i in node.items if i.optional_vars is not None]
+        for target in targets:
+            names.update(n.id for n in ast.walk(target) if isinstance(n, ast.Name))
+    return names
+
+
+def _walk_guards(
+    stmts: list[ast.stmt], guarded: list[_Guard], out: dict[int, tuple[_Guard, ...]]
+) -> None:
+    """Record, for every node in *stmts* (nested scopes excluded), the guards
+    that hold where it executes. A block starts with its parent's guards and
+    its own do not outlive it, except that an ``if`` whose body cannot fall
+    through leaves its negated test in force for the statements after it."""
+    guarded = list(guarded)
+
+    def record(nodes: list[ast.AST]) -> None:
+        if not guarded:
+            return
+        for root in nodes:
+            for node in _walk_skip_nested_scopes(root):
+                out[id(node)] = tuple(guarded)
+
+    for stmt in stmts:
+        if isinstance(stmt, (ast.If, ast.While)):
+            record([stmt.test])
+            pos, neg = _guard_names(stmt.test)
+            _walk_guards(stmt.body, guarded + pos, out)
+            _walk_guards(stmt.orelse, guarded + neg, out)
+            if isinstance(stmt, ast.If):
+                if _terminates(stmt.body):
+                    guarded += neg
+                if _terminates(stmt.orelse):
+                    guarded += pos
+        elif isinstance(stmt, ast.Assert):
+            record([stmt.test])
+            guarded += _guard_names(stmt.test)[0]
+        elif isinstance(stmt, (ast.For, ast.AsyncFor)):
+            record([stmt.target, stmt.iter])
+            _walk_guards(stmt.body, guarded, out)
+            _walk_guards(stmt.orelse, guarded, out)
+        elif isinstance(stmt, (ast.With, ast.AsyncWith)):
+            record(list(stmt.items))
+            _walk_guards(stmt.body, guarded, out)
+        elif isinstance(stmt, ast.Try):
+            _walk_guards(stmt.body, guarded, out)
+            for handler in stmt.handlers:
+                _walk_guards(handler.body, guarded, out)
+            _walk_guards(stmt.orelse, guarded, out)
+            _walk_guards(stmt.finalbody, guarded, out)
+        elif isinstance(stmt, ast.Match):
+            record([stmt.subject])
+            for case in stmt.cases:
+                _walk_guards(case.body, guarded, out)
+        elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            pass  # its own scope starts without guards
+        else:
+            record([stmt])
+        if guarded:
+            killed = _bound_names(stmt)
+            guarded = [g for g in guarded if g[0] not in killed]
 
 
 def _bind(scope: _Scope, target: ast.expr, value: ast.expr) -> None:
@@ -290,9 +451,11 @@ def _scope_map(tree: ast.Module) -> _Scopes:
     _collect(module, tree.body)
     scopes: dict[int, _Scope] = {}
     functions: dict[str, _Scope] = {}
+    guards: dict[int, tuple[_Guard, ...]] = {}
     for stmt in tree.body:
         for node in _walk_skip_nested_scopes(stmt):
             scopes[id(node)] = module
+    _walk_guards(tree.body, [], guards)
 
     def visit_functions(
         body: list[ast.stmt], cls: ast.ClassDef | None, prefix: str
@@ -330,11 +493,12 @@ def _scope_map(tree: ast.Module) -> _Scopes:
                     for inner in node.body:
                         for n in _walk_skip_nested_scopes(inner):
                             scopes[id(n)] = scope
+                    _walk_guards(node.body, [], guards)
                     visit_functions(node.body, None, f"{qualname}.")
         return made
 
     visit_functions(tree.body, None, "")
-    result = _Scopes(at=scopes, functions=functions)
+    result = _Scopes(at=scopes, functions=functions, guards=guards)
     tree._fenceline_scopes = result  # type: ignore[attr-defined]
     return result
 
@@ -353,11 +517,18 @@ def _source_chain(dotted: str) -> bool:
 
 
 class _Classifier:
-    def __init__(self, scope: _Scope, active_fields: frozenset[str] = frozenset()) -> None:
+    def __init__(
+        self,
+        scope: _Scope,
+        active_fields: frozenset[str] = frozenset(),
+        clean_names: frozenset[str] = frozenset(),
+    ) -> None:
         self.scope = scope
         self.active: set[str] = set()
         #: ``self.<field>`` names being resolved up the chain (cycle guard).
         self.active_fields = active_fields
+        #: Names a guard vouches for where the sink executes.
+        self.clean_names = clean_names
 
     def field(self, name: str, depth: int) -> Taint:
         """Taint of ``self.<name>``: the worst value assigned to it anywhere
@@ -378,6 +549,8 @@ class _Classifier:
         scope = self.scope
         if name in _REQUEST_ROOTS:
             return Taint.SOURCE
+        if name in self.clean_names:
+            return Taint.CLEAN
         if name in scope.params:
             if scope.handler:
                 return Taint.SOURCE
@@ -471,10 +644,16 @@ def classify(tree: ast.Module, anchor: ast.AST, exprs: list[ast.expr]) -> Taint:
     """Worst taint over *exprs*, resolved in the scope that contains
     *anchor* (the sink node itself). An empty *exprs* is ``CLEAN``: a sink
     fed nothing has nothing to inject."""
-    scope = _scope_map(tree).at.get(id(anchor))
+    scopes = _scope_map(tree)
+    scope = scopes.at.get(id(anchor))
     if scope is None:
         return Taint.INTERNAL
-    return _Classifier(scope).many(exprs, 0)
+    clean = frozenset(
+        name
+        for name, container in scopes.guards.get(id(anchor), ())
+        if container is None or _Classifier(scope).expr(container) is Taint.CLEAN
+    )
+    return _Classifier(scope, clean_names=clean).many(exprs, 0)
 
 
 def bound_values(tree: ast.Module, anchor: ast.AST, name: str) -> list[ast.expr]:

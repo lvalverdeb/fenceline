@@ -67,6 +67,11 @@ from the environment) and two not: CRLF findings on botocore's
 chunked-encoding writer, where the source is botocore's outbound
 `AWSRequest` matching fenceline's `request` root.
 
+Phase B2 (guards as sanitizers: allow-list membership, `assert`, anchored
+regex and `isdigit()`-style checks that exit on failure) changed nothing on
+either corpus: no sink in these apps or libraries sits behind such a guard.
+It is covered by a six-case fixture instead.
+
 What still separates HIGH-only recall from the default: 23 hardcoded-secret
 findings that are MEDIUM by design (placeholder-shaped or identifier-like
 values), the MEDIUM `read()` and SSRF findings in command-line utilities,

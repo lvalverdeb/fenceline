@@ -189,7 +189,13 @@ what they find:
 
 Within a function the analysis follows assignments without regard to order,
 so it is deliberately pessimistic: a name assigned a constant and later a
-request value counts as a request value. Across functions it follows calls:
+request value counts as a request value. The one order-sensitive rule is the
+guard: after `if x not in ALLOWED: abort(400)` (or `raise`, `return`),
+inside `if x in ALLOWED:`, after `assert x in ALLOWED`, or after an anchored
+`re.fullmatch` / `isdigit()`-style check that exits on failure, `x` is clean
+at the sinks that follow, provided `ALLOWED` is something the function did
+not derive from input and `x` is not reassigned in between. Across
+functions it follows calls:
 once every file of a package is parsed, each call's arguments are bound to
 the callee's parameters, and a parameter that receives request data from
 any caller is treated as request data inside the callee, repeated until a
