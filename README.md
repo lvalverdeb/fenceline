@@ -4,6 +4,13 @@ Zero-day security scanner for Python codebases. Generic, pip-install-anywhere
 tool — `pip install fenceline && fenceline` scans whatever's under the
 current directory, no project-specific setup required.
 
+The aim is to be the one scanner a Python project runs instead of Bandit and
+Semgrep's Python rules: Bandit's breadth of checks, with the taint analysis
+that lets a tool say *this* `execute()` matters and that one does not, in a
+single install with nothing to host and no rule language to learn. It is not
+there on every axis yet; [How it compares](#how-it-compares) says where it
+stands and what is still missing.
+
 ## Installation
 
 ```bash
@@ -162,6 +169,27 @@ precision and 94% recall, against Bandit's 90% / 77% and Semgrep's 99% / 32%
 on the same ground truth, and 97% precision at `--confidence-min high`. The
 numbers, the labelling rules and `run.sh` are in
 [`benchmark/README.md`](benchmark/README.md).
+
+So on those apps fenceline finds more than Bandit with fewer false
+positives, and at `--confidence-min high` it finds twice what Semgrep's
+community rules do at nearly the same precision. What still separates it
+from a full replacement, in the order we intend to close it:
+
+- The false-positive rate on ordinary, non-vulnerable code is not measured
+  yet. The benchmark apps are built to be vulnerable, so they test recall
+  far better than noise. The library corpus used for regression testing
+  shows the known costs: any name `request` is treated as a source, which
+  misfires on code that builds outbound requests.
+- Three apps is a small benchmark, and the cross-file analysis has had only
+  a handful of findings to prove itself on. A Django or FastAPI project with
+  a service layer is the next addition.
+- Calls are resolved by name (`import`, `from .mod import f`,
+  `Class.method`, `self.method`). A method on an object whose type fenceline
+  cannot see ends the trace at MEDIUM. There is no type inference.
+- The 58 checks are fixed. There is a Python plugin API for your own
+  checks, but no declarative rule format like Semgrep's.
+- `check_dependency_cve` is a curated watchlist, not an advisory database;
+  keep `pip-audit` for that.
 
 ### Severity vs. confidence
 
