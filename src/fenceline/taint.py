@@ -35,7 +35,7 @@ from enum import IntEnum
 
 from fenceline.ast_helpers import _dotted_name, _walk_skip_nested_scopes
 
-__all__ = ["Taint", "classify", "confidence_for", "INTERNAL_NOTE"]
+__all__ = ["Taint", "bound_values", "classify", "confidence_for", "INTERNAL_NOTE"]
 
 
 class Taint(IntEnum):
@@ -358,6 +358,16 @@ def classify(tree: ast.Module, anchor: ast.AST, exprs: list[ast.expr]) -> Taint:
     if scope is None:
         return Taint.INTERNAL
     return _Classifier(scope).many(exprs, 0)
+
+
+def bound_values(tree: ast.Module, anchor: ast.AST, name: str) -> list[ast.expr]:
+    """Every expression assigned to *name* in the scope that contains
+    *anchor*, in source order; empty when the scope is unknown or the name
+    is never assigned there. Lets a check see through ``q = ...; execute(q)``."""
+    scope = _scope_map(tree).get(id(anchor))
+    if scope is None:
+        return []
+    return list(scope.assigns.get(name, ()))
 
 
 def confidence_for(taint: Taint) -> str | None:

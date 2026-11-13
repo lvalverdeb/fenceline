@@ -31,7 +31,7 @@ from fenceline.ast_helpers import (
 )
 from fenceline.models import Finding
 from fenceline.scanner import _rel
-from fenceline.taint import INTERNAL_NOTE, Taint, classify, confidence_for
+from fenceline.taint import INTERNAL_NOTE, Taint, bound_values, classify, confidence_for
 
 __all__ = [
     "check_tempfile",
@@ -1438,6 +1438,19 @@ def _sql_shape(arg: ast.expr) -> str | None:
 _SQL_EXEC_METHOD_NAMES = frozenset({"execute", "exec_driver_sql"})
 
 
+def _sql_shape_at(tree: ast.Module | None, call: ast.Call, arg: ast.expr) -> str | None:
+    """``_sql_shape`` of *arg*, looking through a local name to the values
+    assigned to it in the enclosing function (``q = "..." % x; execute(q)``)."""
+    shape = _sql_shape(arg)
+    if shape is not None or tree is None or not isinstance(arg, ast.Name):
+        return shape
+    for value in bound_values(tree, call, arg.id):
+        shape = _sql_shape(value)
+        if shape is not None:
+            return shape
+    return None
+
+
 def check_sql_injection(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-89 rank #2. ``execute(...)``/``exec_driver_sql(...)`` whose statement
     argument has data spliced in (f-string, ``+``, ``%``, ``.format``). The
@@ -1452,7 +1465,7 @@ def check_sql_injection(path: Path, lines: list[str], tree: ast.Module | None) -
         name = _call_name(call)
         if name not in _SQL_EXEC_METHOD_NAMES or not call.args:
             continue
-        shape = _sql_shape(call.args[0])
+        shape = _sql_shape_at(tree, call, call.args[0])
         if shape is None:
             continue
         taint = _tainted(tree, call, [call.args[0]])
@@ -1491,7 +1504,7 @@ def check_exec_driver_sql(path: Path, lines: list[str], tree: ast.Module | None)
     for call in _calls(tree):
         if _call_name(call) != "exec_driver_sql" or not call.args:
             continue
-        if _sql_shape(call.args[0]) != "f-string":
+        if _sql_shape_at(tree, call, call.args[0]) != "f-string":
             continue
         taint = _tainted(tree, call, [call.args[0]])
         if taint is None:

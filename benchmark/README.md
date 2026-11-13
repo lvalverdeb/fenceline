@@ -42,6 +42,21 @@ false-positive rate on ordinary code.
 
 ## Results
 
+### Unreleased main (Phase B0, 2026-11-13)
+
+One change over 1.7.0: the SQL injection checks look through a local
+variable to the query assigned to it (`q = "..." % x; execute(q)`), which
+found dvpwa's `dao/student.py:45` that no tool had reported, so the ground
+truth grew by one instance.
+
+| Tool | Findings | True | False | Precision | Recall |
+|---|---|---|---|---|---|
+| fenceline | 213 | 197 | 16 | 92% | 186/198 (94%) |
+| Bandit | 174 | 156 | 18 | 90% | 153/198 (77%) |
+| Semgrep | 77 | 76 | 1 | 99% | 64/198 (32%) |
+
+| fenceline (--confidence-min high) | 146 | 141 | 5 | 97% | 131/198 (66%) |
+
 ### 1.7.0 (2026-11-13)
 
 Default settings for every tool:
