@@ -10,8 +10,6 @@ import re
 
 __all__ = [
     "_LOGGING_METHOD_NAMES",
-    "_LOG_METHOD_CALL_RE",
-    "_LOG_METHOD_CALL_ANY_RE",
     "_LOG_NAME_TOKENS",
     "_NESTED_SCOPE_TYPES",
     "_call_name",
@@ -35,19 +33,6 @@ __all__ = [
 # drift out of sync with each other on which method names count as logging.
 _LOGGING_METHOD_NAMES = frozenset(
     {"debug", "info", "warning", "warn", "error", "critical", "exception", "log"}
-)
-
-# Derived from _LOGGING_METHOD_NAMES (not a second hand-typed list) — matches
-# a logging call whose argument is an f-string, e.g. `logger.error(f"...")`.
-_LOG_METHOD_CALL_RE = re.compile(
-    r"\.(?:" + "|".join(re.escape(name) for name in _LOGGING_METHOD_NAMES) + r')\s*\(\s*f["\']'
-)
-
-# Same method-name set, without the f-string requirement — for checks (e.g.
-# check_log_secrets) that need to detect any logging call regardless of the
-# argument's literal form.
-_LOG_METHOD_CALL_ANY_RE = re.compile(
-    r"\.(?:" + "|".join(re.escape(name) for name in _LOGGING_METHOD_NAMES) + r")\s*\("
 )
 
 # Word-level tokens (not raw substrings) that mark a bare function call as

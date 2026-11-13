@@ -15,8 +15,6 @@ import re
 from pathlib import Path
 
 from fenceline.ast_helpers import (
-    _LOG_METHOD_CALL_ANY_RE,
-    _LOG_METHOD_CALL_RE,
     _skip,
 )
 from fenceline.models import Finding
@@ -34,13 +32,10 @@ __all__ = [
     "check_sensitive_exposure",
     "check_null_byte",
     "check_ldap",
-    "check_log_injection",
-    "check_log_secrets",
     "check_hardcoded_tokens",
     "check_weak_crypto",
     "check_trojan_source",
     "check_ssh_host_key",
-    "check_numpy_load_lib",
     "check_pth_startup_hooks",
 ]
 
@@ -343,59 +338,6 @@ def check_ldap(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
     return results
 
 
-def check_log_injection(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if _LOG_METHOD_CALL_RE.search(line):
-            if not re.search(r"%[srd]|{!r}|{!s}", line):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-117",
-                        cwe_name="Log Injection / Forging",
-                        severity="LOW",
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=line.strip(),
-                        description="f-string in logger call — may embed newlines/CRLF from user input, forging log entries.",
-                    )
-                )
-    return results
-
-
-def check_log_secrets(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-532.  Logging passwords, tokens, secrets or full objects that contain them."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    secret_keywords = (
-        r"(password|passwd|secret|token|api_key|apikey|auth_token|access_key|private_key)"
-    )
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        stripped = line.strip()
-        # logger.info/debug/warning/error(..., password_var) style
-        if _LOG_METHOD_CALL_ANY_RE.search(stripped):
-            if re.search(secret_keywords, stripped, re.I):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-532",
-                        cwe_name="Insertion of Sensitive Information into Logs",
-                        severity="HIGH",
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=stripped,
-                        description="Logger call includes a variable whose name suggests it holds a secret — potential credential leakage in logs.",
-                        zero_day_relevance="CWE-532: leaked creds in logs are a common zero-day discovery vector (GitHub secret scanning, SIEM alerts).",
-                    )
-                )
-    return results
-
-
 def check_hardcoded_tokens(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-798 — extended: api_key, token, jwt, bearer, secret literal strings.
     Matched case-insensitively — UPPER_SNAKE_CASE module constants
@@ -537,33 +479,6 @@ def check_ssh_host_key(path: Path, lines: list[str], tree: ast.Module | None) ->
                     )
                 )
                 break
-    return results
-
-
-def check_numpy_load_lib(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """Trail of Bits: numpy.load() on .so/.dll files — arbitrary code execution from library loading."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        stripped = line.strip()
-        if re.search(r"numpy\.(?:load|ctypeslib)\.", stripped) and re.search(
-            r"\.(so|dll|dylib)", stripped
-        ):
-            results.append(
-                Finding(
-                    cwe_id="CWE-114",
-                    cwe_name="Process Control (numpy library loading)",
-                    severity="HIGH",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=stripped,
-                    description="numpy.load() loading a shared library (.so/.dll) — arbitrary code execution if path is user-controlled.",
-                    zero_day_relevance="Trail of Bits: numpy.load() on .so files enables arbitrary code execution during array deserialization.",
-                )
-            )
     return results
 
 

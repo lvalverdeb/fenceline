@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 
 from fenceline.ast_helpers import (
+    _LOGGING_METHOD_NAMES,
     _call_name,
     _call_nodes,
     _callee,
@@ -33,6 +34,9 @@ from fenceline.scanner import _rel
 from fenceline.taint import INTERNAL_NOTE, Taint, classify, confidence_for
 
 __all__ = [
+    "check_log_injection",
+    "check_log_secrets",
+    "check_numpy_load_lib",
     "check_pickle",
     "check_command_injection",
     "check_yaml_deserialize",
@@ -2084,6 +2088,148 @@ def check_legacy_pycrypto(path: Path, lines: list[str], tree: ast.Module | None)
                 "`from Cryptodome import ...`), a maintained drop-in replacement.",
                 zero_day_relevance="PyCrypto has no security fixes for over a decade; several "
                 "known vulnerabilities (e.g. weak RNG seeding in old releases) remain unpatched.",
+            )
+        )
+    return results
+
+
+# ── Logging and library-loading calls (converted from line regexes so a
+# call whose arguments continue on later lines is still matched) ──────────
+
+_SECRET_KEYWORD_RE = re.compile(
+    r"password|passwd|secret|token|api_key|apikey|auth_token|access_key|private_key|credential",
+    re.I,
+)
+_SHARED_LIB_RE = re.compile(r"\.(?:so|dll|dylib)\b")
+
+
+def _is_logging_call(node: ast.Call, aliases: dict[str, str]) -> bool:
+    """``x.info(...)``/``x.debug(...)``/... on anything but the ``warnings``
+    module, whose ``warn`` goes to stderr, not a log (``_warnings=warnings``
+    default-argument idiom included)."""
+    if not (isinstance(node.func, ast.Attribute) and node.func.attr in _LOGGING_METHOD_NAMES):
+        return False
+    root = _callee(node, aliases).split(".", 1)[0]
+    return root.lstrip("_") != "warnings"
+
+
+def _string_fragments(exprs: list[ast.expr]) -> list[str]:
+    """String literals passed directly as arguments, plus the literal parts
+    of f-string arguments."""
+    out: list[str] = []
+    for e in exprs:
+        if isinstance(e, ast.Constant) and isinstance(e.value, str):
+            out.append(e.value)
+        elif isinstance(e, ast.JoinedStr):
+            out.extend(
+                v.value
+                for v in e.values
+                if isinstance(v, ast.Constant) and isinstance(v.value, str)
+            )
+    return out
+
+
+def check_log_secrets(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """CWE-532. A logging call whose arguments *name* a secret
+    (``logger.info("token=%s", token)``, ``self.password``) is HIGH
+    confidence. One whose message mentions a secret and logs some
+    non-literal value alongside (``logger.info("Found credentials in %s",
+    path)``) is MEDIUM: the value may or may not be the secret. A message
+    with nothing but literals (``logger.debug("Credentials refreshed.")``)
+    cannot leak anything and is not reported."""
+    pk = _rel(path)
+    results: list[Finding] = []
+    aliases = _import_aliases(tree)
+    for node in _calls(tree):
+        if not _is_logging_call(node, aliases):
+            continue
+        data = _call_data(node)
+        if any(_SECRET_KEYWORD_RE.search(n) for n in _names_in(data)):
+            confidence = "HIGH"
+            description = "Logger call includes a variable whose name suggests it holds a secret — potential credential leakage in logs."
+        elif _has_dynamic_arg(node) and any(
+            _SECRET_KEYWORD_RE.search(s) for s in _string_fragments(data)
+        ):
+            confidence = "MEDIUM"
+            description = "Logger message mentions a secret-like term — confirm the value itself is not written to the log."
+        else:
+            continue
+        line = _node_line(node)
+        results.append(
+            Finding(
+                cwe_id="CWE-532",
+                cwe_name="Insertion of Sensitive Information into Logs",
+                severity="HIGH",
+                confidence=confidence,
+                package="",
+                file=pk,
+                line=line,
+                code_snippet=_code_at(lines, line),
+                description=description,
+                zero_day_relevance="CWE-532: leaked creds in logs are a common zero-day discovery vector (GitHub secret scanning, SIEM alerts).",
+            )
+        )
+    return results
+
+
+def check_log_injection(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """CWE-117. An f-string with interpolation passed positionally to a
+    logging call: the logger's own ``%s`` formatting is bypassed, so a value
+    carrying a newline forges a log entry."""
+    pk = _rel(path)
+    results: list[Finding] = []
+    aliases = _import_aliases(tree)
+    for node in _calls(tree):
+        if not _is_logging_call(node, aliases):
+            continue
+        if not any(
+            isinstance(a, ast.JoinedStr)
+            and any(isinstance(v, ast.FormattedValue) for v in a.values)
+            for a in node.args
+        ):
+            continue
+        line = _node_line(node)
+        results.append(
+            Finding(
+                cwe_id="CWE-117",
+                cwe_name="Log Injection / Forging",
+                severity="LOW",
+                confidence="HIGH",
+                package="",
+                file=pk,
+                line=line,
+                code_snippet=_code_at(lines, line),
+                description="f-string in logger call — may embed newlines/CRLF from user input, forging log entries.",
+            )
+        )
+    return results
+
+
+def check_numpy_load_lib(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """Trail of Bits: ``numpy.load()``/``numpy.ctypeslib.*`` handed a shared
+    library (.so/.dll/.dylib) — arbitrary code execution from library loading."""
+    pk = _rel(path)
+    results: list[Finding] = []
+    aliases = _import_aliases(tree)
+    for node in _calls(tree):
+        fn = _callee(node, aliases)
+        if not (fn == "numpy.load" or fn.startswith("numpy.ctypeslib.")):
+            continue
+        if not any(_SHARED_LIB_RE.search(s) for s in _string_fragments(_call_data(node))):
+            continue
+        line = _node_line(node)
+        results.append(
+            Finding(
+                cwe_id="CWE-114",
+                cwe_name="Process Control (numpy library loading)",
+                severity="HIGH",
+                confidence="HIGH",
+                package="",
+                file=pk,
+                line=line,
+                code_snippet=_code_at(lines, line),
+                description="numpy.load() loading a shared library (.so/.dll) — arbitrary code execution if path is user-controlled.",
+                zero_day_relevance="Trail of Bits: numpy.load() on .so files enables arbitrary code execution during array deserialization.",
             )
         )
     return results
