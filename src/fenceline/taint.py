@@ -194,6 +194,10 @@ class _Scope:
     #: The enclosing class is a view/handler class, so ``self.kwargs`` and
     #: ``self.args`` hold URL captures.
     view_class: bool = False
+    #: ``self.<field>`` -> every value assigned to it anywhere in the class,
+    #: with the scope of the method that assigns it. Shared by the class's
+    #: methods.
+    fields: dict[str, list[tuple[ast.expr, _Scope]]] = field(default_factory=dict)
 
 
 @dataclass
@@ -231,6 +235,30 @@ def _collect(scope: _Scope, stmts: list[ast.stmt]) -> None:
                 scope.imports.add(node.name)
 
 
+def _self_fields(
+    methods: list[tuple[ast.FunctionDef | ast.AsyncFunctionDef, _Scope]],
+) -> dict[str, list[tuple[ast.expr, _Scope]]]:
+    """Every ``self.<field> = value`` in the class's methods, keyed by field."""
+    fields: dict[str, list[tuple[ast.expr, _Scope]]] = {}
+    for fn, scope in methods:
+        for stmt in fn.body:
+            for node in _walk_skip_nested_scopes(stmt):
+                if isinstance(node, ast.Assign):
+                    targets, value = node.targets, node.value
+                elif isinstance(node, (ast.AnnAssign, ast.AugAssign)) and node.value is not None:
+                    targets, value = [node.target], node.value
+                else:
+                    continue
+                for target in targets:
+                    if (
+                        isinstance(target, ast.Attribute)
+                        and isinstance(target.value, ast.Name)
+                        and target.value.id == "self"
+                    ):
+                        fields.setdefault(target.attr, []).append((value, scope))
+    return fields
+
+
 def _is_view_class(cls: ast.ClassDef | None) -> bool:
     return cls is not None and any(
         (_dotted_name(base) or "").endswith(_HANDLER_BASES) for base in cls.bases
@@ -266,11 +294,19 @@ def _scope_map(tree: ast.Module) -> _Scopes:
         for node in _walk_skip_nested_scopes(stmt):
             scopes[id(node)] = module
 
-    def visit_functions(body: list[ast.stmt], cls: ast.ClassDef | None, prefix: str) -> None:
+    def visit_functions(
+        body: list[ast.stmt], cls: ast.ClassDef | None, prefix: str
+    ) -> list[tuple[ast.FunctionDef | ast.AsyncFunctionDef, _Scope]]:
+        """Build the scopes of the functions directly in *body*, recursing
+        into nested classes and functions; returns the ones at this level."""
+        made: list[tuple[ast.FunctionDef | ast.AsyncFunctionDef, _Scope]] = []
         for stmt in body:
             for node in _walk_skip_nested_scopes(stmt):
                 if isinstance(node, ast.ClassDef):
-                    visit_functions(node.body, node, f"{prefix}{node.name}.")
+                    methods = visit_functions(node.body, node, f"{prefix}{node.name}.")
+                    fields = _self_fields(methods)
+                    for _, method_scope in methods:
+                        method_scope.fields = fields
                 elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     args = node.args
                     params = frozenset(
@@ -290,10 +326,12 @@ def _scope_map(tree: ast.Module) -> _Scopes:
                     scope.imports = set(module.imports)
                     _collect(scope, node.body)
                     functions[qualname] = scope
+                    made.append((node, scope))
                     for inner in node.body:
                         for n in _walk_skip_nested_scopes(inner):
                             scopes[id(n)] = scope
                     visit_functions(node.body, None, f"{qualname}.")
+        return made
 
     visit_functions(tree.body, None, "")
     result = _Scopes(at=scopes, functions=functions)
@@ -315,9 +353,26 @@ def _source_chain(dotted: str) -> bool:
 
 
 class _Classifier:
-    def __init__(self, scope: _Scope) -> None:
+    def __init__(self, scope: _Scope, active_fields: frozenset[str] = frozenset()) -> None:
         self.scope = scope
         self.active: set[str] = set()
+        #: ``self.<field>`` names being resolved up the chain (cycle guard).
+        self.active_fields = active_fields
+
+    def field(self, name: str, depth: int) -> Taint:
+        """Taint of ``self.<name>``: the worst value assigned to it anywhere
+        in the class, each resolved in its own method's scope. A field is
+        never below INTERNAL -- it may be set from outside the class."""
+        values = self.scope.fields.get(name)
+        if not values or name in self.active_fields:
+            return Taint.INTERNAL
+        active = self.active_fields | {name}
+        worst = Taint.INTERNAL
+        for value, scope in values:
+            worst = max(worst, _Classifier(scope, active).expr(value, depth + 1))
+            if worst is Taint.SOURCE:
+                break
+        return worst
 
     def name(self, name: str, depth: int) -> Taint:
         scope = self.scope
@@ -364,7 +419,7 @@ class _Classifier:
                 return Taint.SOURCE
             if isinstance(node, ast.Attribute):
                 if isinstance(node.value, ast.Name) and node.value.id == "self":
-                    return Taint.INTERNAL
+                    return self.field(node.attr, depth)
                 return self.expr(node.value, depth + 1)
             return max(self.expr(node.value, depth + 1), self.expr(node.slice, depth + 1))
         if isinstance(node, ast.Call):

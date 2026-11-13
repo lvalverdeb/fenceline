@@ -1517,3 +1517,18 @@ def test_caller_taint_crosses_two_helpers_and_relative_imports(tmp_path):
     assert [(f["file"].rsplit("/", 1)[-1], f["confidence"]) for f in findings] == [
         ("db.py", "HIGH")
     ]
+
+
+def test_self_field_carries_caller_taint_across_files(tmp_path):
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "app.py").write_text(
+        "from flask import request\nfrom fetch import Fetcher\n"
+        "@app.route('/f')\ndef view():\n    Fetcher(request.args['u']).run()\n"
+    )
+    (pkg / "fetch.py").write_text(
+        "import requests\nclass Fetcher:\n    def __init__(self, url):\n        self.url = url\n"
+        "    def run(self):\n        requests.get(self.url)\n"
+    )
+    findings = [f for f in _scan_json(tmp_path) if f["cwe_id"] == "CWE-918"]
+    assert [(f["line"], f["confidence"]) for f in findings] == [(6, "HIGH")]

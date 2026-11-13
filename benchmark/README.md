@@ -60,6 +60,13 @@ and `raw()`/`RawSQL`, Lambda `event` handlers, framework redirect classes,
 files through `send_from_directory`, which safe-joins and is deliberately
 not a sink.
 
+Phase B3 (`self` field flow) also changed nothing here; on the reference
+library corpus it moved six findings from MEDIUM to HIGH, four defensible
+(websocket readers built from the request, a token file whose path comes
+from the environment) and two not: CRLF findings on botocore's
+chunked-encoding writer, where the source is botocore's outbound
+`AWSRequest` matching fenceline's `request` root.
+
 What still separates HIGH-only recall from the default: 23 hardcoded-secret
 findings that are MEDIUM by design (placeholder-shaped or identifier-like
 values), the MEDIUM `read()` and SSRF findings in command-line utilities,

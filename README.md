@@ -184,7 +184,7 @@ what they find:
 | --- | --- |
 | A recognised entry point: a `request` object, `os.environ`, `sys.argv`, `input()`, a socket read, or a parameter of a route-decorated function or handler method | `HIGH` |
 | A parameter that some caller elsewhere in the package feeds request data | `HIGH`, with a note on the finding |
-| Plain function parameters, `self` attributes, or values the function cannot resolve | `MEDIUM`, with a note on the finding |
+| Plain function parameters, `self` fields no method of the class assigns from a source, or values the function cannot resolve | `MEDIUM`, with a note on the finding |
 | Only literals, module constants, library references, or values that cannot carry a payload (a length, an `int()`, a `shlex.quote()`) | not reported |
 
 Within a function the analysis follows assignments without regard to order,
@@ -195,8 +195,11 @@ the callee's parameters, and a parameter that receives request data from
 any caller is treated as request data inside the callee, repeated until a
 value that crosses several helpers has arrived. Callees are resolved by
 name (same file, `import mod`, `from .mod import f`, `Class.method`,
-`self.method`); a method called on an object of unknown type, and `self`
-fields set elsewhere, still land in the `MEDIUM` row. Use `--confidence-min medium` to
+`self.method`); a method called on an object of unknown type still lands in
+the `MEDIUM` row. A `self` field takes the worst taint of every value any
+method of the class assigns to it, each resolved in that method, so a URL
+stored by `__init__` or a handler and used elsewhere carries its origin; a
+field nothing in the class assigns stays `MEDIUM`. Use `--confidence-min medium` to
 cut noise from the fuzzier regex checks, and `--confidence-min high` to see
 only findings where attacker-controlled input provably reaches the sink.
 
