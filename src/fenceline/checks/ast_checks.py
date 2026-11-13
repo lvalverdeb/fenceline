@@ -34,6 +34,7 @@ from fenceline.scanner import _rel
 from fenceline.taint import INTERNAL_NOTE, Taint, classify, confidence_for
 
 __all__ = [
+    "check_tempfile",
     "check_hardcoded_secrets",
     "check_hardcoded_tokens",
     "check_log_injection",
@@ -174,9 +175,7 @@ def check_insufficient_logging(
     for node in ast.walk(tree):
         if not isinstance(node, ast.ExceptHandler):
             continue
-        is_bare = node.type is None
-        is_exception = isinstance(node.type, ast.Name) and node.type.id == "Exception"
-        if not (is_bare or is_exception):
+        if not _is_catch_all(node.type):
             continue
         if _handler_has_diagnostic(node):
             continue
@@ -214,10 +213,14 @@ def check_insecure_random(path: Path, lines: list[str], tree: ast.Module | None)
                     "random",
                     "randint",
                     "choice",
+                    "choices",
                     "uniform",
+                    "triangular",
                     "shuffle",
                     "sample",
                     "randrange",
+                    "getrandbits",
+                    "randbytes",
                 ):
                     line = _node_line(node)
                     code = lines[line - 1].strip() if 1 <= line <= len(lines) else ""
@@ -422,12 +425,25 @@ def check_torch_load(path: Path, lines: list[str], tree: ast.Module | None) -> l
     return results
 
 
+def _is_catch_all(exc_type: ast.expr | None) -> bool:
+    """A handler type that catches everything: bare, ``Exception``,
+    ``BaseException``, or a tuple containing one of those."""
+    if exc_type is None:
+        return True
+    types = exc_type.elts if isinstance(exc_type, ast.Tuple) else [exc_type]
+    return any(isinstance(t, ast.Name) and t.id in ("Exception", "BaseException") for t in types)
+
+
 def check_except_pass(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """B110/B112 / CWE-391. Bare except handler body is only pass or continue — silently swallows errors."""
+    """B110/B112 / CWE-391. A catch-all handler (bare, ``Exception`` or
+    ``BaseException``) whose body is only ``pass`` or ``continue`` silently
+    swallows every error. A handler naming a specific type and passing
+    (``except FileNotFoundError: pass``) is a deliberate, idiomatic choice
+    and is not reported."""
     pk = _rel(path)
     results: list[Finding] = []
     for node in ast.walk(tree) if tree else []:
-        if not isinstance(node, ast.ExceptHandler):
+        if not isinstance(node, ast.ExceptHandler) or not _is_catch_all(node.type):
             continue
         body = node.body
         if len(body) == 1:
@@ -1625,8 +1641,11 @@ _STREAMING_CONTEXT_RE = re.compile(r"chunk|iter_content|stream", re.I)
 
 
 def check_resource_limits(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-770 rank #25. ``x.read()`` with no size argument. A line that
-    mentions chunking/streaming is taken as bounded by context."""
+    """CWE-770 rank #25. ``x.read()`` with no size argument, where whoever
+    controls ``x`` controls the size: a socket, a response body, ``sys.stdin``,
+    or a file whose path came from outside. A file opened at a path the
+    program chose (``open("config.toml")``) is the program's own and is not
+    reported. A line that mentions chunking/streaming is taken as bounded."""
     pk = _rel(path)
     results: list[Finding] = []
     for node in _calls(tree):
@@ -1641,17 +1660,22 @@ def check_resource_limits(path: Path, lines: list[str], tree: ast.Module | None)
         code = _code_at(lines, line)
         if _STREAMING_CONTEXT_RE.search(code):
             continue
+        tainted = _tainted(tree, node, [node.func.value])
+        if tainted is None:
+            continue
+        confidence, note = tainted
         results.append(
             Finding(
                 cwe_id="CWE-770",
                 cwe_name="Unbounded Resource Allocation",
                 severity="INFO",
-                confidence="HIGH",
+                confidence=confidence,
                 package="",
                 file=pk,
                 line=line,
                 code_snippet=code,
-                description="Unbounded .read() — may exhaust memory on large inputs. Use .read(n) or streaming.",
+                description="Unbounded .read() — may exhaust memory on large inputs. Use .read(n) or streaming."
+                + note,
                 zero_day_relevance="CWE-770 entered Top 25 at #25 in 2025.",
             )
         )
@@ -2454,4 +2478,58 @@ def check_hardcoded_tokens(path: Path, lines: list[str], tree: ast.Module | None
                     )
                 )
                 break
+    return results
+
+
+# ── Insecure temporary files (CWE-377) ───────────────────────────────────────
+
+_SHARED_TMP_PREFIXES = ("/tmp/", "/var/tmp/", "/dev/shm/")
+_SHARED_TMP_DIRS = frozenset({"/tmp", "/var/tmp", "/dev/shm"})
+
+
+def check_tempfile(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """CWE-377. ``tempfile.mktemp()`` (a name, not an open file: TOCTOU race)
+    and any literal path under a shared temporary directory, whose fixed
+    name any local user can predict and pre-create or symlink."""
+    pk = _rel(path)
+    results: list[Finding] = []
+    if tree is None:
+        return results
+    aliases = _import_aliases(tree)
+    seen: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _callee(node, aliases) == "tempfile.mktemp":
+            line = _node_line(node)
+            results.append(
+                Finding(
+                    cwe_id="CWE-377",
+                    cwe_name="Insecure Temporary File",
+                    severity="HIGH",
+                    confidence="HIGH",
+                    package="",
+                    file=pk,
+                    line=line,
+                    code_snippet=_code_at(lines, line),
+                    description="tempfile.mktemp() is insecure (TOCTOU race). Use TemporaryFile or NamedTemporaryFile.",
+                )
+            )
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            text = node.value
+            if (
+                text.startswith(_SHARED_TMP_PREFIXES) or text in _SHARED_TMP_DIRS
+            ) and node.lineno not in seen:
+                seen.add(node.lineno)
+                results.append(
+                    Finding(
+                        cwe_id="CWE-377",
+                        cwe_name="Insecure Temporary File",
+                        severity="MEDIUM",
+                        confidence="HIGH",
+                        package="",
+                        file=pk,
+                        line=node.lineno,
+                        code_snippet=_code_at(lines, node.lineno),
+                        description="Hardcoded path under a shared temporary directory — predictable name any local user can pre-create or symlink. Use the tempfile module.",
+                    )
+                )
     return results

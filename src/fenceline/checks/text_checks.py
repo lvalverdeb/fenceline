@@ -22,7 +22,6 @@ from fenceline.scanner import _rel
 
 __all__ = [
     "check_xxe",
-    "check_tempfile",
     "check_symlink",
     "check_assert_security",
     "check_supply_chain",
@@ -86,28 +85,6 @@ def check_xxe(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fin
                     code_snippet=line.strip(),
                     description="XML parser without external entity protection. Use defusedxml.",
                     zero_day_relevance="XXE remains a zero-day vector for data-processing pipelines.",
-                )
-            )
-    return results
-
-
-def check_tempfile(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if "tempfile.mktemp" in line:
-            results.append(
-                Finding(
-                    cwe_id="CWE-377",
-                    cwe_name="Insecure Temporary File",
-                    severity="HIGH",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="tempfile.mktemp() is insecure (TOCTOU race). Use TemporaryFile or NamedTemporaryFile.",
                 )
             )
     return results

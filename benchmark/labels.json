@@ -21,7 +21,8 @@
       "CWE-208": "timing",
       "CWE-611": "xxe",
       "CWE-338": "weak-random",
-      "CWE-1104": "vuln-dep"
+      "CWE-1104": "vuln-dep",
+      "CWE-377": "tmpfile"
     },
     "bandit": {
       "B105": "secret",
@@ -261,6 +262,12 @@
       "CWE-611",
       "pygoat/dockerized_labs/xxe_lab/app.py:5",
       "import line, the sink is parseString at 61"
+    ],
+    [
+      "fenceline",
+      "CWE-377",
+      "vulpy/good/cutpasswd.py:3",
+      "reads a public wordlist"
     ]
   ],
   "same_instance": [

@@ -14,7 +14,7 @@ Maps every finding to a CWE from the 2025 CWE Top 25, OWASP Top 10:2025, and kno
 Python zero-day exploit patterns (pickle bypass CVE-2026-56315, PyYAML shadow
 vulnerability CVE-2026-24009, LangChain SSTI CVE-2025-68664, dependency confusion
 CVE-2025-61774, and more — see the CWE reference printed at the end of every
-text-mode report). 57 checks total: 42 walk the parsed AST; the rest are line-regex
+text-mode report). 57 checks total: 43 walk the parsed AST; the rest are line-regex
 checks for surface-syntax patterns that don't need full parsing. Neither kind
 false-positives on a dangerous call quoted in a docstring or comment: the regex
 checks scan a copy of each file with comments and string-only statements blanked
@@ -155,12 +155,12 @@ repos:
 
 `benchmark/` holds a labelled, reproducible comparison against Bandit and
 Semgrep on three intentionally vulnerable apps (pygoat, vulpy, dvpwa), with
-every finding of all three tools adjudicated by hand. As of 1.6.0 fenceline
-sits between the two: higher recall than the Semgrep community ruleset,
-lower recall and precision than Bandit, with the gap concentrated in three
-checks (hardcoded secrets in non-constant shapes, hardcoded `/tmp` paths,
-weak randomness) and one noisy one (unbounded `read()`). The numbers, the
-labelling rules and `run.sh` are in [`benchmark/README.md`](benchmark/README.md).
+every finding of all three tools adjudicated by hand. At 1.6.0 fenceline sat
+between the two (76% precision, 53% recall against Bandit's 90% / 82%); the
+gap was three checks, and closing them put the current main at 92%
+precision and 93% recall, 97% precision at `--confidence-min high`. The
+numbers, the labelling rules and `run.sh` are in
+[`benchmark/README.md`](benchmark/README.md).
 
 ### Severity vs. confidence
 

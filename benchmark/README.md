@@ -40,7 +40,68 @@ because the apps are built to be vulnerable, most findings are true, so the
 benchmark is better at exposing recall gaps than at estimating a tool's
 false-positive rate on ordinary code.
 
-## Results (2026-11-13)
+## Results
+
+### After the first round of fixes (2026-11-13, unreleased main)
+
+Default settings for every tool:
+
+| Tool | Findings | True | False | Precision | Recall |
+|---|---|---|---|---|---|
+| fenceline | 211 | 195 | 16 | 92% | 184/197 (93%) |
+| Bandit | 174 | 156 | 18 | 90% | 153/197 (78%) |
+| Semgrep | 77 | 76 | 1 | 99% | 64/197 (32%) |
+
+fenceline with `--confidence-min high`: 145 findings, 140 true, 5 false (97%
+precision, 66% recall).
+
+| Category | Instances | fenceline | Bandit | Semgrep |
+|---|---|---|---|---|
+| secret | 64 | 61 | 52 | 2 |
+| debug | 25 | 25 | 23 | 23 |
+| bind-all | 23 | 23 | 23 | 23 |
+| tmpfile | 21 | 21 | 21 | 0 |
+| silent-except | 18 | 18 | 5 | 0 |
+| no-timeout | 7 | 7 | 7 | 0 |
+| sqli | 6 | 4 | 6 | 1 |
+| weak-random | 6 | 6 | 6 | 0 |
+| plaintext-http | 4 | 0 | 0 | 4 |
+| weak-hash | 4 | 4 | 4 | 4 |
+| deserialization | 3 | 3 | 3 | 1 |
+| code-injection | 2 | 2 | 1 | 1 |
+| log-injection | 2 | 2 | 0 | 0 |
+| open-redirect | 2 | 2 | 0 | 0 |
+| timing | 2 | 2 | 0 | 0 |
+| weak-crypto-mode | 2 | 0 | 0 | 2 |
+| cmdi | 1 | 1 | 1 | 1 |
+| log-secret | 1 | 1 | 0 | 0 |
+| nan-injection | 1 | 0 | 0 | 1 |
+| ssrf | 1 | 1 | 0 | 1 |
+| unbounded-read | 1 | 1 | 0 | 0 |
+| xxe | 1 | 0 | 1 | 0 |
+
+Remaining fenceline false positives: CWE-770 4 (all MEDIUM confidence, INFO
+severity: reads of files whose handle came from a parameter or a directory
+listing), CWE-918 3 (command-line URLs in dev utilities), and one each of
+CWE-532/611/117/601/1327/78/377 plus one CWE-611 pair on import lines.
+
+What changed between the two tables, in order of effect:
+
+1. Hardcoded credentials rebuilt on the AST (2 -> 61 of 64): every binding
+   shape, placeholder and identifier-like values at MEDIUM confidence, a
+   value-shaped companion check for JWT/AWS/Stripe/GitHub/Slack/Google keys
+   and PEM blocks.
+2. `check_tempfile` now also reports literal paths under `/tmp`, `/var/tmp`
+   and `/dev/shm` (0 -> 21 of 21).
+3. `random.choices`, `getrandbits`, `triangular` and `randbytes` joined the
+   weak-randomness list (1 -> 6 of 6).
+4. Unbounded `read()` consults the receiver's taint: a file the program
+   opened at its own constant path is not reported (14 -> 4 false positives).
+5. `except ...: pass` is reported only for catch-all handlers; a specific
+   type with `pass` is deliberate (7 -> 0 false positives, and 93 -> 8
+   findings on the reference library corpus).
+
+### Baseline at 1.6.0 (2026-11-13)
 
 Default settings for every tool:
 
@@ -87,10 +148,10 @@ False positives by rule: fenceline CWE-770 14, CWE-391 7, CWE-918 3, CWE-532
 B403 2, B105 2, B406 2, B608 2, one each of B409/B104/B108; Semgrep one
 (`dangerous-subprocess-use-tainted-env-args` on a CLI tool).
 
-## What it says
+## What the baseline said
 
-Three gaps account for almost all of fenceline's missed recall, and none of
-them is a taint problem:
+Three gaps accounted for almost all of fenceline's missed recall at 1.6.0,
+and none of them was a taint problem (all three are closed above):
 
 1. **Hardcoded secrets** (2 of 54). The check matches `UPPER_SNAKE = "..."`
    assignments; these apps write `app.secret_key = "..."`,
