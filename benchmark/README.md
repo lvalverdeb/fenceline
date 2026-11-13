@@ -13,8 +13,8 @@ false positives.
 | [vulpy](https://github.com/fportantier/vulpy) | Flask | `5249cc8` | 2373 |
 | [dvpwa](https://github.com/anxolerd/dvpwa) | aiohttp | `4a8f4a4` | 674 |
 
-Tools: fenceline 1.6.0 (this repository, Python and Rust ports give identical
-findings), Bandit 1.9.4 with default settings, Semgrep 1.185.0 with the
+Tools: fenceline 1.7.0 for the current table and 1.6.0 for the baseline (this
+repository; the Python and Rust ports give identical findings), Bandit 1.9.4 with default settings, Semgrep 1.185.0 with the
 community `p/python` ruleset. Test files (`tests.py`, `test_*.py`, `tests/`),
 migrations and non-Python files are excluded for every tool alike, so
 fenceline's manifest checks and Bandit's test-code hits are both out.
@@ -42,7 +42,7 @@ false-positive rate on ordinary code.
 
 ## Results
 
-### After the first round of fixes (2026-11-13, unreleased main)
+### 1.7.0 (2026-11-13)
 
 Default settings for every tool:
 
