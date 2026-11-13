@@ -158,7 +158,8 @@ Semgrep on three intentionally vulnerable apps (pygoat, vulpy, dvpwa), with
 every finding of all three tools adjudicated by hand. At 1.6.0 fenceline sat
 between the two (76% precision, 53% recall against Bandit's 90% / 82%); the
 gap was three checks, and closing them put the current main at 92%
-precision and 93% recall, 97% precision at `--confidence-min high`. The
+precision and 94% recall, against Bandit's 90% / 77% and Semgrep's 99% / 32%
+on the same ground truth, and 97% precision at `--confidence-min high`. The
 numbers, the labelling rules and `run.sh` are in
 [`benchmark/README.md`](benchmark/README.md).
 
