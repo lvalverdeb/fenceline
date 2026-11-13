@@ -17,7 +17,7 @@ from fenceline.config import (
     load_severity_policy,
 )
 from fenceline.models import CONFIDENCE_ORDER, SEVERITY_ORDER, Finding, cap_severity
-from fenceline.reporting import print_report
+from fenceline.reporting import print_report, print_sarif
 from fenceline.scanner import _ast_parse, _is_test_path, _iter_py, _read, _rel, mask_non_code
 from fenceline.suppression import apply_suppressions
 
@@ -262,7 +262,13 @@ def main() -> int:
         version=f"fenceline {_fenceline_version()}",
         help="Print the installed fenceline version and exit",
     )
-    parser.add_argument("--json", action="store_true", help="JSON output")
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument("--json", action="store_true", help="JSON output")
+    output.add_argument(
+        "--sarif",
+        action="store_true",
+        help="SARIF 2.1.0 output, for GitHub code scanning and other SARIF consumers",
+    )
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress banner")
     parser.add_argument(
         "--config",
@@ -390,7 +396,7 @@ def main() -> int:
 
     # JSON mode keeps stdout machine-parseable: banner is suppressed and
     # diagnostics go to stderr.
-    if not args.quiet and not args.json:
+    if not args.quiet and not args.json and not args.sarif:
         print(f"\n  {'=' * 72}")
         print("  Zero-Day Security Audit — fenceline")
         print("  CWEs: CWE Top 25 (2025) + OWASP Top 10:2025 + Python Zero-Day Patterns")
@@ -464,16 +470,25 @@ def main() -> int:
                 kept_findings.append(f)
         all_findings = kept_findings
 
-    if args.write_baseline is not None:
-        write_baseline(all_findings, args.write_baseline)
+    def emit(baseline_suppressed: int = 0) -> None:
+        if args.sarif:
+            print_sarif(
+                all_findings, tool_version=_fenceline_version(), skipped_files=skipped_files
+            )
+            return
         print_report(
             all_findings,
             json_output=args.json,
+            baseline_suppressed=baseline_suppressed,
             nosec_suppressed=nosec_suppressed,
             test_suppressed=test_suppressed,
             skipped_files=skipped_files,
         )
-        if not args.quiet and not args.json:
+
+    if args.write_baseline is not None:
+        write_baseline(all_findings, args.write_baseline)
+        emit()
+        if not args.quiet and not args.json and not args.sarif:
             print(f"  Wrote baseline with {len(all_findings)} finding(s) to {args.write_baseline}")
         return 0
 
@@ -482,14 +497,7 @@ def main() -> int:
         baseline_fingerprints = load_baseline(args.baseline)
         all_findings, baseline_suppressed = split_by_baseline(all_findings, baseline_fingerprints)
 
-    print_report(
-        all_findings,
-        json_output=args.json,
-        baseline_suppressed=baseline_suppressed,
-        nosec_suppressed=nosec_suppressed,
-        test_suppressed=test_suppressed,
-        skipped_files=skipped_files,
-    )
+    emit(baseline_suppressed)
     threshold = SEVERITY_ORDER[args.fail_on.upper()]
     gating = [f for f in all_findings if SEVERITY_ORDER.get(f.severity, 99) <= threshold]
     return 1 if gating else 0

@@ -6,7 +6,7 @@ import json as _json
 
 from fenceline.models import SEVERITY_ORDER, Finding
 
-__all__ = ["print_report", "CWE_REFERENCE"]
+__all__ = ["print_report", "print_sarif", "sarif_report", "CWE_REFERENCE"]
 
 
 SEV_COLORS = {
@@ -232,3 +232,131 @@ CVE-2026-41486  Ray Parquet cloudpickle.loads RCE (CVSS 10) (parquet-ext)
 OWASP ML06     ML model pickle-based formats RCE            (ML supply-chain)
 pydepgate       decode-then-execute chains on PyPI           (supply-chain)
 """
+
+
+# ── SARIF 2.1.0 (GitHub code scanning, VS Code SARIF viewer, etc.) ─────────
+
+# SARIF has three result levels; fenceline's five severities fold into them.
+_SARIF_LEVEL = {
+    "CRITICAL": "error",
+    "HIGH": "error",
+    "MEDIUM": "warning",
+    "LOW": "note",
+    "INFO": "note",
+}
+# GitHub reads `security-severity` (0-10) off the rule to label alerts
+# critical (>= 9.0) / high (>= 7.0) / medium (>= 4.0) / low.
+_SECURITY_SEVERITY = {
+    "CRITICAL": "9.5",
+    "HIGH": "7.5",
+    "MEDIUM": "5.0",
+    "LOW": "2.5",
+    "INFO": "1.0",
+}
+
+
+def sarif_report(
+    all_findings: list[Finding],
+    *,
+    tool_version: str,
+    skipped_files: list[str] | None = None,
+) -> dict:
+    """The scan as a SARIF 2.1.0 log: one rule per CWE (its severity is the
+    highest seen for that CWE), one result per finding in report order,
+    unparseable files as tool notifications. Suppressed findings are
+    simply absent; SARIF consumers keep their own suppression state."""
+    ordered = sorted(
+        all_findings, key=lambda f: (SEVERITY_ORDER.get(f.severity, 99), f.file, f.line)
+    )
+    rules: dict[str, Finding] = {}
+    for f in ordered:  # first in report order = highest severity for that CWE
+        rules.setdefault(f.cwe_id, f)
+    rule_ids = sorted(rules)
+    rule_index = {cwe: i for i, cwe in enumerate(rule_ids)}
+
+    def rule(cwe: str) -> dict:
+        f = rules[cwe]
+        number = cwe.split("-", 1)[-1]
+        return {
+            "id": cwe,
+            "name": f.cwe_name,
+            "shortDescription": {"text": f.cwe_name},
+            "helpUri": f"https://cwe.mitre.org/data/definitions/{number}.html",
+            "properties": {
+                "security-severity": _SECURITY_SEVERITY[f.severity],
+                "tags": ["security", cwe],
+            },
+        }
+
+    def result(f: Finding) -> dict:
+        return {
+            "ruleId": f.cwe_id,
+            "ruleIndex": rule_index[f.cwe_id],
+            "level": _SARIF_LEVEL[f.severity],
+            "message": {"text": f.description},
+            "locations": [
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {
+                            "uri": f.file.replace("\\", "/"),
+                            "uriBaseId": "%SRCROOT%",
+                        },
+                        "region": {"startLine": f.line, "snippet": {"text": f.code_snippet}},
+                    }
+                }
+            ],
+            "properties": {
+                "severity": f.severity,
+                "confidence": f.confidence,
+                "package": f.package,
+            },
+        }
+
+    invocation: dict = {"executionSuccessful": True}
+    if skipped_files:
+        invocation["toolExecutionNotifications"] = [
+            {
+                "level": "warning",
+                "message": {"text": f"{name} could not be parsed; AST checks did not run on it."},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {
+                                "uri": name.replace("\\", "/"),
+                                "uriBaseId": "%SRCROOT%",
+                            }
+                        }
+                    }
+                ],
+            }
+            for name in skipped_files
+        ]
+    return {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "fenceline",
+                        "version": tool_version,
+                        "informationUri": "https://github.com/lvalverdeb/fenceline",
+                        "rules": [rule(cwe) for cwe in rule_ids],
+                    }
+                },
+                "invocations": [invocation],
+                "results": [result(f) for f in ordered],
+            }
+        ],
+    }
+
+
+def print_sarif(
+    all_findings: list[Finding], *, tool_version: str, skipped_files: list[str] | None = None
+) -> None:
+    print(
+        _json.dumps(
+            sarif_report(all_findings, tool_version=tool_version, skipped_files=skipped_files),
+            indent=2,
+        )
+    )

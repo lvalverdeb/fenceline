@@ -34,7 +34,7 @@ from fenceline.cli import (
 )
 from fenceline.config import _find_workspace_root, is_secure_path
 from fenceline.models import Finding
-from fenceline.reporting import print_report
+from fenceline.reporting import print_report, sarif_report
 from fenceline.scanner import (
     _ast_parse,
     _is_self_scan_exclusion,
@@ -1382,3 +1382,63 @@ def test_disabled_tls_verification_in_test_code_is_suppressed_by_default(tmp_pat
         "client.py",
         "test_client.py",
     ]
+
+
+def test_sarif_report_maps_findings_to_rules_results_and_notifications():
+    low = Finding(
+        cwe_id="CWE-117",
+        cwe_name="Log Injection / Forging",
+        severity="LOW",
+        package="pkg",
+        file="sub\\mod.py",
+        line=7,
+        code_snippet="logger.info(f'{x}')",
+        description="f-string in logger call",
+    )
+    log = sarif_report(
+        [low, _sample_finding()], tool_version="1.2.3", skipped_files=["pkg/broken.py"]
+    )
+    assert log["version"] == "2.1.0"
+    run = log["runs"][0]
+    assert run["tool"]["driver"]["name"] == "fenceline"
+    assert run["tool"]["driver"]["version"] == "1.2.3"
+    assert [r["id"] for r in run["tool"]["driver"]["rules"]] == ["CWE-117", "CWE-502"]
+    assert run["tool"]["driver"]["rules"][1]["properties"]["security-severity"] == "9.5"
+    assert run["tool"]["driver"]["rules"][1]["helpUri"].endswith("/502.html")
+    results = run["results"]
+    assert [r["ruleId"] for r in results] == ["CWE-502", "CWE-117"]  # severity order
+    assert [r["level"] for r in results] == ["error", "note"]
+    assert results[0]["ruleIndex"] == 1
+    assert results[1]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "sub/mod.py"
+    assert results[1]["locations"][0]["physicalLocation"]["region"]["startLine"] == 7
+    assert results[0]["properties"] == {
+        "severity": "CRITICAL",
+        "confidence": "MEDIUM",
+        "package": "pkg",
+    }
+    notes = run["invocations"][0]["toolExecutionNotifications"]
+    assert len(notes) == 1 and "pkg/broken.py" in notes[0]["message"]["text"]
+
+
+def test_cli_sarif_flag_emits_sarif_and_excludes_json(tmp_path):
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "mod.py").write_text("import pickle\npickle.loads(data)\n")
+    result = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--sarif"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    log = json.loads(result.stdout)  # no banner precedes the document
+    assert log["runs"][0]["results"][0]["ruleId"] == "CWE-502"
+    assert result.returncode == 1
+    both = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--sarif", "--json"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert both.returncode == 2
+    assert "not allowed with" in both.stderr

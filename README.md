@@ -40,6 +40,7 @@ Exit codes: `0` (no findings at or above `--fail-on`), `1` (one or more).
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--json` | off | Machine-readable output |
+| `--sarif` | off | SARIF 2.1.0 output for GitHub code scanning and other SARIF consumers (see "CI integration" below) |
 | `--quiet` / `-q` | off | Suppress the banner |
 | `--config` | none | TOML file with a `packages` table of `name = "path"` entries (see below); replaces cwd auto-discovery |
 | `--package` | none | Add or override one package as `NAME=PATH` (repeatable); applied on top of `--config` |
@@ -117,6 +118,38 @@ a YAML dependency to a tool that flags YAML-library CVEs would be ironic.
 Python's stdlib `tomllib` covers this without adding one. Paths resolve
 relative to the config file, and every resolved path passes the same
 path-security sandbox check `--package` entries get.
+
+### CI integration
+
+`--sarif` writes the scan as a [SARIF 2.1.0](https://sarifweb.azurewebsites.net/)
+log: one rule per CWE (with a `helpUri` into the MITRE CWE database and a
+`security-severity` so GitHub labels alerts critical/high/medium/low), one
+result per finding, and any file that could not be parsed as a tool
+notification. Upload it with GitHub's `upload-sarif` action and findings
+appear as code scanning alerts, with GitHub tracking which are new on a pull
+request:
+
+```yaml
+- run: pipx run fenceline --sarif -q > fenceline.sarif || true
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: fenceline.sarif
+```
+
+The `|| true` keeps the upload step reachable; `--fail-on` still decides the
+exit code if you want the scan step itself to gate.
+
+As a [pre-commit](https://pre-commit.com) hook, fenceline scans the working
+tree whenever a Python file is staged:
+
+```yaml
+repos:
+  - repo: https://github.com/lvalverdeb/fenceline
+    rev: v1.6.0
+    hooks:
+      - id: fenceline
+        # args: [--fail-on, critical, --baseline, fenceline-baseline.json]
+```
 
 ### Severity vs. confidence
 

@@ -1,0 +1,7 @@
+- id: fenceline
+  name: fenceline
+  description: Zero-day security scanner for Python codebases
+  entry: fenceline
+  language: python
+  types: [python]
+  pass_filenames: false
