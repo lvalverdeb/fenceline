@@ -121,13 +121,33 @@ path-security sandbox check `--package` entries get.
 
 Every finding carries two independent ratings, the same distinction Bandit
 makes: **severity** is how bad it would be if the finding is real; **confidence**
-is how sure the check is that it *is* real. An AST-based check that matched a
-real `Call` node is `HIGH` confidence; a line-regex check that can't fully
+is how sure the check is that it *is* real. A line-regex check that can't fully
 rule out a docstring or string-literal mention is `MEDIUM`; a handful of
 inherently heuristic checks (timing-attack keyword proximity, ReDoS
-backtracking-risk judgment, `debug=True` pattern matching) are `LOW`. Use
-`--confidence-min medium` to cut noise from the fuzzier checks without
-raising your severity bar.
+backtracking-risk judgment, `debug=True` pattern matching) are `LOW`. For most
+AST checks, matching a real `Call` node is all there is to know, and the
+finding is `HIGH`.
+
+For the injection-shaped checks (command, code, SQL, template and CRLF
+injection, SSRF, open redirect, path traversal, arbitrary file write, pandas
+`eval`/`query`), knowing the shape of the call is not enough: `subprocess.run(cmd)` is a
+finding or not depending on where `cmd` came from. These checks trace the
+sink's arguments back through the enclosing function and set confidence from
+what they find:
+
+| The sink is fed by | Confidence |
+| --- | --- |
+| A recognised entry point: a `request` object, `os.environ`, `sys.argv`, `input()`, a socket read, or a parameter of a route-decorated function or handler method | `HIGH` |
+| Plain function parameters, `self` attributes, or values the function cannot resolve | `MEDIUM`, with a note on the finding |
+| Only literals, module constants, library references, or values that cannot carry a payload (a length, an `int()`, a `shlex.quote()`) | not reported |
+
+The analysis stays inside one function and follows assignments without
+regard to order, so it is deliberately pessimistic: a name assigned a
+constant and later a request value counts as a request value. It does not
+see through `self` fields set elsewhere or through calls into other
+functions; those land in the `MEDIUM` row. Use `--confidence-min medium` to
+cut noise from the fuzzier regex checks, and `--confidence-min high` to see
+only findings where attacker-controlled input provably reaches the sink.
 
 ### Severity policy
 

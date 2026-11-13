@@ -26,7 +26,6 @@ __all__ = [
     "_skip",
     "_iter_function_scopes",
     "_collect_scope_names",
-    "_is_locally_safe_expr",
     "_iter_calls_in_scope",
 ]
 
@@ -248,14 +247,8 @@ def _skip(line: str) -> bool:
 #
 # Deliberately NOT full taint tracking: this only ever looks at the same
 # function's own body plus the enclosing module's top-level constants and
-# imports -- never across a function/call boundary, never following a
-# value into or out of another function. It exists to answer one narrow
-# question well: "is this expression built entirely from string literals,
-# module-level constants, and library references, with no dependency on
-# this function's own parameters or any other name we can't account for?"
-# That's enough to fix the reported false positives (a module-level
-# constant, a value assigned from a chain of imported-module calls) without
-# claiming to solve the much harder general taint-tracking problem.
+# imports -- never across a function/call boundary. ``fenceline.taint`` builds
+# on the same scope model to classify a sink's inputs.
 
 
 def _collect_scope_names(stmts: list[ast.stmt]) -> tuple[dict[str, ast.expr], frozenset[str]]:
@@ -325,63 +318,6 @@ def _iter_function_scopes(tree: ast.Module):
                 a.arg for a in (*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs)
             )
             yield node.body, params
-
-
-def _is_locally_safe_expr(
-    expr: ast.expr,
-    param_names: frozenset[str],
-    literals: dict[str, ast.expr],
-    imports: frozenset[str],
-    _depth: int = 0,
-) -> bool:
-    """True if *expr* doesn't reference this function's own parameters (the
-    boundary of "external input" in a same-function-scope model) or any
-    name that can't be resolved within the same scope at all — i.e. it's
-    built entirely from string literals, function/module-local constants,
-    and calls/attribute access on imported names. Recursion depth is capped
-    defensively; a pathologically deep expression just falls through to the
-    conservative "not safe" default rather than the check ever hanging.
-    """
-    if _depth > 8:
-        return False
-    if isinstance(expr, ast.Constant):
-        return True
-    if isinstance(expr, ast.Name):
-        if expr.id in param_names:
-            return False
-        if expr.id in imports:
-            return True
-        if expr.id in literals:
-            return _is_locally_safe_expr(
-                literals[expr.id], param_names, literals, imports, _depth + 1
-            )
-        return False
-    if isinstance(expr, ast.Attribute):
-        return _is_locally_safe_expr(expr.value, param_names, literals, imports, _depth + 1)
-    if isinstance(expr, ast.Call):
-        args_safe = all(
-            _is_locally_safe_expr(a, param_names, literals, imports, _depth + 1) for a in expr.args
-        )
-        kwargs_safe = all(
-            _is_locally_safe_expr(kw.value, param_names, literals, imports, _depth + 1)
-            for kw in expr.keywords
-        )
-        return (
-            _is_locally_safe_expr(expr.func, param_names, literals, imports, _depth + 1)
-            and args_safe
-            and kwargs_safe
-        )
-    if isinstance(expr, ast.JoinedStr):
-        return all(
-            _is_locally_safe_expr(v.value, param_names, literals, imports, _depth + 1)
-            for v in expr.values
-            if isinstance(v, ast.FormattedValue)
-        )
-    if isinstance(expr, ast.BinOp):
-        return _is_locally_safe_expr(
-            expr.left, param_names, literals, imports, _depth + 1
-        ) and _is_locally_safe_expr(expr.right, param_names, literals, imports, _depth + 1)
-    return False
 
 
 def _iter_calls_in_scope(tree: ast.Module):

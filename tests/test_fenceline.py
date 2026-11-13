@@ -79,9 +79,11 @@ def test_check_pandas_eval_ignores_docstrings_and_comments():
 
 
 def test_check_pandas_eval_flags_real_calls():
-    findings = _findings(check_pandas_eval, 'result = df.query("a > 1")\n')
+    findings = _findings(check_pandas_eval, "result = df.query(expr)\n")
     assert len(findings) == 1
     assert findings[0].severity == "HIGH"
+    # A literal expression cannot carry injected code.
+    assert _findings(check_pandas_eval, 'result = df.query("a > 1")\n') == []
 
 
 def test_check_numpy_load_flags_explicit_allow_pickle_true_only():
@@ -524,9 +526,24 @@ def test_finding_confidence_defaults_to_medium():
 def test_ast_checks_report_high_confidence():
     # AST-based checks match a real Call/ExceptHandler node, not just a
     # substring, so they're tagged HIGH rather than the text-check default.
-    findings = _findings(check_pandas_eval, 'result = df.query("a > 1")\n')
+    findings = _findings(check_pickle, "pickle.loads(data)\n")
     assert len(findings) == 1
     assert findings[0].confidence == "HIGH"
+
+
+def test_injection_checks_set_confidence_from_taint():
+    # For injection-shaped sinks, confidence says whether a recognised
+    # input source reaches the sink within the enclosing function.
+    from fenceline.checks.ast_checks import check_command_injection
+
+    src = (
+        "import os\n\ndef a(cmd):\n    os.system(cmd)\n\ndef b():\n"
+        "    os.system(os.environ['CMD'])\n\ndef c():\n    os.system('ls')\n"
+    )
+    findings = _findings(check_command_injection, src)
+    assert [(f.line, f.confidence) for f in findings] == [(4, "MEDIUM"), (7, "HIGH")]
+    assert "No request or environment input" in findings[0].description
+    assert "No request or environment input" not in findings[1].description
 
 
 def test_heuristic_text_checks_report_low_confidence():
@@ -1250,3 +1267,74 @@ def test_unparseable_python_file_is_listed_as_skipped(tmp_path):
         timeout=60,
     ).stdout
     assert "1 file(s) could not be parsed" in text
+
+
+# ── Intra-procedural taint classification (fenceline.taint) ──────────────
+
+
+def _taint_of(source: str, lineno: int):
+    import ast as _ast
+
+    from fenceline.taint import classify
+
+    tree = _ast.parse(source)
+    call = next(n for n in _ast.walk(tree) if isinstance(n, _ast.Call) and n.lineno == lineno)
+    return classify(tree, call, [*call.args, *(kw.value for kw in call.keywords)])
+
+
+@pytest.mark.parametrize(
+    "body,expected",
+    [
+        ('sink("literal")', "CLEAN"),
+        ("sink(CONST)", "CLEAN"),
+        ("sink([sys.executable, '-m', 'x'])", "CLEAN"),
+        ("sink(len(blob))", "CLEAN"),
+        ("sink(shlex.quote(blob))", "CLEAN"),
+        ("sink(blob)", "INTERNAL"),
+        ("sink(blob.strip().lower())", "INTERNAL"),
+        ("sink(self.cmd)", "INTERNAL"),
+        ("sink(unknown_global)", "INTERNAL"),
+        ("sink(f'{CONST}-{blob}')", "INTERNAL"),
+        ("sink(request.args['x'])", "SOURCE"),
+        ("sink(os.environ.get('X'))", "SOURCE"),
+        ("sink(sys.argv[1])", "SOURCE"),
+        ("sink(input('> '))", "SOURCE"),
+        ("sink(sock.recv(1024))", "SOURCE"),
+        ("sink(self.request.headers['Host'])", "SOURCE"),
+        ("x = request.form['q']\n    y = x.upper()\n    sink('cmd ' + y)", "SOURCE"),
+        ("parts = [CONST]\n    parts.append(blob)\n    sink(' '.join(parts))", "CLEAN"),
+    ],
+)
+def test_taint_classification(body, expected):
+    source = (
+        "import os, shlex, sys\nfrom flask import request\nCONST = 'fixed'\n\n"
+        "def f(self, blob):\n    " + body + "\n"
+    )
+    sink_line = next(i + 1 for i, text in enumerate(source.splitlines()) if "sink(" in text)
+    assert _taint_of(source, sink_line).name == expected
+
+
+def test_taint_handler_parameters_are_sources():
+    from fenceline.taint import Taint
+
+    assert _taint_of("@app.route('/x')\ndef view(q):\n    sink(q)\n", 3) is Taint.SOURCE
+    assert (
+        _taint_of("class H(RequestHandler):\n    def get(self, q):\n        sink(q)\n", 3)
+        is Taint.SOURCE
+    )
+    assert _taint_of("def helper(q):\n    sink(q)\n", 2) is Taint.INTERNAL
+
+
+def test_taint_is_flow_insensitive_over_reassignment():
+    from fenceline.taint import Taint
+
+    src = "import os\n\ndef f():\n    cmd = 'ls'\n    cmd = os.environ['CMD']\n    sink(cmd)\n"
+    assert _taint_of(src, 6) is Taint.SOURCE
+
+
+def test_taint_does_not_cross_nested_function_boundary():
+    from fenceline.taint import Taint
+
+    src = "def outer(blob):\n    def inner():\n        sink('fixed')\n    sink(blob)\n"
+    assert _taint_of(src, 3) is Taint.CLEAN
+    assert _taint_of(src, 4) is Taint.INTERNAL

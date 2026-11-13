@@ -22,7 +22,6 @@ from fenceline.ast_helpers import (
     _handler_has_diagnostic,
     _has_dynamic_arg,
     _import_aliases,
-    _is_locally_safe_expr,
     _is_re_compile,
     _is_sqlalchemy_compile,
     _iter_calls_in_scope,
@@ -31,6 +30,7 @@ from fenceline.ast_helpers import (
 )
 from fenceline.models import Finding
 from fenceline.scanner import _rel
+from fenceline.taint import INTERNAL_NOTE, Taint, classify, confidence_for
 
 __all__ = [
     "check_pickle",
@@ -74,7 +74,9 @@ __all__ = [
 
 
 def check_eval_exec(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-94 rank #10.  Exclude re.compile and SQLAlchemy .compile()."""
+    """CWE-94 rank #10.  Exclude re.compile and SQLAlchemy .compile(). A literal
+    program text (``exec("...")``) is not code injection and is not reported;
+    see ``fenceline.taint`` for how the argument's origin sets confidence."""
     pk = _rel(path)
     results: list[Finding] = []
     aliases = _import_aliases(tree)
@@ -86,49 +88,42 @@ def check_eval_exec(path: Path, lines: list[str], tree: ast.Module | None) -> li
         code = lines[line - 1].strip() if 1 <= line <= len(lines) else ""
 
         if fn in ("eval", "exec"):
-            results.append(
-                Finding(
-                    cwe_id="CWE-94",
-                    cwe_name="Code Injection",
-                    severity="CRITICAL",
-                    confidence="HIGH",
-                    package="",
-                    file=pk,
-                    line=line,
-                    code_snippet=code,
-                    description=f"{fn}() with dynamic input allows arbitrary code execution.",
-                )
+            severity, description = (
+                "CRITICAL",
+                f"{fn}() with dynamic input allows arbitrary code execution.",
             )
         elif fn == "compile" and not _is_re_compile(node) and not _is_sqlalchemy_compile(node):
             # Only flag bare compile(...) — method calls like obj.compile() are not Python's built-in
-            if isinstance(node.func, ast.Name) and _has_dynamic_arg(node):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-94",
-                        cwe_name="Code Injection",
-                        severity="CRITICAL",
-                        confidence="HIGH",
-                        package="",
-                        file=pk,
-                        line=line,
-                        code_snippet=code,
-                        description="compile() with dynamic input can enable arbitrary code execution.",
-                    )
-                )
-        elif fn == "__import__":
-            results.append(
-                Finding(
-                    cwe_id="CWE-94",
-                    cwe_name="Code Injection",
-                    severity="HIGH",
-                    confidence="HIGH",
-                    package="",
-                    file=pk,
-                    line=line,
-                    code_snippet=code,
-                    description="Dynamic __import__() can import arbitrary modules if argument is user-controlled.",
-                )
+            if not isinstance(node.func, ast.Name):
+                continue
+            severity, description = (
+                "CRITICAL",
+                "compile() with dynamic input can enable arbitrary code execution.",
             )
+        elif fn == "__import__":
+            severity = "HIGH"
+            description = (
+                "Dynamic __import__() can import arbitrary modules if argument is user-controlled."
+            )
+        else:
+            continue
+        taint = _tainted(tree, node, _call_data(node))
+        if taint is None:
+            continue
+        confidence, note = taint
+        results.append(
+            Finding(
+                cwe_id="CWE-94",
+                cwe_name="Code Injection",
+                severity=severity,
+                confidence=confidence,
+                package="",
+                file=pk,
+                line=line,
+                code_snippet=code,
+                description=description + note,
+            )
+        )
     return results
 
 
@@ -483,35 +478,33 @@ def check_pandas_eval(path: Path, lines: list[str], tree: ast.Module | None) -> 
         line = _node_line(node)
         code = lines[line - 1].strip() if 1 <= line <= len(lines) else ""
         if fn in ("pandas.eval", "pd.eval"):
-            results.append(
-                Finding(
-                    cwe_id="CWE-94",
-                    cwe_name="Code Injection (pandas eval)",
-                    severity="CRITICAL",
-                    confidence="HIGH",
-                    package="",
-                    file=pk,
-                    line=line,
-                    code_snippet=code,
-                    description="pandas.eval() evaluates arbitrary Python expressions — code injection if user input reaches the expression.",
-                    zero_day_relevance="CVE-2024-9880 / Trail of Bits: pandas.eval() / df.query() sandbox bypass via dunder methods. Pandas docs now warn explicitly.",
-                )
-            )
+            cwe_name, severity = "Code Injection (pandas eval)", "CRITICAL"
+            description = "pandas.eval() evaluates arbitrary Python expressions — code injection if user input reaches the expression."
+            zero_day = "CVE-2024-9880 / Trail of Bits: pandas.eval() / df.query() sandbox bypass via dunder methods. Pandas docs now warn explicitly."
         elif isinstance(node.func, ast.Attribute) and node.func.attr in ("eval", "query"):
-            results.append(
-                Finding(
-                    cwe_id="CWE-94",
-                    cwe_name="Code Injection (DataFrame eval/query)",
-                    severity="HIGH",
-                    confidence="HIGH",
-                    package="",
-                    file=pk,
-                    line=line,
-                    code_snippet=code,
-                    description="DataFrame.eval() or DataFrame.query() evaluates Python expressions — code injection if user-controlled input reaches the expression.",
-                    zero_day_relevance="CVE-2024-9880: pandas.DataFrame.query() sandbox bypass. Thousands of attribute chains lead to os.system.",
-                )
+            cwe_name, severity = "Code Injection (DataFrame eval/query)", "HIGH"
+            description = "DataFrame.eval() or DataFrame.query() evaluates Python expressions — code injection if user-controlled input reaches the expression."
+            zero_day = "CVE-2024-9880: pandas.DataFrame.query() sandbox bypass. Thousands of attribute chains lead to os.system."
+        else:
+            continue
+        taint = _tainted(tree, node, _call_data(node))
+        if taint is None:
+            continue
+        confidence, note = taint
+        results.append(
+            Finding(
+                cwe_id="CWE-94",
+                cwe_name=cwe_name,
+                severity=severity,
+                confidence=confidence,
+                package="",
+                file=pk,
+                line=line,
+                code_snippet=code,
+                description=description + note,
+                zero_day_relevance=zero_day,
             )
+        )
     return results
 
 
@@ -949,6 +942,22 @@ def _keyword_is(node: ast.Call, name: str, value: bool) -> bool:
     )
 
 
+def _call_data(node: ast.Call) -> list[ast.expr]:
+    """The expressions a sink call is fed: every positional argument and
+    every keyword value."""
+    return [*node.args, *(kw.value for kw in node.keywords)]
+
+
+def _tainted(tree: ast.Module, anchor: ast.AST, exprs: list[ast.expr]) -> tuple[str, str] | None:
+    """``(confidence, description_suffix)`` for a sink fed by *exprs*, or
+    ``None`` when every input is provably constant and there is nothing to
+    report. See ``fenceline.taint`` for the three-way model."""
+    confidence = confidence_for(classify(tree, anchor, exprs))
+    if confidence is None:
+        return None
+    return confidence, ("" if confidence == "HIGH" else INTERNAL_NOTE)
+
+
 _PICKLE_CALLS: tuple[tuple[str, str, str], ...] = (
     ("pickle.loads", "pickle.loads() / pickle.load()", "CRITICAL"),
     ("pickle.load", "pickle.loads() / pickle.load()", "CRITICAL"),
@@ -1013,42 +1022,58 @@ _COMMAND_CALLS: tuple[tuple[str, str], ...] = (
 
 
 def check_command_injection(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-78 rank #9, CWE-77 rank #23."""
+    """CWE-78 rank #9, CWE-77 rank #23. A fully literal command
+    (``subprocess.run(["git", "status"])``) is not reported; the argument's
+    origin sets confidence (see ``fenceline.taint``)."""
     pk = _rel(path)
     results: list[Finding] = []
     aliases = _import_aliases(tree)
     for node in _calls(tree):
         fn = _callee(node, aliases)
         line = _node_line(node)
-        for call, sev in _COMMAND_CALLS:
-            if _dotted_matches(fn, call):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-78",
-                        cwe_name="OS Command Injection",
-                        severity=sev,
-                        confidence="HIGH",
-                        package="",
-                        file=pk,
-                        line=line,
-                        code_snippet=_code_at(lines, line),
-                        description=f"{call}() spawns subprocesses; may allow command injection if arguments are unvalidated.",
-                        zero_day_relevance="CWE-78: 20 CVEs in KEV. Still a top Python zero-day vector.",
-                    )
+        matched = next((call for call, _ in _COMMAND_CALLS if _dotted_matches(fn, call)), None)
+        shell = _keyword_is(node, "shell", True)
+        if matched is None and not shell:
+            continue
+        # The command and its arguments; `shell=`/`cwd=`/`env=` and friends
+        # don't carry the payload.
+        taint = _tainted(
+            tree,
+            node,
+            [*node.args, *(kw.value for kw in node.keywords if kw.arg in ("args", "cmd"))],
+        )
+        if taint is None:
+            continue
+        confidence, note = taint
+        if matched is not None:
+            sev = dict(_COMMAND_CALLS)[matched]
+            results.append(
+                Finding(
+                    cwe_id="CWE-78",
+                    cwe_name="OS Command Injection",
+                    severity=sev,
+                    confidence=confidence,
+                    package="",
+                    file=pk,
+                    line=line,
+                    code_snippet=_code_at(lines, line),
+                    description=f"{matched}() spawns subprocesses; may allow command injection if arguments are unvalidated."
+                    + note,
+                    zero_day_relevance="CWE-78: 20 CVEs in KEV. Still a top Python zero-day vector.",
                 )
-                break
-        if _keyword_is(node, "shell", True):
+            )
+        if shell:
             results.append(
                 Finding(
                     cwe_id="CWE-78",
                     cwe_name="OS Command Injection",
                     severity="HIGH",
-                    confidence="HIGH",
+                    confidence=confidence,
                     package="",
                     file=pk,
                     line=line,
                     code_snippet=_code_at(lines, line),
-                    description="shell=True enables shell injection in subprocess calls.",
+                    description="shell=True enables shell injection in subprocess calls." + note,
                 )
             )
     return results
@@ -1097,20 +1122,25 @@ def check_ssti(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
     pk = _rel(path)
     results: list[Finding] = []
     for node in _calls(tree):
-        if _call_name(node) != "Template" or not _has_dynamic_arg(node):
+        if _call_name(node) != "Template":
             continue
+        taint = _tainted(tree, node, _call_data(node))
+        if taint is None:
+            continue
+        confidence, note = taint
         line = _node_line(node)
         results.append(
             Finding(
                 cwe_id="CWE-1336",
                 cwe_name="Server-Side Template Injection",
                 severity="HIGH",
-                confidence="HIGH",
+                confidence=confidence,
                 package="",
                 file=pk,
                 line=line,
                 code_snippet=_code_at(lines, line),
-                description="Template instantiation — SSTI if template string is user-controlled.",
+                description="Template instantiation — SSTI if template string is user-controlled."
+                + note,
                 zero_day_relevance="CVE-2025-68664: LangChain Core SSTI zero-day chaining deserialisation + Jinja2 for RCE.",
             )
         )
@@ -1131,44 +1161,54 @@ def check_crlf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
     ``data + "\\r\\n"``, ``"%s\\r\\n" % x``, ``f"{x}\\r\\n"``, ``"...\\r\\n".format(x)``
     -- is the response-splitting shape. A bare ``b"\\r\\n"`` constant (an HTTP
     parser's delimiter, a comparison, a ``write()`` of a fixed line) is not,
-    and on real HTTP code those outnumbered the combined ones ten to one."""
+    and on real HTTP code those outnumbered the combined ones ten to one.
+    The joined data's origin then sets confidence (``fenceline.taint``): a
+    hex chunk length or a module constant is not an injection and is
+    dropped; a request header value is HIGH."""
     pk = _rel(path)
     results: list[Finding] = []
-    seen: set[int] = set()
+    # Several hits on one line (an f-string inside a concatenation) report
+    # once, at the worst taint among them.
+    hits: dict[int, Taint] = {}
     for node in ast.walk(tree) if tree else []:
+        # `data`: the non-literal operands joined to the CRLF literal.
         if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Mod)):
             sides = (node.left, node.right)
-            hit = any(_has_crlf(s) for s in sides) and any(
-                not isinstance(s, ast.Constant) for s in sides
-            )
+            data = [s for s in sides if not isinstance(s, ast.Constant)]
+            hit = any(_has_crlf(s) for s in sides) and bool(data)
         elif isinstance(node, ast.JoinedStr):
-            hit = any(_has_crlf(v) for v in node.values) and any(
-                isinstance(v, ast.FormattedValue) for v in node.values
-            )
+            data = [v.value for v in node.values if isinstance(v, ast.FormattedValue)]
+            hit = any(_has_crlf(v) for v in node.values) and bool(data)
         elif isinstance(node, ast.Call):
+            data = _call_data(node)
             hit = (
                 isinstance(node.func, ast.Attribute)
                 and node.func.attr == "format"
                 and _has_crlf(node.func.value)
-                and bool(node.args or node.keywords)
+                and bool(data)
             )
         else:
             continue
-        line = _node_line(node)
-        if not hit or line in seen:
+        if not hit:
             continue
-        seen.add(line)
+        line = _node_line(node)
+        hits[line] = max(hits.get(line, Taint.CLEAN), classify(tree, node, data))
+    for line, taint in hits.items():
+        confidence = confidence_for(taint)
+        if confidence is None:
+            continue
         results.append(
             Finding(
                 cwe_id="CWE-93",
                 cwe_name="CRLF Injection",
                 severity="HIGH",
-                confidence="MEDIUM",
+                confidence=confidence,
                 package="",
                 file=pk,
                 line=line,
                 code_snippet=_code_at(lines, line),
-                description="CRLF sequence combined with non-literal data — may enable HTTP response splitting / log injection.",
+                description="CRLF sequence combined with non-literal data — may enable HTTP response splitting / log injection."
+                + ("" if confidence == "HIGH" else INTERNAL_NOTE),
             )
         )
     return results
@@ -1235,20 +1275,25 @@ def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -
     pk = _rel(path)
     results: list[Finding] = []
     for node in _calls(tree):
-        if _call_name(node) not in ("redirect", "Redirect") or not _has_dynamic_arg(node):
+        if _call_name(node) not in ("redirect", "Redirect"):
             continue
+        taint = _tainted(tree, node, _call_data(node))
+        if taint is None:
+            continue
+        confidence, note = taint
         line = _node_line(node)
         results.append(
             Finding(
                 cwe_id="CWE-601",
                 cwe_name="Open Redirect",
                 severity="MEDIUM",
-                confidence="HIGH",
+                confidence=confidence,
                 package="",
                 file=pk,
                 line=line,
                 code_snippet=_code_at(lines, line),
-                description="URL redirect — ensure destination is validated against an allowlist.",
+                description="URL redirect — ensure destination is validated against an allowlist."
+                + note,
             )
         )
     return results
@@ -1373,30 +1418,32 @@ _SQL_EXEC_METHOD_NAMES = frozenset({"execute", "exec_driver_sql"})
 
 def check_sql_injection(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-89 rank #2. ``execute(...)``/``exec_driver_sql(...)`` whose statement
-    argument has data spliced in (f-string, ``+``, ``%``, ``.format``), unless
-    every spliced value resolves to a locally-safe origin (see
-    ``ast_helpers._is_locally_safe_expr``): a module-level constant or a
-    value derived from imported names is not attacker-reachable. Real-world
-    report: 7 CRITICAL findings on an Alembic migration, all of them
-    interpolating a module constant and the database's own introspection."""
+    argument has data spliced in (f-string, ``+``, ``%``, ``.format``). The
+    spliced values' origin sets confidence (``fenceline.taint``): a
+    module-level constant or the database's own introspection is not
+    attacker-reachable and is not reported. Real-world report: 7 CRITICAL
+    findings on an Alembic migration, all of them interpolating a module
+    constant and the database's own introspection."""
     pk = _rel(path)
     results: list[Finding] = []
-    if tree is None:
-        return results
-    for call, params, literals, imports in _iter_calls_in_scope(tree):
+    for call in _calls(tree):
         name = _call_name(call)
         if name not in _SQL_EXEC_METHOD_NAMES or not call.args:
             continue
         shape = _sql_shape(call.args[0])
-        if shape is None or _is_locally_safe_expr(call.args[0], params, literals, imports):
+        if shape is None:
             continue
+        taint = _tainted(tree, call, [call.args[0]])
+        if taint is None:
+            continue
+        confidence, note = taint
         line = _node_line(call)
         results.append(
             Finding(
                 cwe_id="CWE-89",
                 cwe_name="SQL Injection",
                 severity="CRITICAL",
-                confidence="HIGH",
+                confidence=confidence,
                 package="",
                 file=pk,
                 line=line,
@@ -1405,7 +1452,8 @@ def check_sql_injection(path: Path, lines: list[str], tree: ast.Module | None) -
                     f"f-string in {name}() — probable SQL injection"
                     if shape == "f-string"
                     else f"String concatenation or %-formatting in {name}() — probable SQL injection"
-                ),
+                )
+                + note,
                 zero_day_relevance="CWE-89 rose to #2 in 2025 Top 25. Most exploited injection class after XSS.",
             )
         )
@@ -1415,30 +1463,30 @@ def check_sql_injection(path: Path, lines: list[str], tree: ast.Module | None) -
 def check_exec_driver_sql(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """SQLAlchemy ``exec_driver_sql(f"...")`` -- bypasses the ORM's parameter
     binding entirely, so an f-string here is direct SQL injection. Same
-    locally-safe suppression as ``check_sql_injection``."""
+    taint-based confidence as ``check_sql_injection``."""
     pk = _rel(path)
     results: list[Finding] = []
-    if tree is None:
-        return results
-    for call, params, literals, imports in _iter_calls_in_scope(tree):
+    for call in _calls(tree):
         if _call_name(call) != "exec_driver_sql" or not call.args:
             continue
         if _sql_shape(call.args[0]) != "f-string":
             continue
-        if _is_locally_safe_expr(call.args[0], params, literals, imports):
+        taint = _tainted(tree, call, [call.args[0]])
+        if taint is None:
             continue
+        confidence, note = taint
         line = _node_line(call)
         results.append(
             Finding(
                 cwe_id="CWE-89",
                 cwe_name="SQL Injection",
                 severity="CRITICAL",
-                confidence="HIGH",
+                confidence=confidence,
                 package="",
                 file=pk,
                 line=line,
                 code_snippet=_code_at(lines, line),
-                description="exec_driver_sql() with f-string — direct SQL injection.",
+                description="exec_driver_sql() with f-string — direct SQL injection." + note,
             )
         )
     return results
@@ -1462,11 +1510,11 @@ def check_ssrf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
     """CWE-918 rank #22. An outbound HTTP request -- ``requests.get(...)``,
     ``httpx.post(...)``, ``urllib.request.urlopen(...)``, or ``<var>.get(...)``
     where ``<var>`` is bound in the same scope to a ``requests.Session()``/
-    ``httpx.Client()``/``httpx.AsyncClient()``/``aiohttp.ClientSession()`` --
-    whose URL is not locally safe. SSRF is about *attacker-influenced*
-    destination selection, so a literal URL or one built entirely from
-    module constants is not reported; nor is a bare mention of a client
-    class (a type annotation, say), which used to match as text.
+    ``httpx.Client()``/``httpx.AsyncClient()``/``aiohttp.ClientSession()``.
+    SSRF is about *attacker-influenced* destination selection, so the URL's
+    origin sets confidence (``fenceline.taint``): a literal URL or one built
+    entirely from module constants is not reported; nor is a bare mention of
+    a client class (a type annotation, say), which used to match as text.
 
     The session binding is resolved per scope on purpose: ``session``/
     ``client`` are among the most reused names in Python, and a SQLAlchemy
@@ -1477,7 +1525,7 @@ def check_ssrf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
     if tree is None:
         return results
     aliases = _import_aliases(tree)
-    for call, params, literals, imports in _iter_calls_in_scope(tree):
+    for call, _params, literals, _imports in _iter_calls_in_scope(tree):
         fn = _callee(call, aliases)
         method = _call_name(call)
         is_module_call = fn == "urllib.request.urlopen" or (
@@ -1499,20 +1547,25 @@ def check_ssrf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
         if not (is_module_call or is_session_call):
             continue
         url = _ssrf_url_arg(call)
-        if url is None or _is_locally_safe_expr(url, params, literals, imports):
+        if url is None:
             continue
+        taint = _tainted(tree, call, [url])
+        if taint is None:
+            continue
+        confidence, note = taint
         line = _node_line(call)
         results.append(
             Finding(
                 cwe_id="CWE-918",
                 cwe_name="Server-Side Request Forgery",
                 severity="HIGH",
-                confidence="HIGH",
+                confidence=confidence,
                 package="",
                 file=pk,
                 line=line,
                 code_snippet=_code_at(lines, line),
-                description="HTTP request — verify URL is validated against allowlist; SSRF if user-controlled.",
+                description="HTTP request — verify URL is validated against allowlist; SSRF if user-controlled."
+                + note,
                 zero_day_relevance="CWE-918 fell to #22 but SSRF zero-days (cloud metadata exfiltration) remain critical.",
             )
         )
@@ -1615,20 +1668,25 @@ def check_arbitrary_write(path: Path, lines: list[str], tree: ast.Module | None)
     results: list[Finding] = []
     aliases = _import_aliases(tree)
     for node in _calls(tree):
-        if not _is_file_move_or_copy(_callee(node, aliases)) or not _has_dynamic_arg(node):
+        if not _is_file_move_or_copy(_callee(node, aliases)):
             continue
+        taint = _tainted(tree, node, _call_data(node))
+        if taint is None:
+            continue
+        confidence, note = taint
         line = _node_line(node)
         results.append(
             Finding(
                 cwe_id="CWE-73",
                 cwe_name="External Control of File Name",
                 severity="MEDIUM",
-                confidence="HIGH",
+                confidence=confidence,
                 package="",
                 file=pk,
                 line=line,
                 code_snippet=_code_at(lines, line),
-                description="File operation — verify destination path is validated to prevent arbitrary write.",
+                description="File operation — verify destination path is validated to prevent arbitrary write."
+                + note,
             )
         )
     return results
@@ -1832,38 +1890,41 @@ def check_path_traversal(path: Path, lines: list[str], tree: ast.Module | None) 
     for node in _calls(tree):
         name = _call_name(node)
         line = _node_line(node)
-        if name == "lstrip" and _first_str_arg(node) == "/":
-            results.append(
-                Finding(
-                    cwe_id="CWE-22",
-                    cwe_name="Path Traversal",
-                    severity="HIGH",
-                    confidence="HIGH",
-                    package="",
-                    file=pk,
-                    line=line,
-                    code_snippet=_code_at(lines, line),
-                    description="lstrip('/') does NOT prevent ../ traversal — use Path.resolve() + is_relative_to().",
-                    zero_day_relevance="CWE-22 is #6 in Top 25 with 10 CVEs in KEV.",
-                )
-            )
-        elif name == "open" and any(
-            "relative_path" in n
-            for n in _names_in([*node.args, *(kw.value for kw in node.keywords)])
+        if (
+            name == "lstrip"
+            and _first_str_arg(node) == "/"
+            and isinstance(node.func, ast.Attribute)
         ):
-            results.append(
-                Finding(
-                    cwe_id="CWE-22",
-                    cwe_name="Path Traversal",
-                    severity="MEDIUM",
-                    confidence="HIGH",
-                    package="",
-                    file=pk,
-                    line=line,
-                    code_snippet=_code_at(lines, line),
-                    description="Variable named 'relative_path' used in open() — verify ../ is rejected with Path.resolve().",
-                )
+            # The value being "sanitised" is the receiver, not the argument.
+            data = [node.func.value]
+            severity = "HIGH"
+            description = "lstrip('/') does NOT prevent ../ traversal — use Path.resolve() + is_relative_to()."
+            zero_day = "CWE-22 is #6 in Top 25 with 10 CVEs in KEV."
+        elif name == "open" and any("relative_path" in n for n in _names_in(_call_data(node))):
+            data = _call_data(node)
+            severity = "MEDIUM"
+            description = "Variable named 'relative_path' used in open() — verify ../ is rejected with Path.resolve()."
+            zero_day = ""
+        else:
+            continue
+        taint = _tainted(tree, node, data)
+        if taint is None:
+            continue
+        confidence, note = taint
+        results.append(
+            Finding(
+                cwe_id="CWE-22",
+                cwe_name="Path Traversal",
+                severity=severity,
+                confidence=confidence,
+                package="",
+                file=pk,
+                line=line,
+                code_snippet=_code_at(lines, line),
+                description=description + note,
+                zero_day_relevance=zero_day,
             )
+        )
     return results
 
 
