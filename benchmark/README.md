@@ -53,6 +53,13 @@ at MEDIUM because the request value arrived from another file (vulpy's
 
 | fenceline (--confidence-min high) | 150 | 145 | 5 | 97% | 135/198 (68%) |
 
+Phase B4 (source and sink vocabulary: Django class-based view URL captures
+and `raw()`/`RawSQL`, Lambda `event` handlers, framework redirect classes,
+`send_file`/`FileResponse`, `from_string`, and a CWE-79 check for
+`mark_safe`/`Markup`) changed nothing on these three apps: pygoat serves
+files through `send_from_directory`, which safe-joins and is deliberately
+not a sink.
+
 What still separates HIGH-only recall from the default: 23 hardcoded-secret
 findings that are MEDIUM by design (placeholder-shaped or identifier-like
 values), the MEDIUM `read()` and SSRF findings in command-line utilities,

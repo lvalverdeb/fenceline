@@ -1141,7 +1141,7 @@ def check_ssti(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
     pk = _rel(path)
     results: list[Finding] = []
     for node in _calls(tree):
-        if _call_name(node) != "Template":
+        if _call_name(node) not in ("Template", "from_string"):
             continue
         taint = _tainted(tree, node, _call_data(node))
         if taint is None:
@@ -1161,6 +1161,38 @@ def check_ssti(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
                 description="Template instantiation — SSTI if template string is user-controlled."
                 + note,
                 zero_day_relevance="CVE-2025-68664: LangChain Core SSTI zero-day chaining deserialisation + Jinja2 for RCE.",
+            )
+        )
+    return results
+
+
+def check_unsafe_markup(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """CWE-79. ``mark_safe(...)`` (Django) or ``Markup(...)`` (markupsafe,
+    Flask) fed a non-literal: both tell the template engine not to escape
+    the value, so request data inside it is reflected XSS."""
+    pk = _rel(path)
+    results: list[Finding] = []
+    for node in _calls(tree):
+        if _call_name(node) not in ("mark_safe", "Markup"):
+            continue
+        taint = _tainted(tree, node, _call_data(node))
+        if taint is None:
+            continue
+        confidence, note = taint
+        line = _node_line(node)
+        results.append(
+            Finding(
+                cwe_id="CWE-79",
+                cwe_name="Cross-site Scripting",
+                severity="HIGH",
+                confidence=confidence,
+                package="",
+                file=pk,
+                line=line,
+                code_snippet=_code_at(lines, line),
+                description="mark_safe()/Markup() disables HTML escaping — XSS if the content is user-controlled."
+                + note,
+                zero_day_relevance="CWE-79 is #1 in the 2025 Top 25.",
             )
         )
     return results
@@ -1288,6 +1320,20 @@ def check_weak_hash(path: Path, lines: list[str], tree: ast.Module | None) -> li
     return results
 
 
+# Flask/Django/aiohttp helpers plus the response classes of Django,
+# Starlette/FastAPI and aiohttp that take a destination directly.
+_REDIRECT_CALLS = frozenset(
+    {
+        "redirect",
+        "Redirect",
+        "HttpResponseRedirect",
+        "HttpResponsePermanentRedirect",
+        "RedirectResponse",
+        "HTTPFound",
+    }
+)
+
+
 def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-601. A ``redirect(...)``/``Redirect(...)`` call fed a non-literal
     destination. ``HTTPTemporaryRedirect(...)``, ``authorize_redirect(...)``
@@ -1295,7 +1341,7 @@ def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -
     pk = _rel(path)
     results: list[Finding] = []
     for node in _calls(tree):
-        if _call_name(node) not in ("redirect", "Redirect"):
+        if _call_name(node) not in _REDIRECT_CALLS:
             continue
         taint = _tainted(tree, node, _call_data(node))
         if taint is None:
@@ -1433,7 +1479,8 @@ def _sql_shape(arg: ast.expr) -> str | None:
     return None
 
 
-_SQL_EXEC_METHOD_NAMES = frozenset({"execute", "exec_driver_sql"})
+# ``raw``/``RawSQL``: Django's escape hatches take the statement verbatim.
+_SQL_EXEC_METHOD_NAMES = frozenset({"execute", "exec_driver_sql", "raw", "RawSQL"})
 
 
 def _sql_shape_at(tree: ast.Module | None, call: ast.Call, arg: ast.expr) -> str | None:
@@ -1946,6 +1993,13 @@ def check_path_traversal(path: Path, lines: list[str], tree: ast.Module | None) 
             severity = "MEDIUM"
             description = "Variable named 'relative_path' used in open() — verify ../ is rejected with Path.resolve()."
             zero_day = ""
+        elif name in ("send_file", "FileResponse") and _call_data(node):
+            # Flask's send_file / Starlette's and Django's FileResponse take a
+            # path verbatim (unlike send_from_directory, which safe-joins).
+            data = _call_data(node)
+            severity = "HIGH"
+            description = "File served from a non-literal path — path traversal if the path is request-derived; resolve it and check is_relative_to() first."
+            zero_day = "CWE-22 is #6 in Top 25 with 10 CVEs in KEV."
         else:
             continue
         taint = _tainted(tree, node, data)

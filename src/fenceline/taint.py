@@ -191,6 +191,9 @@ class _Scope:
     #: Parameters some caller in the package feeds request data (set by
     #: ``fenceline.callers`` after every file of the package is parsed).
     caller_params: set[str] = field(default_factory=set)
+    #: The enclosing class is a view/handler class, so ``self.kwargs`` and
+    #: ``self.args`` hold URL captures.
+    view_class: bool = False
 
 
 @dataclass
@@ -228,17 +231,22 @@ def _collect(scope: _Scope, stmts: list[ast.stmt]) -> None:
                 scope.imports.add(node.name)
 
 
+def _is_view_class(cls: ast.ClassDef | None) -> bool:
+    return cls is not None and any(
+        (_dotted_name(base) or "").endswith(_HANDLER_BASES) for base in cls.bases
+    )
+
+
 def _is_handler(fn: ast.FunctionDef | ast.AsyncFunctionDef, cls: ast.ClassDef | None) -> bool:
     for deco in fn.decorator_list:
         target = deco.func if isinstance(deco, ast.Call) else deco
         dotted = _dotted_name(target) or ""
         if dotted.rsplit(".", 1)[-1] in _ROUTE_DECORATORS and "." in dotted:
             return True
-    if cls is not None and fn.name in _HANDLER_METHODS:
-        for base in cls.bases:
-            if (_dotted_name(base) or "").endswith(_HANDLER_BASES):
-                return True
-    return False
+    if fn.name in _HANDLER_METHODS and _is_view_class(cls):
+        return True
+    # An AWS Lambda entry point: the event is the request.
+    return [a.arg for a in (*fn.args.posonlyargs, *fn.args.args)] == ["event", "context"]
 
 
 def _scope_map(tree: ast.Module) -> _Scopes:
@@ -276,6 +284,7 @@ def _scope_map(tree: ast.Module) -> _Scopes:
                         handler=_is_handler(node, cls),
                         qualname=qualname,
                         cls=cls.name if cls is not None else None,
+                        view_class=_is_view_class(cls),
                     )
                     scope.assigns = {k: list(v) for k, v in module.assigns.items()}
                     scope.imports = set(module.imports)
@@ -290,6 +299,14 @@ def _scope_map(tree: ast.Module) -> _Scopes:
     result = _Scopes(at=scopes, functions=functions)
     tree._fenceline_scopes = result  # type: ignore[attr-defined]
     return result
+
+
+def _is_view_capture(dotted: str) -> bool:
+    """``self.kwargs`` / ``self.args`` (or a chain on them): the URL captures
+    of a class-based view."""
+    return dotted in ("self.kwargs", "self.args") or dotted.startswith(
+        ("self.kwargs.", "self.args.")
+    )
 
 
 def _source_chain(dotted: str) -> bool:
@@ -342,6 +359,8 @@ class _Classifier:
         if isinstance(node, (ast.Attribute, ast.Subscript)):
             dotted = _dotted_name(node.value if isinstance(node, ast.Subscript) else node) or ""
             if dotted and _source_chain(dotted):
+                return Taint.SOURCE
+            if self.scope.view_class and _is_view_capture(dotted):
                 return Taint.SOURCE
             if isinstance(node, ast.Attribute):
                 if isinstance(node.value, ast.Name) and node.value.id == "self":

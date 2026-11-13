@@ -157,7 +157,7 @@ CWE_REFERENCE = """\
 =========================
 Rank  CWE-ID   Name                                                  Status
 ----  -------  ----------------------------------------------------  ------
-  1   CWE-79   XSS                                                   N/A (no web)
+  1   CWE-79   XSS                                                   ✓ (mark_safe/Markup)
   2   CWE-89   SQL Injection                                         ✓
   3   CWE-352  CSRF                                                  N/A (no web)
    4   CWE-862  Missing Authorization                                 Partial (indirect via secret scan)

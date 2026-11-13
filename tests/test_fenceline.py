@@ -53,7 +53,7 @@ def _findings(check_fn, src: str) -> list[Finding]:
 def test_checks_registry_has_every_check_once():
     names = [fn.__name__ for _, fn in CHECKS]
     assert len(names) == len(set(names))
-    assert len(CHECKS) == 57
+    assert len(CHECKS) == 58
 
 
 def test_every_check_is_callable_and_returns_a_list():
@@ -1508,9 +1508,7 @@ def test_caller_taint_crosses_two_helpers_and_relative_imports(tmp_path):
         "    handle(request.args['q'])\n"
     )
     (pkg / "svc" / "logic.py").write_text(
-        "from . import db\n"
-        "def handle(value):\n"
-        "    db.run(table=value)\n"
+        "from . import db\ndef handle(value):\n    db.run(table=value)\n"
     )
     (pkg / "svc" / "db.py").write_text(
         "def run(conn=None, table=''):\n    conn.execute('SELECT * FROM ' + table)\n"

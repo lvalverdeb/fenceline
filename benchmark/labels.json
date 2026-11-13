@@ -22,7 +22,8 @@
       "CWE-611": "xxe",
       "CWE-338": "weak-random",
       "CWE-1104": "vuln-dep",
-      "CWE-377": "tmpfile"
+      "CWE-377": "tmpfile",
+      "CWE-79": "xss"
     },
     "bandit": {
       "B105": "secret",
