@@ -10,8 +10,13 @@ from pathlib import Path
 
 from fenceline.baseline import load_baseline, split_by_baseline, write_baseline
 from fenceline.checks import CHECKS, lines_for
-from fenceline.config import DEP_MANIFEST_FILES, WORKSPACE_ROOT, is_secure_path
-from fenceline.models import CONFIDENCE_ORDER, SEVERITY_ORDER, Finding
+from fenceline.config import (
+    DEP_MANIFEST_FILES,
+    WORKSPACE_ROOT,
+    is_secure_path,
+    load_severity_policy,
+)
+from fenceline.models import CONFIDENCE_ORDER, SEVERITY_ORDER, Finding, cap_severity
 from fenceline.reporting import print_report
 from fenceline.scanner import _ast_parse, _is_test_path, _iter_py, _read, _rel, mask_non_code
 from fenceline.suppression import apply_suppressions
@@ -233,6 +238,22 @@ def discover_cwd_packages(cwd: Path) -> tuple[dict[str, Path], str | None]:
     return packages, loose_root_name
 
 
+def _validated_severity_policy(policy: dict[str, str]) -> dict[str, str]:
+    """``load_severity_policy``'s table checked against the check registry and
+    the known severity levels -- a misspelled check name or level is an
+    error, not a silently inert line in a security policy."""
+    known = {fn.__name__ for _, fn in CHECKS}
+    for name, level in policy.items():
+        if name not in known:
+            raise ValueError(f"[tool.fenceline.severity]: unknown check {name!r}")
+        if level not in SEVERITY_ORDER:
+            raise ValueError(
+                f"[tool.fenceline.severity]: {name} = {level.lower()!r} is not one of "
+                f"{', '.join(k.lower() for k in SEVERITY_ORDER)}"
+            )
+    return policy
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Zero-day vulnerability scanner for Python code")
     parser.add_argument(
@@ -391,10 +412,21 @@ def main() -> int:
         for path in _find_manifest_files(root, ceiling=WORKSPACE_ROOT):
             path_package.setdefault(path, _manifest_package_label(path, packages))
 
+    try:
+        severity_policy = _validated_severity_policy(load_severity_policy(cwd))
+    except ValueError as exc:
+        parser.error(str(exc))
+
     nosec_suppressed = 0
+    # Python files that failed to parse: the regex checks still ran on them,
+    # the AST checks did not, and the report says so rather than passing
+    # them off as clean.
+    skipped_files: list[str] = []
     for path in sorted(path_package):
         lines = _read(path)
         tree = _ast_parse(path) if path.suffix == ".py" else None
+        if path.suffix == ".py" and tree is None:
+            skipped_files.append(_rel(path))
         code_lines = mask_non_code(path, lines, tree)
         pkg_name = path_package[path]
 
@@ -402,8 +434,11 @@ def main() -> int:
         for check_name, check_fn in CHECKS:
             try:
                 findings = check_fn(path, lines_for(check_fn, lines, code_lines), tree)
+                cap = severity_policy.get(check_fn.__name__)
                 for f in findings:
                     f.package = pkg_name
+                    if cap is not None:
+                        f.severity = cap_severity(f.severity, cap)
                 file_findings.extend(findings)
             except Exception as exc:
                 if not args.quiet:
@@ -436,6 +471,7 @@ def main() -> int:
             json_output=args.json,
             nosec_suppressed=nosec_suppressed,
             test_suppressed=test_suppressed,
+            skipped_files=skipped_files,
         )
         if not args.quiet and not args.json:
             print(f"  Wrote baseline with {len(all_findings)} finding(s) to {args.write_baseline}")
@@ -452,6 +488,7 @@ def main() -> int:
         baseline_suppressed=baseline_suppressed,
         nosec_suppressed=nosec_suppressed,
         test_suppressed=test_suppressed,
+        skipped_files=skipped_files,
     )
     threshold = SEVERITY_ORDER[args.fail_on.upper()]
     gating = [f for f in all_findings if SEVERITY_ORDER.get(f.severity, 99) <= threshold]

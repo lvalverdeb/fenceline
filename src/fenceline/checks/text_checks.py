@@ -17,265 +17,32 @@ from pathlib import Path
 from fenceline.ast_helpers import (
     _LOG_METHOD_CALL_ANY_RE,
     _LOG_METHOD_CALL_RE,
-    _full_attr,
-    _is_locally_safe_expr,
-    _iter_calls_in_scope,
-    _node_line,
     _skip,
 )
 from fenceline.models import Finding
 from fenceline.scanner import _rel
 
 __all__ = [
-    "check_pickle",
-    "check_command_injection",
-    "check_sql_injection",
-    "check_path_traversal",
     "check_hardcoded_secrets",
     "_is_secret_false_positive",
-    "check_yaml_deserialize",
     "check_xxe",
-    "check_ssrf",
     "check_tempfile",
     "check_symlink",
-    "check_redos",
     "check_assert_security",
-    "check_exec_driver_sql",
     "check_supply_chain",
-    "check_debug_mode",
     "check_timing_attack",
     "check_sensitive_exposure",
     "check_null_byte",
-    "check_resource_limits",
-    "check_ssti",
-    "check_crlf",
     "check_ldap",
-    "check_weak_hash",
-    "check_open_redirect",
     "check_log_injection",
-    "check_arbitrary_write",
     "check_log_secrets",
-    "check_tls_verify",
-    "check_zipslip",
     "check_hardcoded_tokens",
     "check_weak_crypto",
     "check_trojan_source",
     "check_ssh_host_key",
-    "check_pandas_pickle",
     "check_numpy_load_lib",
-    "check_pandas_xml_xxe",
     "check_pth_startup_hooks",
-    "check_model_file_load",
-    "check_bind_all_interfaces",
-    "check_weak_tls_version",
-    "check_legacy_pycrypto",
 ]
-
-
-def check_pickle(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-502 rank #15. Zero-days: CVE-2026-56315 (picklescan bypass),
-    CVE-2026-0763 (GPT Academic, CVSS 9.8)."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    patterns = {
-        r"pickle\.loads?\s*\(": ("pickle.loads() / pickle.load()", "CRITICAL"),
-        r"pickle\.Unpickler\s*\(": ("pickle.Unpickler()", "CRITICAL"),
-        r"cloudpickle\.loads?\s*\(": ("cloudpickle.loads() / cloudpickle.load()", "CRITICAL"),
-        r"dill\.loads?\s*\(": ("dill.loads() / dill.load()", "CRITICAL"),
-        r"joblib\.load\s*\(": ("joblib.load()", "HIGH"),
-        r"shelve\.open\s*\(": ("shelve.open()", "HIGH"),
-        r"marshal\.loads?\s*\(": ("marshal.loads() / marshal.load()", "HIGH"),
-    }
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        for pat, (label, sev) in patterns.items():
-            if re.search(pat, line):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-502",
-                        cwe_name="Deserialization of Untrusted Data",
-                        severity=sev,
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=line.strip(),
-                        description=f"Unsafe deserialisation via {label}. Allows arbitrary code execution.",
-                        zero_day_relevance="CVE-2026-56315 picklescan <1.0.4 bypass (uuid, imaplib etc. unblocked); "
-                        "CVE-2026-0763 GPT Academic CVSS 9.8; LangChain CVE-2025-68664 SSTI+pickle chain",
-                    )
-                )
-                break
-    return results
-
-
-def check_command_injection(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-78 rank #9, CWE-77 rank #23."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    calls = {
-        "os.system": "CRITICAL",
-        "os.popen": "CRITICAL",
-        "subprocess.call": "HIGH",
-        "subprocess.Popen": "HIGH",
-        "subprocess.run": "HIGH",
-        "subprocess.check_output": "HIGH",
-        "subprocess.getoutput": "HIGH",
-        "subprocess.getstatusoutput": "HIGH",
-        "os.execv": "HIGH",
-        "os.execl": "HIGH",
-        "os.execve": "HIGH",
-        "os.execvp": "HIGH",
-        "pty.spawn": "HIGH",
-        "asyncio.create_subprocess_shell": "HIGH",
-    }
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        for call, sev in calls.items():
-            if re.search(rf"\b{re.escape(call)}\s*\(", line):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-78",
-                        cwe_name="OS Command Injection",
-                        severity=sev,
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=line.strip(),
-                        description=f"{call}() spawns subprocesses; may allow command injection if arguments are unvalidated.",
-                        zero_day_relevance="CWE-78: 20 CVEs in KEV. Still a top Python zero-day vector.",
-                    )
-                )
-                break
-        if re.search(r"shell\s*=\s*True", line):
-            results.append(
-                Finding(
-                    cwe_id="CWE-78",
-                    cwe_name="OS Command Injection",
-                    severity="HIGH",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="shell=True enables shell injection in subprocess calls.",
-                )
-            )
-    return results
-
-
-_SQL_EXEC_METHOD_NAMES = frozenset({"execute", "exec_driver_sql"})
-
-
-def _fully_safe_fstring_exec_lines(
-    tree: ast.Module | None, method_names: frozenset[str]
-) -> set[int]:
-    """Line numbers of ``.execute(f"...")``/``.exec_driver_sql(f"...")``-shaped
-    calls (whichever of *method_names* apply) where every interpolated
-    value resolves to a locally-safe origin (see
-    ``ast_helpers._is_locally_safe_expr`` — a string literal, a same-scope
-    constant, or a call/attribute chain built from imported names, never a
-    function parameter or another unresolvable name).
-
-    Real-world false-positive report: every one of 7 CRITICAL findings on
-    an Alembic migration fired on an f-string whose only interpolated
-    values were a module-level string constant and a value derived
-    entirely from the database's own read-only introspection (e.g.
-    ``current_database()``) — neither reachable from any request path.
-    Severity previously fired uniformly whenever the syntactic pattern
-    matched; this suppresses it specifically when nothing in the query is
-    traceable to anything outside this function/module.
-
-    Empty when *tree* is ``None`` (file failed to parse) — falls back to
-    unconditional regex-based flagging in that case, same as this check's
-    own encoding-tolerance convention elsewhere.
-    """
-    if tree is None:
-        return set()
-    safe_lines: set[int] = set()
-    for call, params, literals, imports in _iter_calls_in_scope(tree):
-        if not (
-            isinstance(call.func, ast.Attribute)
-            and call.func.attr in method_names
-            and call.args
-            and isinstance(call.args[0], ast.JoinedStr)
-        ):
-            continue
-        if _is_locally_safe_expr(call.args[0], params, literals, imports):
-            safe_lines.add(_node_line(call))
-    return safe_lines
-
-
-def check_sql_injection(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-89 rank #2."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    safe_lines = _fully_safe_fstring_exec_lines(tree, _SQL_EXEC_METHOD_NAMES)
-    patterns = [
-        (r'execute\s*\(\s*f["\']', "f-string in execute() — probable SQL injection"),
-        (
-            r'exec_driver_sql\s*\(\s*f["\']',
-            "f-string in exec_driver_sql() — probable SQL injection",
-        ),
-        (r"\.execute\s*\([^)]*\+", "String concatenation in execute() — probable SQL injection"),
-    ]
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line) or lineno in safe_lines:
-            continue
-        for pat, desc in patterns:
-            if re.search(pat, line):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-89",
-                        cwe_name="SQL Injection",
-                        severity="CRITICAL",
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=line.strip(),
-                        description=desc,
-                        zero_day_relevance="CWE-89 rose to #2 in 2025 Top 25. Most exploited injection class after XSS.",
-                    )
-                )
-                break
-    return results
-
-
-def check_path_traversal(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-22 rank #6."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if re.search(r"lstrip\(['\"]\/['\"]\)", line):
-            results.append(
-                Finding(
-                    cwe_id="CWE-22",
-                    cwe_name="Path Traversal",
-                    severity="HIGH",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="lstrip('/') does NOT prevent ../ traversal — use Path.resolve() + is_relative_to().",
-                    zero_day_relevance="CWE-22 is #6 in Top 25 with 10 CVEs in KEV.",
-                )
-            )
-        if re.search(r"relative_path", line) and re.search(r"open\s*\(", line):
-            results.append(
-                Finding(
-                    cwe_id="CWE-22",
-                    cwe_name="Path Traversal",
-                    severity="MEDIUM",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="Variable named 'relative_path' used in open() — verify ../ is rejected with Path.resolve().",
-                )
-            )
-    return results
 
 
 def check_hardcoded_secrets(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
@@ -333,39 +100,6 @@ def _is_secret_false_positive(line: str) -> bool:
     return False
 
 
-def check_yaml_deserialize(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-502 via PyYAML.  Zero-day: CVE-2026-24009 Docling RCE.
-
-    ``yaml.unsafe_load()`` is PyYAML's own alias for
-    ``yaml.load(x, Loader=yaml.UnsafeLoader)`` — same RCE, different call
-    name — so it's matched directly rather than relying on the
-    ``yaml.load(`` pattern below, which never appears in that call at all.
-    """
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        loose_load = re.search(r"yaml\.load\s*\(", line) and "SafeLoader" not in line
-        unsafe_load = re.search(r"yaml\.unsafe_load\s*\(", line)
-        if loose_load or unsafe_load:
-            results.append(
-                Finding(
-                    cwe_id="CWE-502",
-                    cwe_name="Deserialization of Untrusted Data",
-                    severity="CRITICAL",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="yaml.load()/yaml.unsafe_load() without SafeLoader — enables arbitrary code execution.",
-                    zero_day_relevance="CVE-2026-24009: Docling RCE via PyYAML shadow vulnerability. "
-                    "Transitive YAML deps can introduce RCE without a direct yaml import.",
-                )
-            )
-    return results
-
-
 def _lxml_etree_alias(tree: ast.Module | None) -> str | None:
     """Local name bound to ``lxml.etree`` — ``from lxml import etree``
     (optionally aliased) or ``import lxml.etree`` (optionally aliased) — or
@@ -420,124 +154,6 @@ def check_xxe(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fin
     return results
 
 
-_SSRF_METHOD_NAMES = frozenset(
-    {"get", "post", "put", "patch", "delete", "head", "options", "request"}
-)
-
-
-def _fully_safe_ssrf_call_lines(tree: ast.Module | None) -> set[int]:
-    """Line numbers of ``requests.*``/``httpx.*``/``urllib.request.urlopen(...)``
-    calls whose URL argument resolves to a locally-safe origin (see
-    ``ast_helpers._is_locally_safe_expr``).
-
-    SSRF is fundamentally about *attacker-influenced* destination
-    selection — a finding that fires whenever the syntactic pattern
-    matches, regardless of whether any part of the URL is externally
-    influenced, isn't measuring that. Real-world false-positive report:
-    both SSRF findings in one run were a bare string literal
-    (``"http://127.0.0.1:8000"``) and a URL built entirely from
-    ``testcontainers``-managed local values.
-
-    Empty when *tree* is ``None`` (file failed to parse) — falls back to
-    unconditional regex-based flagging in that case.
-    """
-    if tree is None:
-        return set()
-    safe_lines: set[int] = set()
-    for call, params, literals, imports in _iter_calls_in_scope(tree):
-        if not call.args:
-            continue
-        is_requests_httpx = (
-            isinstance(call.func, ast.Attribute)
-            and call.func.attr in _SSRF_METHOD_NAMES
-            and isinstance(call.func.value, ast.Name)
-            and call.func.value.id in ("requests", "httpx")
-        )
-        is_urlopen = _full_attr(call) == "urllib.request.urlopen"
-        if not (is_requests_httpx or is_urlopen):
-            continue
-        if _is_locally_safe_expr(call.args[0], params, literals, imports):
-            safe_lines.add(_node_line(call))
-    return safe_lines
-
-
-_SSRF_SESSION_CONSTRUCTORS = frozenset({"requests.Session", "httpx.Client", "httpx.AsyncClient"})
-
-
-def _ssrf_session_call_lines(tree: ast.Module | None) -> tuple[set[int], set[int]]:
-    """``(flagged_lines, safe_lines)`` for ``<var>.<http_method>(...)`` calls
-    whose ``<var>`` resolves, in its own function/module scope, to a
-    ``requests.Session()``/``httpx.Client()``/``httpx.AsyncClient()``
-    binding (plain assignment or ``with ... as``) — the connection-reuse
-    pattern the module-prefix regex in ``check_ssrf`` doesn't see, since the
-    request is made on the bound variable rather than the module.
-
-    Deliberately scoped per call via ``_iter_calls_in_scope`` rather than a
-    file-global name match: ``session``/``client`` are some of the most
-    reused variable names in Python, and an unrelated same-named object in
-    a *different* function scope — a SQLAlchemy ``session.get(Model, pk)``/
-    ``session.delete(obj)``, for instance — is a realistic collision that a
-    file-wide regex would wrongly flag as SSRF. Safe-line suppression
-    reuses the same ``_is_locally_safe_expr`` check already applied to
-    direct ``requests.get(...)``/``httpx.get(...)`` calls, so a
-    session-based call with a locally-safe literal URL isn't held to a
-    stricter standard than the module-call form is.
-    """
-    if tree is None:
-        return set(), set()
-    flagged: set[int] = set()
-    safe: set[int] = set()
-    for call, params, literals, imports in _iter_calls_in_scope(tree):
-        if not (
-            isinstance(call.func, ast.Attribute)
-            and call.func.attr in _SSRF_METHOD_NAMES
-            and isinstance(call.func.value, ast.Name)
-        ):
-            continue
-        bound = literals.get(call.func.value.id)
-        if not (isinstance(bound, ast.Call) and _full_attr(bound) in _SSRF_SESSION_CONSTRUCTORS):
-            continue
-        line = _node_line(call)
-        flagged.add(line)
-        if call.args and _is_locally_safe_expr(call.args[0], params, literals, imports):
-            safe.add(line)
-    return flagged, safe
-
-
-def check_ssrf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-918 rank #22."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    safe_lines = _fully_safe_ssrf_call_lines(tree)
-    session_flagged, session_safe = _ssrf_session_call_lines(tree)
-    method_alt = "|".join(sorted(_SSRF_METHOD_NAMES))
-    http_pattern = re.compile(
-        rf"(?:requests|httpx)\.(?:{method_alt})\s*\("
-        r"|urllib\.request\.urlopen\s*\("
-        r"|aiohttp\.ClientSession"
-    )
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        module_hit = lineno not in safe_lines and http_pattern.search(line)
-        session_hit = lineno in session_flagged and lineno not in session_safe
-        if module_hit or session_hit:
-            results.append(
-                Finding(
-                    cwe_id="CWE-918",
-                    cwe_name="Server-Side Request Forgery",
-                    severity="HIGH",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="HTTP request — verify URL is validated against allowlist; SSRF if user-controlled.",
-                    zero_day_relevance="CWE-918 fell to #22 but SSRF zero-days (cloud metadata exfiltration) remain critical.",
-                )
-            )
-    return results
-
-
 def check_tempfile(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     pk = _rel(path)
     results: list[Finding] = []
@@ -582,31 +198,6 @@ def check_symlink(path: Path, lines: list[str], tree: ast.Module | None) -> list
     return results
 
 
-def check_redos(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if re.search(r"re\.(?:compile|match|search)", line):
-            if re.search(r"\([^)]+[+*?]\)[+*?{]", line):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-1333",
-                        cwe_name="ReDoS (Catastrophic Backtracking)",
-                        severity="MEDIUM",
-                        confidence="LOW",
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=line.strip(),
-                        description="Nested quantifier pattern — potential ReDoS (catastrophic backtracking).",
-                        zero_day_relevance="ReDoS zero-days have been used to DoS auth gateways. CWE-1333 new to OWASP 2025.",
-                    )
-                )
-    return results
-
-
 def check_assert_security(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     pk = _rel(path)
     results: list[Finding] = []
@@ -635,30 +226,6 @@ def check_assert_security(path: Path, lines: list[str], tree: ast.Module | None)
     return results
 
 
-def check_exec_driver_sql(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """Verify exec_driver_sql calls use pre-compiled SQL with proper param binding."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    safe_lines = _fully_safe_fstring_exec_lines(tree, frozenset({"exec_driver_sql"}))
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line) or lineno in safe_lines:
-            continue
-        if re.search(r'exec_driver_sql\s*\(\s*f["\']', line):
-            results.append(
-                Finding(
-                    cwe_id="CWE-89",
-                    cwe_name="SQL Injection",
-                    severity="CRITICAL",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="exec_driver_sql() with f-string — direct SQL injection.",
-                )
-            )
-    return results
-
-
 def check_supply_chain(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     pk = _rel(path)
     results: list[Finding] = []
@@ -677,29 +244,6 @@ def check_supply_chain(path: Path, lines: list[str], tree: ast.Module | None) ->
                     code_snippet=line.strip(),
                     description="--extra-index-url enables dependency confusion. Use --index-url instead.",
                     zero_day_relevance="CVE-2025-61774: PyVista dependency confusion RCE. Supply-chain attacks on PyPI surged in 2025-2026.",
-                )
-            )
-    return results
-
-
-def check_debug_mode(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if re.search(r"debug\s*=\s*True", line) and "docstring" not in line.lower():
-            results.append(
-                Finding(
-                    cwe_id="CWE-489",
-                    cwe_name="Active Debug Code",
-                    severity="MEDIUM",
-                    confidence="LOW",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="Hardcoded debug=True — may expose sensitive info in production.",
                 )
             )
     return results
@@ -777,77 +321,6 @@ def check_null_byte(path: Path, lines: list[str], tree: ast.Module | None) -> li
     return results
 
 
-def check_resource_limits(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-770 rank #25 — new to Top 25 in 2025."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if re.search(r"\.read\(\)", line) and not re.search(r"read\(\d", line):
-            if not re.search(r"(?:chunk|iter_content|stream)", line, re.I):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-770",
-                        cwe_name="Unbounded Resource Allocation",
-                        severity="INFO",
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=line.strip(),
-                        description="Unbounded .read() — may exhaust memory on large inputs. Use .read(n) or streaming.",
-                        zero_day_relevance="CWE-770 entered Top 25 at #25 in 2025.",
-                    )
-                )
-    return results
-
-
-def check_ssti(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-1336. Zero-day: LangChain CVE-2025-68664."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if re.search(r"(?:Jinja2?\.Template|Template)\s*\(", line):
-            results.append(
-                Finding(
-                    cwe_id="CWE-1336",
-                    cwe_name="Server-Side Template Injection",
-                    severity="HIGH",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="Template instantiation — SSTI if template string is user-controlled.",
-                    zero_day_relevance="CVE-2025-68664: LangChain Core SSTI zero-day chaining deserialisation + Jinja2 for RCE.",
-                )
-            )
-    return results
-
-
-def check_crlf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if re.search(r"\\r\\n|%0d%0a|%0D%0A", line):
-            results.append(
-                Finding(
-                    cwe_id="CWE-93",
-                    cwe_name="CRLF Injection",
-                    severity="HIGH",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="CRLF sequence — may enable HTTP response splitting / log injection.",
-                )
-            )
-    return results
-
-
 def check_ldap(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     pk = _rel(path)
     results: list[Finding] = []
@@ -865,69 +338,6 @@ def check_ldap(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
                     line=lineno,
                     code_snippet=line.strip(),
                     description="LDAP connection — verify queries are parameterised.",
-                )
-            )
-    return results
-
-
-def check_weak_hash(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-328. Direct hashlib.md5()/sha1() calls, plus the hashlib.new("md5"/...)
-    indirection (B324) — same weak algorithms, reached through the generic
-    constructor instead of the dedicated function, so a direct-call-only
-    pattern misses it entirely."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if re.search(r"hashlib\.(?:md5|sha1)\s*\(", line):
-            results.append(
-                Finding(
-                    cwe_id="CWE-328",
-                    cwe_name="Weak Cryptographic Hash",
-                    severity="MEDIUM",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="Use of MD5/SHA-1 — collision-prone, use SHA-256 or better.",
-                )
-            )
-        if re.search(r'hashlib\.new\s*\(\s*["\'](?:md5|md4|md2|sha1)["\']', line, re.I):
-            results.append(
-                Finding(
-                    cwe_id="CWE-328",
-                    cwe_name="Weak Cryptographic Hash",
-                    severity="MEDIUM",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="hashlib.new() with a weak algorithm name (MD5/MD4/MD2/SHA-1) — "
-                    "same collision risk as calling hashlib.md5()/sha1() directly, "
-                    "just reached through the generic constructor. Use SHA-256 or better.",
-                )
-            )
-    return results
-
-
-def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if re.search(r"(?:redirect|Redirect)\s*\(", line):
-            results.append(
-                Finding(
-                    cwe_id="CWE-601",
-                    cwe_name="Open Redirect",
-                    severity="MEDIUM",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="URL redirect — ensure destination is validated against an allowlist.",
                 )
             )
     return results
@@ -953,28 +363,6 @@ def check_log_injection(path: Path, lines: list[str], tree: ast.Module | None) -
                         description="f-string in logger call — may embed newlines/CRLF from user input, forging log entries.",
                     )
                 )
-    return results
-
-
-def check_arbitrary_write(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if re.search(r"(?:shutil\.copy|shutil\.move|os\.rename)\s*\(", line):
-            results.append(
-                Finding(
-                    cwe_id="CWE-73",
-                    cwe_name="External Control of File Name",
-                    severity="MEDIUM",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="File operation — verify destination path is validated to prevent arbitrary write.",
-                )
-            )
     return results
 
 
@@ -1005,75 +393,6 @@ def check_log_secrets(path: Path, lines: list[str], tree: ast.Module | None) -> 
                         zero_day_relevance="CWE-532: leaked creds in logs are a common zero-day discovery vector (GitHub secret scanning, SIEM alerts).",
                     )
                 )
-    return results
-
-
-def check_tls_verify(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-295 rank #8.  verify=False, CERT_NONE, check_hostname=False, etc."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    patterns = [
-        (
-            r"verify\s*=\s*False",
-            "HTTP/S3 client with verify=False — TLS certificate validation disabled.",
-        ),
-        (r"check_hostname\s*=\s*False", "Hostname verification disabled — no TLS identity check."),
-        (
-            r"CERT_NONE",
-            "ssl.CERT_NONE — peer certificate not verified, man-in-the-middle possible.",
-        ),
-        (
-            r"_create_unverified_context",
-            "ssl._create_unverified_context() — creates unverified TLS context.",
-        ),
-    ]
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        stripped = line.strip()
-        for pat, desc in patterns:
-            if re.search(pat, stripped):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-295",
-                        cwe_name="Improper Certificate Validation",
-                        severity="CRITICAL",
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=stripped,
-                        description=desc,
-                        zero_day_relevance="CWE-295 is #8 in CWE Top 25. TLS bypass zero-days (e.g. CVE-2026-27834 Python CERT_NONE in urllib) enable MITM on every connection.",
-                    )
-                )
-                break
-    return results
-
-
-def check_zipslip(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-22 via ZipFile.extractall / tarfile.extractall without path validation."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        stripped = line.strip()
-        if re.search(r"\.extractall\s*\(", stripped) and not re.search(
-            r"(resolve|is_relative_to|member.*safe)", stripped
-        ):
-            results.append(
-                Finding(
-                    cwe_id="CWE-22",
-                    cwe_name="Path Traversal — ZipSlip / TarSlip",
-                    severity="HIGH",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=stripped,
-                    description="extractall() without path traversal guard — an archive with ../ entries can overwrite arbitrary files.",
-                    zero_day_relevance="ZipSlip zero-day pattern: path traversal in archive extraction enables RCE via overwritten binaries (CVE-2026-20624 Python tarfile).",
-                )
-            )
     return results
 
 
@@ -1221,30 +540,6 @@ def check_ssh_host_key(path: Path, lines: list[str], tree: ast.Module | None) ->
     return results
 
 
-def check_pandas_pickle(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """Trail of Bits: pd.read_pickle() — explicit pickle-based deserialization."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if re.search(r"(?:pd|pandas)\.read_pickle\s*\(", line):
-            results.append(
-                Finding(
-                    cwe_id="CWE-502",
-                    cwe_name="Deserialization of Untrusted Data (read_pickle)",
-                    severity="CRITICAL",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="pd.read_pickle() deserializes Python objects via pickle — arbitrary code execution if file is untrusted.",
-                    zero_day_relevance="Trail of Bits: pandas.read_pickle() uses pickle.load() under the hood — standard pickle RCE.",
-                )
-            )
-    return results
-
-
 def check_numpy_load_lib(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """Trail of Bits: numpy.load() on .so/.dll files — arbitrary code execution from library loading."""
     pk = _rel(path)
@@ -1267,31 +562,6 @@ def check_numpy_load_lib(path: Path, lines: list[str], tree: ast.Module | None) 
                     code_snippet=stripped,
                     description="numpy.load() loading a shared library (.so/.dll) — arbitrary code execution if path is user-controlled.",
                     zero_day_relevance="Trail of Bits: numpy.load() on .so files enables arbitrary code execution during array deserialization.",
-                )
-            )
-    return results
-
-
-def check_pandas_xml_xxe(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """Trail of Bits: pd.read_xml(parser='lxml') — potential XXE."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        stripped = line.strip()
-        if re.search(r"(?:pd|pandas)\.read_xml\s*\(", stripped) and "parser" not in stripped:
-            results.append(
-                Finding(
-                    cwe_id="CWE-611",
-                    cwe_name="XXE via pandas.read_xml",
-                    severity="HIGH",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=stripped,
-                    description="pd.read_xml() defaults to lxml parser — may be vulnerable to XXE. Use parser='etree' or defusedxml.",
-                    zero_day_relevance="Trail of Bits: pandas.read_xml with lxml parser enables XXE attacks on XML data pipelines.",
                 )
             )
     return results
@@ -1362,184 +632,6 @@ def check_pth_startup_hooks(path: Path, lines: list[str], tree: ast.Module | Non
                     code_snippet=stripped,
                     description="Dynamic .pth installation with exec() — classic supply-chain pivot.",
                     zero_day_relevance="ChocoPoC: .pth files used to maintain persistence after initial compromise.",
-                )
-            )
-    return results
-
-
-def check_model_file_load(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """OWASP ML06 (supply-chain): loading ML model files (.pt, .pkl, .h5, .joblib)
-    without SafeTensors alternatives allows arbitrary code execution."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    model_exts = (r'\.pt["\']', r'\.pkl["\']', r'\.h5["\']', r'\.joblib["\']', r'\.ckpt["\']')
-
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        stripped = line.strip()
-
-        # torch.load with model extension
-        if re.search(r"torch\.load\s*\(", stripped) and re.search(
-            r'\.(?:pt|pth|ckpt)["\']', stripped
-        ):
-            has_weights_only = "weights_only" in stripped
-            results.append(
-                Finding(
-                    cwe_id="CWE-502",
-                    cwe_name="Deserialization of Untrusted Data (ML Model)",
-                    severity="CRITICAL" if not has_weights_only else "LOW",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=stripped,
-                    description=f"torch.load() on model file{' without weights_only=True' if not has_weights_only else ''}. "
-                    f"Prefer SafeTensors format for untrusted model files.",
-                    zero_day_relevance="OWASP ML06: pickle-based model formats enable RCE via malicious model files. "
-                    "SafeTensors mitigates this by design.",
-                )
-            )
-
-        # joblib.load / pickle.load on model files
-        for ext in model_exts:
-            if re.search(r"(?:joblib|pickle|cloudpickle|dill)\.load\s*\(", stripped) and re.search(
-                ext, stripped
-            ):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-502",
-                        cwe_name="Deserialization of Untrusted Data (ML Model)",
-                        severity="HIGH",
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=stripped,
-                        description=f"pickle-based load on {ext} file — arbitrary code execution via malicious model. "
-                        f"Prefer SafeTensors for untrusted model files.",
-                        zero_day_relevance="OWASP ML06: 80% of ML supply-chain attacks exploit pickle-based model formats.",
-                    )
-                )
-                break
-
-        # keras/tensorflow model loading
-        if re.search(r"(?:tf|keras)\.(?:models\.)?load_model\s*\(", stripped):
-            results.append(
-                Finding(
-                    cwe_id="CWE-502",
-                    cwe_name="Deserialization of Untrusted Data (Keras Model)",
-                    severity="HIGH",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=stripped,
-                    description="tf.keras.models.load_model() can deserialize arbitrary Python objects "
-                    "via custom layers/optimizers. Prefer SafeTensors for untrusted models.",
-                    zero_day_relevance="OWASP ML06: Keras H5 format carries pickle-like deserialization risk.",
-                )
-            )
-    return results
-
-
-def check_legacy_pycrypto(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-1104. `import Crypto` / `from Crypto import ...` pulls in the old,
-    unmaintained PyCrypto package (last released 2013, several unpatched
-    CVEs) — distinct from check_weak_crypto, which flags weak *algorithms*
-    regardless of package. This flags the package itself, correctly used or
-    not. `Cryptodome`/`pycryptodome` is the maintained drop-in replacement;
-    the word-boundary check naturally excludes it (no boundary between the
-    "o" ending "Crypto" and the "d" starting "dome")."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    legacy_import_pat = re.compile(r"^(?:from|import)\s+Crypto\b")
-
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        stripped = line.strip()
-        if legacy_import_pat.search(stripped):
-            results.append(
-                Finding(
-                    cwe_id="CWE-1104",
-                    cwe_name="Supply Chain — Unmaintained Dependency",
-                    severity="MEDIUM",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=stripped,
-                    description="Imports the old PyCrypto package (unmaintained since 2013, several "
-                    "unpatched CVEs) — migrate to pycryptodome (`import Cryptodome` / "
-                    "`from Cryptodome import ...`), a maintained drop-in replacement.",
-                    zero_day_relevance="PyCrypto has no security fixes for over a decade; several "
-                    "known vulnerabilities (e.g. weak RNG seeding in old releases) remain unpatched.",
-                )
-            )
-    return results
-
-
-def check_weak_tls_version(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """B502/B503/B504 / CWE-326. Explicit use of a broken or obsolete SSL/TLS
-    protocol version — distinct from check_tls_verify (CWE-295), which is
-    about *disabled* certificate/hostname verification, not protocol
-    downgrade. SSLv2/SSLv3/TLSv1.0/TLSv1.1 are all deprecated (RFC 8996 for
-    the TLS 1.0/1.1 case) and vulnerable to known plaintext-recovery/
-    downgrade attacks (POODLE, BEAST)."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    weak_tls_pat = re.compile(r"PROTOCOL_(?:SSLv2|SSLv3|TLSv1)\b")
-
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        stripped = line.strip()
-        match = weak_tls_pat.search(stripped)
-        if match:
-            results.append(
-                Finding(
-                    cwe_id="CWE-326",
-                    cwe_name="Inadequate Encryption Strength",
-                    severity="HIGH",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=stripped,
-                    description=f"{match.group()} — explicitly requests a deprecated, broken SSL/TLS "
-                    "protocol version. Use ssl.PROTOCOL_TLS_CLIENT/SERVER (or omit ssl_version "
-                    "entirely) to let Python negotiate the strongest mutually-supported version.",
-                    zero_day_relevance="B502/B503/B504: SSLv3 enables POODLE, TLSv1.0/1.1 are formally "
-                    "deprecated by RFC 8996 — still found in legacy integration code talking to old servers.",
-                )
-            )
-    return results
-
-
-def check_bind_all_interfaces(
-    path: Path, lines: list[str], tree: ast.Module | None
-) -> list[Finding]:
-    """B104 / CWE-1327. A server bound to 0.0.0.0 listens on every network
-    interface, not just localhost — reachable from outside the host unless
-    something else (firewall, container network policy) restricts it."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    bind_all_pat = re.compile(r'["\']0\.0\.0\.0["\']')
-
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        stripped = line.strip()
-        if bind_all_pat.search(stripped):
-            results.append(
-                Finding(
-                    cwe_id="CWE-1327",
-                    cwe_name="Binding to an Unrestricted IP Address",
-                    severity="MEDIUM",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=stripped,
-                    description="Host bound to 0.0.0.0 — listens on every network interface, not just "
-                    "localhost. Bind to 127.0.0.1 unless external access is actually required.",
-                    zero_day_relevance="B104: services accidentally exposed on all interfaces are a common "
-                    "initial-access vector once a container/VM's network boundary is misconfigured.",
                 )
             )
     return results

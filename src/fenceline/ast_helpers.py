@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import ast
+import functools
 import re
 
 __all__ = [
@@ -74,9 +75,10 @@ def _call_name(node: ast.Call) -> str:
     return ""
 
 
-def _full_attr(node: ast.Call) -> str:
+def _dotted_name(expr: ast.expr) -> str:
+    """``a.b.c`` for an attribute chain rooted at a name; ``""`` for anything else."""
     parts: list[str] = []
-    cur = node.func
+    cur = expr
     while isinstance(cur, ast.Attribute):
         parts.append(cur.attr)
         cur = cur.value
@@ -84,6 +86,63 @@ def _full_attr(node: ast.Call) -> str:
         parts.append(cur.id)
     parts.reverse()
     return ".".join(parts)
+
+
+def _full_attr(node: ast.Call) -> str:
+    return _dotted_name(node.func)
+
+
+@functools.lru_cache(maxsize=4)
+def _call_nodes(tree: ast.Module | None) -> tuple[ast.Call, ...]:
+    """Every ``ast.Call`` in *tree*, in ``ast.walk`` order. Cached per tree
+    object: a file's tree is handed to every check in turn, and a dozen of
+    them want exactly this list -- one walk instead of one per check. The
+    cache holds a reference to the tree, so an id can't be reused while
+    its entry is live; the handful of entries is bounded by ``maxsize``."""
+    return tuple(n for n in (ast.walk(tree) if tree else ()) if isinstance(n, ast.Call))
+
+
+@functools.lru_cache(maxsize=4)
+def _import_aliases(tree: ast.Module | None) -> dict[str, str]:
+    """Local name -> fully-qualified dotted name, for every absolute import in
+    the file that binds something other than its own top-level name (cached
+    per tree, like ``_call_nodes``):
+    ``import a.b as c`` gives ``{"c": "a.b"}``, ``from a.b import c as d``
+    gives ``{"d": "a.b.c"}`` (``from a.b import c`` gives ``{"c": "a.b.c"}``).
+    ``import a.b`` binds ``a`` to itself and is omitted; relative and
+    star imports can't be resolved and are omitted too."""
+    aliases: dict[str, str] = {}
+    for node in ast.walk(tree) if tree else []:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname and alias.asname != alias.name:
+                    aliases[alias.asname] = alias.name
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            for alias in node.names:
+                if alias.name != "*":
+                    aliases[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+    return aliases
+
+
+def _resolve_dotted(dotted: str, aliases: dict[str, str]) -> str:
+    """``dotted`` with its first segment replaced by what the file's imports
+    bind it to -- ``p.loads`` is ``pickle.loads`` after ``import pickle as p``,
+    ``loads`` is ``pickle.loads`` after ``from pickle import loads``."""
+    head, sep, rest = dotted.partition(".")
+    target = aliases.get(head)
+    return f"{target}{sep}{rest}" if target else dotted
+
+
+def _callee(node: ast.Call, aliases: dict[str, str]) -> str:
+    """Import-alias-resolved dotted name of a call's callee (see
+    ``_resolve_dotted``); ``""`` when the callee isn't a name/attribute chain."""
+    return _resolve_dotted(_full_attr(node), aliases)
+
+
+def _dotted_matches(dotted: str, name: str) -> bool:
+    """``name`` as the whole dotted path or its tail (``pkg.pickle.loads``
+    counts as ``pickle.loads``; ``cloudpickle.loads`` does not)."""
+    return dotted == name or dotted.endswith("." + name)
 
 
 def _is_re_compile(node: ast.Call) -> bool:

@@ -23,6 +23,22 @@ def _color(sev: str) -> str:
     return SEV_COLORS.get(sev, RESET)
 
 
+def _print_skipped(skipped_files: list[str] | None) -> None:
+    """One line naming the Python files that failed to parse. The regex
+    checks still ran on them, the AST checks did not -- a reader deciding
+    whether a clean report means anything needs to know which files it
+    doesn't cover."""
+    if not skipped_files:
+        return
+    shown = ", ".join(skipped_files[:5])
+    if len(skipped_files) > 5:
+        shown += f", +{len(skipped_files) - 5} more"
+    print(
+        f"  ({len(skipped_files)} file(s) could not be parsed — AST checks did not run "
+        f"on them: {shown})"
+    )
+
+
 def print_report(
     all_findings: list[Finding],
     json_output: bool,
@@ -30,6 +46,7 @@ def print_report(
     baseline_suppressed: int = 0,
     nosec_suppressed: int = 0,
     test_suppressed: int = 0,
+    skipped_files: list[str] | None = None,
 ) -> None:
     if json_output:
         data = []
@@ -55,6 +72,8 @@ def print_report(
             payload["nosec_suppressed"] = nosec_suppressed
         if test_suppressed:
             payload["test_suppressed"] = test_suppressed
+        if skipped_files:
+            payload["skipped_files"] = list(skipped_files)
         if data and not baseline_suppressed and not nosec_suppressed:
             # Real-world feedback: a reader who only ever looks at --json
             # output has no way to discover # nosec/--baseline exist at all
@@ -76,6 +95,7 @@ def print_report(
             print(f"  ({nosec_suppressed} finding(s) suppressed by # nosec)")
         if test_suppressed:
             print(f"  ({test_suppressed} finding(s) in test code suppressed — see --include-tests)")
+        _print_skipped(skipped_files)
         print(f"  {'=' * 72}")
         print()
         return
@@ -91,6 +111,7 @@ def print_report(
         print(f"  ({nosec_suppressed} finding(s) suppressed by # nosec)")
     if test_suppressed:
         print(f"  ({test_suppressed} finding(s) in test code suppressed — see --include-tests)")
+    _print_skipped(skipped_files)
     print(f"  {'=' * 72}\n")
 
     for f in all_findings:

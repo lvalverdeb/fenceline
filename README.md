@@ -14,7 +14,7 @@ Maps every finding to a CWE from the 2025 CWE Top 25, OWASP Top 10:2025, and kno
 Python zero-day exploit patterns (pickle bypass CVE-2026-56315, PyYAML shadow
 vulnerability CVE-2026-24009, LangChain SSTI CVE-2025-68664, dependency confusion
 CVE-2025-61774, and more — see the CWE reference printed at the end of every
-text-mode report). 57 checks total: 14 walk the parsed AST; the rest are line-regex
+text-mode report). 57 checks total: 37 walk the parsed AST; the rest are line-regex
 checks for surface-syntax patterns that don't need full parsing. Neither kind
 false-positives on a dangerous call quoted in a docstring or comment: the regex
 checks scan a copy of each file with comments and string-only statements blanked
@@ -128,6 +128,43 @@ inherently heuristic checks (timing-attack keyword proximity, ReDoS
 backtracking-risk judgment, `debug=True` pattern matching) are `LOW`. Use
 `--confidence-min medium` to cut noise from the fuzzier checks without
 raising your severity bar.
+
+### Severity policy
+
+Severity is fenceline's judgement of how bad a finding is if real; a team may
+know better for its own codebase. A `[tool.fenceline.severity]` table in the
+nearest `pyproject.toml` (searched upward from the directory fenceline runs
+in) caps a check's severity, by check function name:
+
+```toml
+[tool.fenceline.severity]
+check_crlf = "medium"      # we build HTTP framing by hand; CRLF here is by design
+check_ssrf = "low"         # outbound URLs come from our own config, never a request
+```
+
+A cap never raises: an INFO finding from a capped check stays INFO. This keeps
+`--fail-on high` meaningful without `# nosec`-ing every occurrence or dropping
+the check altogether, and the policy is a reviewable file in the repository. A
+misspelled check name or level is an error (exit 2), not a silently inert line.
+
+### Files that could not be parsed
+
+A Python file that fails to parse still gets the line-regex checks, but none
+of the AST checks. The report says so rather than passing the file off as
+clean: the text report prints a `could not be parsed` line, and the JSON
+payload carries a `skipped_files` list.
+
+### Dependency CVEs and lockfiles
+
+`check_dependency_cve` compares the version a project will actually install
+against a small table of known-vulnerable releases (`vuln_deps.json`, a
+curated zero-day watchlist, not an advisory-database mirror; run `pip-audit`
+for full CVE coverage). When a lockfile (`uv.lock`, `poetry.lock`,
+`Pipfile.lock`) sits next to the manifest, the lockfile's exact versions are
+checked and the manifest's ranges are ignored, with the finding reported on
+the lockfile line. Without a lockfile, an `==` pin below the fixed version is
+HIGH confidence and a lower bound (`>=`, `~=`) below it is MEDIUM. Version
+comparison follows PEP 440 (`1.0rc1 < 1.0 < 1.0.post1`, `2024.1.0`).
 
 ### Baselining an existing codebase
 

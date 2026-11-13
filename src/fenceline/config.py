@@ -11,6 +11,7 @@ __all__ = [
     "WORKSPACE_ROOT",
     "DEP_MANIFEST_FILES",
     "is_secure_path",
+    "load_severity_policy",
 ]
 
 
@@ -67,3 +68,38 @@ WORKSPACE_ROOT: Path | None = _find_workspace_root(Path(__file__).resolve().pare
 # Dependency-manifest filenames probed alongside each package's source tree
 # for check_dependency_cve / check_unbounded_pins.
 DEP_MANIFEST_FILES = ("pyproject.toml", "requirements.txt", "setup.py", "Pipfile")
+
+
+def load_severity_policy(start: Path) -> dict[str, str]:
+    """``[tool.fenceline.severity]`` from the nearest ``pyproject.toml`` at or
+    above *start* that carries a ``[tool.fenceline]`` table, as
+    ``{check_function_name: SEVERITY}`` with severities upper-cased; ``{}``
+    when no such file exists.
+
+    A per-repository, reviewable way to say "for this codebase, CRLF
+    construction is MEDIUM, not HIGH" -- which keeps ``--fail-on high``
+    meaningful without ``# nosec``-ing every occurrence or dropping the check.
+    The table caps, never raises. Values are not validated here (the CLI
+    checks names against the registry and severities against the known
+    levels, so a typo is an error rather than a silently ignored line).
+
+    Raises ``ValueError`` if the table is present but not a table of strings.
+    """
+    for candidate in (start, *start.parents):
+        pyproject = candidate / "pyproject.toml"
+        if not pyproject.is_file():
+            continue
+        try:
+            data = tomllib.loads(pyproject.read_text())
+        except (tomllib.TOMLDecodeError, OSError):
+            continue
+        tool = data.get("tool", {}).get("fenceline")
+        if not isinstance(tool, dict):
+            continue
+        table = tool.get("severity", {})
+        if not isinstance(table, dict) or not all(isinstance(v, str) for v in table.values()):
+            raise ValueError(
+                f"{pyproject}: [tool.fenceline.severity] must map check names to severity strings"
+            )
+        return {name: value.upper() for name, value in table.items()}
+    return {}

@@ -11,19 +11,20 @@ import pytest
 from fenceline.baseline import load_baseline, split_by_baseline, write_baseline
 from fenceline.checks import CHECKS, _discover_plugin_checks
 from fenceline.checks.ast_checks import (
+    check_bind_all_interfaces,
+    check_debug_mode,
     check_huggingface_unsafe_download,
+    check_legacy_pycrypto,
     check_numpy_load,
     check_pandas_eval,
+    check_pickle,
     check_unbounded_pydantic_field,
+    check_weak_hash,
+    check_weak_tls_version,
 )
 from fenceline.checks.manifest_checks import check_unbounded_pins
 from fenceline.checks.text_checks import (
-    check_bind_all_interfaces,
-    check_debug_mode,
-    check_legacy_pycrypto,
-    check_pickle,
-    check_weak_hash,
-    check_weak_tls_version,
+    check_null_byte,
 )
 from fenceline.cli import (
     _load_packages_from_config,
@@ -515,7 +516,7 @@ def test_cli_exclude_flag_skips_matching_paths(tmp_path):
 
 
 def test_finding_confidence_defaults_to_medium():
-    findings = _findings(check_pickle, "pickle.loads(data)\n")
+    findings = _findings(check_null_byte, r'path = "a\x00b"' + "\n")
     assert len(findings) == 1
     assert findings[0].confidence == "MEDIUM"
 
@@ -699,7 +700,7 @@ def test_discover_plugin_checks_skips_a_broken_plugin_without_crashing(monkeypat
 def test_cli_confidence_min_filters_out_low_confidence_findings(tmp_path):
     pkg_dir = tmp_path / "pkg"
     pkg_dir.mkdir()
-    # check_debug_mode is LOW confidence; check_pickle is MEDIUM.
+    # check_debug_mode is LOW confidence; check_pickle (AST-based) is HIGH.
     (pkg_dir / "mod.py").write_text("app.run(debug=True)\npickle.loads(data)\n")
 
     result_all = subprocess.run(
@@ -1099,3 +1100,153 @@ def test_mask_non_code_still_blanks_comments_when_file_does_not_parse():
 def test_mask_non_code_leaves_non_python_files_untouched():
     lines = ["requests==2.0.0  # pinned"]
     assert mask_non_code(Path("requirements.txt"), lines, None) is lines
+
+
+# ── Phase 3: lockfile-aware CVE check, severity policy, skipped files ──────
+
+
+def test_parse_version_orders_like_pep_440():
+    from fenceline.checks.manifest_checks import _parse_version as v
+
+    ordered = [
+        "1.0.dev1",
+        "1.0a1",
+        "1.0b2",
+        "1.0rc1",
+        "1.0",
+        "1.0.post1",
+        "1.0.1",
+        "1.1",
+        "2024.1.0",
+    ]
+    keys = [v(x) for x in ordered]
+    assert all(k is not None for k in keys)
+    assert keys == sorted(keys)
+    assert v("1.0") == v("1.0.0") == v("1.0.0.0")
+    assert v("1!0.1") > v("99.0")
+    assert v("2.32.3+local") == v("2.32.3")
+    assert v("not-a-version") is None
+
+
+def _cve(path):
+    from fenceline.checks.manifest_checks import check_dependency_cve
+
+    lines = path.read_text().splitlines()
+    return check_dependency_cve(path, lines, None)
+
+
+def test_check_dependency_cve_reads_uv_lock_instead_of_manifest_ranges(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "x"\ndependencies = ["requests>=2.0"]\n'
+    )
+    (tmp_path / "uv.lock").write_text(
+        '[[package]]\nname = "x"\nversion = "0.1"\n\n'
+        '[[package]]\nname = "requests"\nversion = "2.31.0"\n'
+        'dependencies = [\n    { name = "urllib3" },\n]\n\n'
+        '[[package]]\nname = "urllib3"\nversion = "2.2.0"\n'
+    )
+    findings = _cve(tmp_path / "pyproject.toml")
+    assert len(findings) == 1
+    assert findings[0].file.endswith("uv.lock")
+    assert findings[0].line == 6
+    assert findings[0].confidence == "HIGH"
+    assert "locked at 2.31.0" in findings[0].description
+
+
+def test_check_dependency_cve_locked_fixed_version_silences_loose_manifest_range(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('dependencies = ["requests>=2.0"]\n')
+    (tmp_path / "uv.lock").write_text('[[package]]\nname = "requests"\nversion = "2.32.3"\n')
+    assert _cve(tmp_path / "pyproject.toml") == []
+
+
+def test_check_dependency_cve_only_lock_owner_reports(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('dependencies = ["requests>=2.0"]\n')
+    (tmp_path / "requirements.txt").write_text("requests==2.31.0\n")
+    (tmp_path / "poetry.lock").write_text('[[package]]\nname = "requests"\nversion = "2.31.0"\n')
+    assert len(_cve(tmp_path / "pyproject.toml")) == 1
+    assert _cve(tmp_path / "requirements.txt") == []
+
+
+def test_check_dependency_cve_reads_pipfile_lock(tmp_path):
+    (tmp_path / "Pipfile").write_text('[packages]\nrequests = "*"\n')
+    (tmp_path / "Pipfile.lock").write_text(
+        '{\n  "default": {\n    "requests": {\n      "version": "==2.31.0"\n    }\n  }\n}\n'
+    )
+    findings = _cve(tmp_path / "Pipfile")
+    assert len(findings) == 1
+    assert findings[0].file.endswith("Pipfile.lock")
+    assert findings[0].line == 3
+
+
+def test_check_dependency_cve_manifest_only_distinguishes_pin_from_floor(tmp_path):
+    req = tmp_path / "requirements.txt"
+    req.write_text("requests==2.31.0\nurllib3>=1.26.0\njinja2>=3.1.5\nwerkzeug<4\n")
+    findings = {f.line: f for f in _cve(req)}
+    assert findings[1].confidence == "HIGH"
+    assert findings[2].confidence == "MEDIUM"
+    assert "lower bound" in findings[2].description
+    assert 3 not in findings  # floor is at the fixed version
+    assert 4 not in findings  # upper bound alone pins nothing
+
+
+def test_severity_policy_caps_a_check_from_pyproject(tmp_path):
+    pkg_dir = tmp_path / "pkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "mod.py").write_text("pickle.loads(data)\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.fenceline.severity]\ncheck_pickle = "medium"\ncheck_debug_mode = "INFO"\n'
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--package", "pkg=pkg", "--json", "--quiet"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    payload = json.loads(result.stdout)
+    pickle_findings = [f for f in payload["findings"] if f["cwe_id"] == "CWE-502"]
+    assert pickle_findings and all(f["severity"] == "MEDIUM" for f in pickle_findings)
+    assert result.returncode == 0  # nothing left at or above the default --fail-on high
+
+
+def test_severity_policy_rejects_unknown_check_or_level(tmp_path):
+    pkg_dir = tmp_path / "pkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "mod.py").write_text("x = 1\n")
+    for table in ('check_nope = "low"\n', 'check_pickle = "severe"\n'):
+        (tmp_path / "pyproject.toml").write_text("[tool.fenceline.severity]\n" + table)
+        result = subprocess.run(
+            [sys.executable, "-m", "fenceline.cli", "--package", "pkg=pkg", "--json", "--quiet"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 2
+        assert "[tool.fenceline.severity]" in result.stderr
+
+
+def test_unparseable_python_file_is_listed_as_skipped(tmp_path):
+    pkg_dir = tmp_path / "pkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "ok.py").write_text("x = 1\n")
+    (pkg_dir / "broken.py").write_text("def (:\n")
+    result = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--package", "pkg=pkg", "--json", "--quiet"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    payload = json.loads(result.stdout)
+    assert [p for p in payload["skipped_files"] if p.endswith("broken.py")]
+    assert len(payload["skipped_files"]) == 1
+
+    text = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--package", "pkg=pkg", "--quiet"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    ).stdout
+    assert "1 file(s) could not be parsed" in text

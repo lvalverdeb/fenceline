@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-__all__ = ["Finding", "SEVERITY_ORDER", "CONFIDENCE_ORDER"]
+__all__ = ["Finding", "SEVERITY_ORDER", "CONFIDENCE_ORDER", "cap_severity"]
 
 
 @dataclass
@@ -30,3 +30,11 @@ class Finding:
 
 SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
 CONFIDENCE_ORDER = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+
+
+def cap_severity(severity: str, cap: str) -> str:
+    """*severity* lowered to *cap* when it is more severe than *cap*; a
+    finding already at or below the cap is unchanged. Used by the
+    ``[tool.fenceline.severity]`` policy: a cap, not an override, so an
+    INFO finding from a capped check stays INFO."""
+    return cap if SEVERITY_ORDER[severity] < SEVERITY_ORDER[cap] else severity
