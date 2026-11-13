@@ -151,6 +151,17 @@ repos:
         # args: [--fail-on, critical, --baseline, fenceline-baseline.json]
 ```
 
+### How it compares
+
+`benchmark/` holds a labelled, reproducible comparison against Bandit and
+Semgrep on three intentionally vulnerable apps (pygoat, vulpy, dvpwa), with
+every finding of all three tools adjudicated by hand. As of 1.6.0 fenceline
+sits between the two: higher recall than the Semgrep community ruleset,
+lower recall and precision than Bandit, with the gap concentrated in three
+checks (hardcoded secrets in non-constant shapes, hardcoded `/tmp` paths,
+weak randomness) and one noisy one (unbounded `read()`). The numbers, the
+labelling rules and `run.sh` are in [`benchmark/README.md`](benchmark/README.md).
+
 ### Severity vs. confidence
 
 Every finding carries two independent ratings, the same distinction Bandit

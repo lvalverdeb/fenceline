@@ -1,0 +1,318 @@
+{
+  "categories": {
+    "fenceline": {
+      "CWE-798": "secret",
+      "CWE-489": "debug",
+      "CWE-1327": "bind-all",
+      "CWE-770": "unbounded-read",
+      "CWE-778": "silent-except",
+      "CWE-391": "silent-except",
+      "CWE-1088": "no-timeout",
+      "CWE-328": "weak-hash",
+      "CWE-327": "weak-hash",
+      "CWE-918": "ssrf",
+      "CWE-89": "sqli",
+      "CWE-117": "log-injection",
+      "CWE-532": "log-secret",
+      "CWE-601": "open-redirect",
+      "CWE-502": "deserialization",
+      "CWE-78": "cmdi",
+      "CWE-94": "code-injection",
+      "CWE-208": "timing",
+      "CWE-611": "xxe",
+      "CWE-338": "weak-random",
+      "CWE-1104": "vuln-dep"
+    },
+    "bandit": {
+      "B105": "secret",
+      "B106": "secret",
+      "B108": "tmpfile",
+      "B104": "bind-all",
+      "B201": "debug",
+      "B608": "sqli",
+      "B113": "no-timeout",
+      "B311": "weak-random",
+      "B110": "silent-except",
+      "B324": "weak-hash",
+      "B603": "cmdi",
+      "B602": "cmdi",
+      "B404": "import-only",
+      "B403": "import-only",
+      "B406": "import-only",
+      "B409": "import-only",
+      "B301": "deserialization",
+      "B506": "deserialization",
+      "B307": "code-injection",
+      "B317": "xxe",
+      "B319": "xxe"
+    },
+    "semgrep": {
+      "avoid_app_run_with_bad_host": "bind-all",
+      "debug-enabled": "debug",
+      "avoid_using_app_run_directly": "debug",
+      "request-with-http": "plaintext-http",
+      "insecure-hash-algorithm-md5": "weak-hash",
+      "insecure-hash-algorithm-sha1": "weak-hash",
+      "md5-used-as-password": "weak-hash",
+      "jwt-python-hardcoded-secret": "secret",
+      "sql-injection-db-cursor-execute": "sqli",
+      "tainted-sql-string": "sqli",
+      "crypto-mode-without-authentication": "weak-crypto-mode",
+      "nan-injection": "nan-injection",
+      "avoid-pyyaml-load": "deserialization",
+      "subprocess-injection": "cmdi",
+      "dangerous-subprocess-use": "cmdi",
+      "subprocess-shell-true": "cmdi",
+      "dangerous-subprocess-use-tainted-env-args": "cmdi",
+      "user-eval": "code-injection",
+      "eval-injection": "code-injection",
+      "ssrf-injection-requests": "ssrf",
+      "ssrf-requests": "ssrf"
+    }
+  },
+  "false_positive_rules": {
+    "bandit": [
+      "B403",
+      "B404",
+      "B406",
+      "B409"
+    ],
+    "fenceline": [
+      "CWE-770"
+    ]
+  },
+  "false_positives": [
+    [
+      "bandit",
+      "B105",
+      "pygoat/dockerized_labs/sec_misconfig/app.py:34",
+      "returns None, not a secret"
+    ],
+    [
+      "bandit",
+      "B105",
+      "pygoat/pygoat/settings.py:179",
+      "cookie name, not a secret"
+    ],
+    [
+      "bandit",
+      "B108",
+      "vulpy/good/cutpasswd.py:3",
+      "reads a public wordlist"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "pygoat/challenge/management/commands/startuplabs.py:44",
+      "specific exception, intentional pass"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "pygoat/uninstaller.py:174",
+      "specific exception, intentional pass"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "vulpy/bad/db_init.py:40",
+      "specific exception, intentional pass"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "vulpy/bad/db_init.py:45",
+      "specific exception, intentional pass"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "vulpy/good/db_init.py:39",
+      "specific exception, intentional pass"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "vulpy/good/db_init.py:44",
+      "specific exception, intentional pass"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "vulpy/utils/scrypt-crack.py:43",
+      "specific exception, intentional pass"
+    ],
+    [
+      "bandit",
+      "B608",
+      "vulpy/bad/db.py:19",
+      "SQL built from literal seed data only"
+    ],
+    [
+      "bandit",
+      "B608",
+      "vulpy/bad/db_init.py:20",
+      "SQL built from literal seed data only"
+    ],
+    [
+      "fenceline",
+      "CWE-117",
+      "dvpwa/run.py:17",
+      "interpolates config values, not input"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "dvpwa/sqli/middlewares.py:33",
+      "message names CSRF tokens, logs a path"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "pygoat/dockerized_labs/sensitive_data_exposure/dataexposure/views.py:37",
+      "Django flash message, nothing secret logged"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "pygoat/dockerized_labs/template_injection_lab/app.py:102",
+      "url_for builds an internal route"
+    ],
+    [
+      "bandit",
+      "B603",
+      "pygoat/uninstaller.py:46",
+      "constant argument list"
+    ],
+    [
+      "bandit",
+      "B603",
+      "pygoat/uninstaller.py:51",
+      "constant argument list"
+    ],
+    [
+      "bandit",
+      "B603",
+      "pygoat/uninstaller.py:73",
+      "constant argument list"
+    ],
+    [
+      "bandit",
+      "B603",
+      "vulpy/bad/brute.py:21",
+      "CLI tool, list form, arguments by design"
+    ],
+    [
+      "fenceline",
+      "CWE-78",
+      "vulpy/bad/brute.py:21",
+      "CLI tool, list form, arguments by design"
+    ],
+    [
+      "semgrep",
+      "dangerous-subprocess-use-tainted-env-args",
+      "vulpy/bad/brute.py:21",
+      "CLI tool, list form, arguments by design"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "pygoat/dockerized_labs/sql_injection_lab/app.py:51",
+      "SQL f-string, not a credential"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "vulpy/utils/generate_bad_passwords.py:21",
+      "URL is a CLI option of a dev utility"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "vulpy/utils/httpbrute.py:25",
+      "URL is the CLI target of a brute-force utility"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "vulpy/bad/api_list.py:10",
+      "fixed loopback host, username in path only"
+    ],
+    [
+      "bandit",
+      "B104",
+      "pygoat/pygoat/settings.py:30",
+      "ALLOWED_HOSTS entry, not a bind address"
+    ],
+    [
+      "fenceline",
+      "CWE-1327",
+      "pygoat/pygoat/settings.py:30",
+      "ALLOWED_HOSTS entry, not a bind address"
+    ],
+    [
+      "fenceline",
+      "CWE-611",
+      "pygoat/dockerized_labs/xxe_lab/app.py:3",
+      "import line, the sink is parseString at 61"
+    ],
+    [
+      "fenceline",
+      "CWE-611",
+      "pygoat/dockerized_labs/xxe_lab/app.py:5",
+      "import line, the sink is parseString at 61"
+    ]
+  ],
+  "same_instance": [
+    [
+      "pygoat/dockerized_labs/sql_injection_lab/app.py",
+      "sqli",
+      [
+        46,
+        47,
+        50,
+        51
+      ]
+    ],
+    [
+      "pygoat/dockerized_labs/command_injection_lab/app.py",
+      "cmdi",
+      [
+        29,
+        30
+      ]
+    ],
+    [
+      "pygoat/dockerized_labs/command_injection_lab/app.py",
+      "code-injection",
+      [
+        48,
+        49
+      ]
+    ],
+    [
+      "pygoat/dockerized_labs/ssrf_lab/app.py",
+      "ssrf",
+      [
+        35,
+        37
+      ]
+    ],
+    [
+      "pygoat/dockerized_labs/xxe_lab/app.py",
+      "xxe",
+      [
+        57,
+        61
+      ]
+    ]
+  ],
+  "true_positive_overrides": [
+    [
+      "fenceline",
+      "CWE-770",
+      "pygoat/dockerized_labs/ssrf_lab/app.py:23",
+      "path is user-controlled; /dev/zero reads into memory"
+    ]
+  ]
+}
