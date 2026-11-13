@@ -21,8 +21,6 @@ from fenceline.models import Finding
 from fenceline.scanner import _rel
 
 __all__ = [
-    "check_hardcoded_secrets",
-    "_is_secret_false_positive",
     "check_xxe",
     "check_tempfile",
     "check_symlink",
@@ -32,67 +30,11 @@ __all__ = [
     "check_sensitive_exposure",
     "check_null_byte",
     "check_ldap",
-    "check_hardcoded_tokens",
     "check_weak_crypto",
     "check_trojan_source",
     "check_ssh_host_key",
     "check_pth_startup_hooks",
 ]
-
-
-def check_hardcoded_secrets(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-798 (was #35 in 2025). Matched case-insensitively — UPPER_SNAKE_CASE
-    module constants (``PASSWORD = "..."``) are the standard Python
-    convention for exactly this kind of value and were otherwise invisible."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    patterns: list[tuple[str, str, str]] = [
-        (
-            r'(?:private_key|ssh_key|pem)\s*[:=]\s*["\'][^"\']+["\']',
-            "CRITICAL",
-            "Hardcoded private key",
-        ),
-        (
-            r'connection_url\s*=\s*["\'][^"\']*://[^"\']+:[^"\']+@',
-            "CRITICAL",
-            "Connection URL with embedded credentials",
-        ),
-        (r'(?:password|passwd|pwd)\s*[:=]\s*["\'][^"\']{4,}["\']', "HIGH", "Hardcoded password"),
-    ]
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        for pat, sev, desc in patterns:
-            if re.search(pat, line, re.IGNORECASE) and not _is_secret_false_positive(line):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-798",
-                        cwe_name="Use of Hard-coded Credentials",
-                        severity=sev,
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=line.strip(),
-                        description=desc,
-                        zero_day_relevance="Leaked creds in source code are the #1 initial access vector in supply-chain attacks.",
-                    )
-                )
-                break
-    return results
-
-
-def _is_secret_false_positive(line: str) -> bool:
-    low = line.lower()
-    # env var reference
-    if "environ" in low or "getenv" in low or "config" in low:
-        return True
-    # example / placeholder
-    if any(x in low for x in ("your-", "placeholder", "...", "example", "xxxx", "****")):
-        return True
-    # sqlalchemy documented URL pattern
-    if "connection_url" in low and ("{" in line or "}" in line or "dialect" in low):
-        return True
-    return False
 
 
 def _lxml_etree_alias(tree: ast.Module | None) -> str | None:
@@ -335,49 +277,6 @@ def check_ldap(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
                     description="LDAP connection — verify queries are parameterised.",
                 )
             )
-    return results
-
-
-def check_hardcoded_tokens(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-798 — extended: api_key, token, jwt, bearer, secret literal strings.
-    Matched case-insensitively — UPPER_SNAKE_CASE module constants
-    (``API_KEY = "..."``) are the standard Python convention for exactly
-    this kind of value and were otherwise invisible."""
-    pk = _rel(path)
-    results: list[Finding] = []
-    # Look for: api_key = "actual-key", token = "eyJ...", bearer = "Bearer xyz", secret = "literal"
-    patterns = [
-        (r'(?:api_key|apikey)\s*[:=]\s*["\'][A-Za-z0-9_\-=]{16,}["\']', "Hardcoded API key"),
-        (
-            r'(?:token|jwt)\s*[:=]\s*["\'][A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+["\']',
-            "Hardcoded JWT token",
-        ),
-        (
-            r'(?:bearer|auth_token)\s*[:=]\s*["\'][A-Za-z0-9_\-]{20,}["\']',
-            "Hardcoded bearer / auth token",
-        ),
-        (r'(?:secret|client_secret)\s*[:=]\s*["\'][A-Za-z0-9_\-+/=]{16,}["\']', "Hardcoded secret"),
-    ]
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        stripped = line.strip()
-        for pat, desc in patterns:
-            if re.search(pat, stripped, re.IGNORECASE) and not _is_secret_false_positive(stripped):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-798",
-                        cwe_name="Use of Hard-coded Credentials",
-                        severity="CRITICAL",
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=stripped,
-                        description=f"{desc} — plaintext credential in source code.",
-                        zero_day_relevance="Hardcoded cloud API keys are the #1 initial-access vector in supply-chain attacks. Attackers scan public repos for these patterns.",
-                    )
-                )
-                break
     return results
 
 

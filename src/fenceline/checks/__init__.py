@@ -40,6 +40,8 @@ from fenceline.checks.ast_checks import (
     check_except_pass,
     check_exec_driver_sql,
     check_format_string,
+    check_hardcoded_secrets,
+    check_hardcoded_tokens,
     check_huggingface_unsafe_download,
     check_insecure_default,
     check_insecure_random,
@@ -77,8 +79,6 @@ from fenceline.checks.manifest_checks import (
 )
 from fenceline.checks.text_checks import (
     check_assert_security,
-    check_hardcoded_secrets,
-    check_hardcoded_tokens,
     check_ldap,
     check_null_byte,
     check_pth_startup_hooks,

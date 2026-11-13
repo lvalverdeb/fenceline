@@ -34,6 +34,8 @@ from fenceline.scanner import _rel
 from fenceline.taint import INTERNAL_NOTE, Taint, classify, confidence_for
 
 __all__ = [
+    "check_hardcoded_secrets",
+    "check_hardcoded_tokens",
     "check_log_injection",
     "check_log_secrets",
     "check_numpy_load_lib",
@@ -2232,4 +2234,224 @@ def check_numpy_load_lib(path: Path, lines: list[str], tree: ast.Module | None) 
                 zero_day_relevance="Trail of Bits: numpy.load() on .so files enables arbitrary code execution during array deserialization.",
             )
         )
+    return results
+
+
+# ── Hardcoded credentials (CWE-798) ──────────────────────────────────────────
+#
+# Two complementary views. check_hardcoded_secrets is name-based: a string
+# literal bound to something called password/secret/token/... in any binding
+# shape Python offers (plain or attribute assignment, a subscript key such as
+# app.config["SECRET_KEY"] or os.environ["JWT_SECRET"], a dict entry, a
+# keyword argument, a comparison). check_hardcoded_tokens is value-based: a
+# literal that *is* a credential by its shape (JWT, AWS/Stripe/GitHub/Slack/
+# Google keys, PEM private key, bearer token) whatever it is bound to.
+
+_SECRET_NAME_RE = re.compile(
+    r"password|passwd|pwd|secret|token|api_key|apikey|access_key|private_key|auth_key"
+    r"|client_secret|authorization",
+    re.I,
+)
+_PRIVATE_KEY_NAME_RE = re.compile(r"private_key|ssh_key|\bpem\b", re.I)
+_PASSWORD_NAME_RE = re.compile(r"password|passwd|pwd", re.I)
+# A name that holds a *description* of a credential, not the credential:
+# password_field = "password", token_type = "Bearer", auth_header = "X-Auth".
+_NOT_A_SECRET_NAME_RE = re.compile(
+    r"(field|header|name|param|prefix|suffix|type|kind|url|hint|label|help|placeholder|regex"
+    r"|pattern|length|len|path|file|hash_algorithm|algorithm|salt)$",
+    re.I,
+)
+_PLACEHOLDER_RE = re.compile(
+    r"your[-_ ]|placeholder|example|change[-_ ]?me|xxxx|\*\*\*\*|<[^>]+>|^\.\.\.$|dummy|sample"
+    r"|insert[-_ ]|fill[-_ ]?in|redacted|^\$\{|^%\(|%s|\{",
+    re.I,
+)
+_CREDS_IN_URL_RE = re.compile(r"://[^/\s@:]+:[^@/\s]+@")
+# Values that are a *name*, not a credential: a short all-caps word
+# (SECRET_COOKIE_KEY = "PYGOAT"), an environment-variable or constant name
+# (ACCESS_KEY = "AWS_ACCESS_KEY_ID"), a number (_TOKEN_TTL = "21600"), a
+# literal None/true/false.
+_CONSTANT_NAME_RE = re.compile(r"^[A-Z_]{1,12}$|^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$|^\d+(?:\.\d+)?$")
+_LITERAL_WORDS = frozenset({"None", "none", "null", "True", "true", "False", "false"})
+# Identifier-shaped and digit-free: as likely a config-key name
+# (SECRET_KEY = "aws_secret_access_key") as a weak credential
+# (secret = "MYSUPERSECRETKEY"); reported, at MEDIUM confidence.
+_IDENTIFIER_LIKE_RE = re.compile(r"^[A-Za-z][A-Za-z_-]*$")
+_IDENTIFIER_NOTE = " — value is identifier-like and may be a key name rather than a credential."
+_PLACEHOLDER_NOTE = " — value looks like a placeholder; confirm it is not used as-is."
+
+
+def _normalised(text: str) -> str:
+    return "".join(ch for ch in text.lower() if ch.isalnum())
+
+
+_TOKEN_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----"),
+        "Hardcoded private key (PEM)",
+    ),
+    (re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+"), "Hardcoded JWT"),
+    (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "Hardcoded AWS access key ID"),
+    (re.compile(r"\bsk_(?:live|test)_[0-9a-zA-Z]{16,}\b"), "Hardcoded Stripe secret key"),
+    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36}\b"), "Hardcoded GitHub token"),
+    (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), "Hardcoded Slack token"),
+    (re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"), "Hardcoded Google API key"),
+    (re.compile(r"\bBearer [A-Za-z0-9_\-.=]{20,}"), "Hardcoded bearer token"),
+)
+
+
+def _binding_name(target: ast.expr) -> str | None:
+    """The name a value is being bound to: ``x``, ``obj.x`` -> ``x``,
+    ``obj["x"]`` -> ``x``; ``None`` for anything else."""
+    if isinstance(target, ast.Name):
+        return target.id
+    if isinstance(target, ast.Attribute):
+        return target.attr
+    if (
+        isinstance(target, ast.Subscript)
+        and isinstance(target.slice, ast.Constant)
+        and isinstance(target.slice.value, str)
+    ):
+        return target.slice.value
+    return None
+
+
+def _str_value(node: ast.expr | None) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def _secret_bindings(tree: ast.Module | None) -> list[tuple[int, str, str]]:
+    """``(line, name, value)`` for every string literal bound to a name, in
+    any binding shape: assignment, dict entry, keyword argument, comparison."""
+    out: list[tuple[int, str, str]] = []
+    if tree is None:
+        return out
+
+    def add(line: int, target: ast.expr | None, value: ast.expr | None) -> None:
+        name = _binding_name(target) if target is not None else None
+        text = _str_value(value)
+        if name is not None and text is not None:
+            out.append((line, name, text))
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for t in node.targets:
+                add(node.lineno, t, node.value)
+        elif isinstance(node, ast.AnnAssign):
+            add(node.lineno, node.target, node.value)
+        elif isinstance(node, ast.Dict):
+            for k, v in zip(node.keys, node.values):
+                if (
+                    isinstance(k, ast.Constant)
+                    and isinstance(k.value, str)
+                    and _str_value(v) is not None
+                ):
+                    out.append(
+                        (node.lineno if k is None else k.lineno, k.value, _str_value(v) or "")
+                    )
+        elif isinstance(node, ast.Call):
+            for kw in node.keywords:
+                if kw.arg is not None and _str_value(kw.value) is not None:
+                    out.append((kw.value.lineno, kw.arg, _str_value(kw.value) or ""))
+        elif (
+            isinstance(node, ast.Compare)
+            and node.comparators
+            and isinstance(node.ops[0], (ast.Eq, ast.NotEq))
+        ):
+            add(node.lineno, node.left, node.comparators[0])
+            add(node.lineno, node.comparators[0], node.left)
+    return out
+
+
+def _classify_secret(name: str, value: str) -> tuple[str, str, str] | None:
+    """``(severity, confidence, description)`` if binding ``value`` to
+    ``name`` is a hardcoded credential, else ``None``."""
+    if _CREDS_IN_URL_RE.search(value):
+        return "CRITICAL", "HIGH", "Connection URL with embedded credentials"
+    if not _SECRET_NAME_RE.search(name) or _NOT_A_SECRET_NAME_RE.search(name):
+        return None
+    if (
+        len(value) < 4
+        or value in _LITERAL_WORDS
+        or _CONSTANT_NAME_RE.match(value)
+        or _normalised(value) == _normalised(name)
+    ):
+        return None
+    if _PRIVATE_KEY_NAME_RE.search(name):
+        severity, description = "CRITICAL", "Hardcoded private key"
+    elif _PASSWORD_NAME_RE.search(name):
+        severity, description = "HIGH", "Hardcoded password"
+    else:
+        severity, description = "HIGH", "Hardcoded secret"
+    if _PLACEHOLDER_RE.search(value):
+        return severity, "MEDIUM", description + _PLACEHOLDER_NOTE
+    if _IDENTIFIER_LIKE_RE.match(value):
+        return severity, "MEDIUM", description + _IDENTIFIER_NOTE
+    return severity, "HIGH", description
+
+
+def check_hardcoded_secrets(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """CWE-798, name-based. A value that looks like a placeholder
+    (``"your-password-here"``, ``"changeme"``, ``"%s"``) is still a hardcoded
+    credential if it is what the program actually uses, so it is reported at
+    MEDIUM confidence rather than dropped; so is an identifier-shaped value
+    that may be a key name."""
+    pk = _rel(path)
+    results: list[Finding] = []
+    seen: set[tuple[int, str]] = set()
+    for line, name, value in _secret_bindings(tree):
+        verdict = _classify_secret(name, value)
+        if verdict is None or (line, name) in seen:
+            continue
+        seen.add((line, name))
+        severity, confidence, description = verdict
+        results.append(
+            Finding(
+                cwe_id="CWE-798",
+                cwe_name="Use of Hard-coded Credentials",
+                severity=severity,
+                confidence=confidence,
+                package="",
+                file=pk,
+                line=line,
+                code_snippet=_code_at(lines, line),
+                description=description,
+                zero_day_relevance="Leaked creds in source code are the #1 initial access vector in supply-chain attacks.",
+            )
+        )
+    return results
+
+
+def check_hardcoded_tokens(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """CWE-798, value-based: a string literal whose shape identifies it as a
+    credential, wherever it appears."""
+    pk = _rel(path)
+    results: list[Finding] = []
+    seen: set[int] = set()
+    if tree is None:
+        return results
+    for node in ast.walk(tree):
+        text = _str_value(node) if isinstance(node, ast.Constant) else None
+        if text is None or len(text) < 16 or node.lineno in seen:
+            continue
+        for pattern, description in _TOKEN_SHAPES:
+            if pattern.search(text):
+                seen.add(node.lineno)
+                results.append(
+                    Finding(
+                        cwe_id="CWE-798",
+                        cwe_name="Use of Hard-coded Credentials",
+                        severity="CRITICAL",
+                        confidence="HIGH",
+                        package="",
+                        file=pk,
+                        line=node.lineno,
+                        code_snippet=_code_at(lines, node.lineno),
+                        description=f"{description} — plaintext credential in source code.",
+                        zero_day_relevance="Hardcoded cloud API keys are the #1 initial-access vector in supply-chain attacks. Attackers scan public repos for these patterns.",
+                    )
+                )
+                break
     return results
