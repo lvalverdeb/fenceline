@@ -13,7 +13,7 @@ false positives.
 | [vulpy](https://github.com/fportantier/vulpy) | Flask | `5249cc8` | 2373 |
 | [dvpwa](https://github.com/anxolerd/dvpwa) | aiohttp | `4a8f4a4` | 674 |
 
-Tools: fenceline 1.7.0 for the current table and 1.6.0 for the baseline (this
+Tools: fenceline 1.8.0 for the current table and 1.6.0 for the baseline (this
 repository; the Python and Rust ports give identical findings), Bandit 1.9.4 with default settings, Semgrep 1.185.0 with the
 community `p/python` ruleset. Test files (`tests.py`, `test_*.py`, `tests/`),
 migrations and non-Python files are excluded for every tool alike, so
@@ -42,7 +42,7 @@ false-positive rate on ordinary code.
 
 ## Results
 
-### Unreleased main (Phase B1, 2026-11-13)
+### 1.8.0 (2026-11-13)
 
 Cross-file parameter taint: a parameter that a caller anywhere in the
 package feeds request data is HIGH inside the callee. Finding counts and
@@ -77,7 +77,7 @@ findings that are MEDIUM by design (placeholder-shaped or identifier-like
 values), the MEDIUM `read()` and SSRF findings in command-line utilities,
 and the handful of weaknesses no tool finds. Those are not taint depth.
 
-### Unreleased main (Phase B0, 2026-11-13)
+### Phase B0 (2026-11-13, in 1.8.0)
 
 One change over 1.7.0: the SQL injection checks look through a local
 variable to the query assigned to it (`q = "..." % x; execute(q)`), which
