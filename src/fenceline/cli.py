@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import sys
 import tomllib
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from fenceline.baseline import load_baseline, split_by_baseline, write_baseline
+from fenceline.callers import propagate
 from fenceline.checks import CHECKS, lines_for
 from fenceline.config import (
     DEP_MANIFEST_FILES,
@@ -428,11 +430,21 @@ def main() -> int:
     # the AST checks did not, and the report says so rather than passing
     # them off as clean.
     skipped_files: list[str] = []
+    # Parse everything first: the cross-file pass needs every tree of a
+    # package before any check runs on one of its files.
+    parsed: dict[Path, tuple[list[str], ast.Module | None]] = {}
     for path in sorted(path_package):
-        lines = _read(path)
         tree = _ast_parse(path) if path.suffix == ".py" else None
         if path.suffix == ".py" and tree is None:
             skipped_files.append(_rel(path))
+        parsed[path] = (_read(path), tree)
+    for name, root in packages.items():
+        propagate(
+            {p: t for p, (_, t) in parsed.items() if t is not None and path_package[p] == name},
+            root,
+        )
+    for path in sorted(path_package):
+        lines, tree = parsed[path]
         code_lines = mask_non_code(path, lines, tree)
         pkg_name = path_package[path]
 

@@ -42,6 +42,22 @@ false-positive rate on ordinary code.
 
 ## Results
 
+### Unreleased main (Phase B1, 2026-11-13)
+
+Cross-file parameter taint: a parameter that a caller anywhere in the
+package feeds request data is HIGH inside the callee. Finding counts and
+the default-settings table are unchanged; the five SQL injections that sat
+at MEDIUM because the request value arrived from another file (vulpy's
+`libuser.py` from `mod_user.py`/`libapi.py`, dvpwa's `dao/student.py` from
+`views.py`) are now HIGH.
+
+| fenceline (--confidence-min high) | 150 | 145 | 5 | 97% | 135/198 (68%) |
+
+What still separates HIGH-only recall from the default: 23 hardcoded-secret
+findings that are MEDIUM by design (placeholder-shaped or identifier-like
+values), the MEDIUM `read()` and SSRF findings in command-line utilities,
+and the handful of weaknesses no tool finds. Those are not taint depth.
+
 ### Unreleased main (Phase B0, 2026-11-13)
 
 One change over 1.7.0: the SQL injection checks look through a local

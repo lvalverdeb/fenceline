@@ -1442,3 +1442,80 @@ def test_cli_sarif_flag_emits_sarif_and_excludes_json(tmp_path):
     )
     assert both.returncode == 2
     assert "not allowed with" in both.stderr
+
+
+def _scan_json(tmp_path):
+    result = subprocess.run(
+        [sys.executable, "-m", "fenceline.cli", "--json"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    return json.loads(result.stdout)["findings"]
+
+
+def test_caller_in_another_file_promotes_the_callee_parameter(tmp_path):
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "app.py").write_text(
+        "from flask import Flask, request\n"
+        "import libuser\n"
+        "from dao import Student\n"
+        "app = Flask(__name__)\n"
+        "@app.route('/login', methods=['POST'])\n"
+        "def login():\n"
+        "    return libuser.login(request.form['username'], 'fixed')\n"
+        "@app.route('/add')\n"
+        "def add():\n"
+        "    Student.create(None, request.args['name'])\n"
+    )
+    (pkg / "libuser.py").write_text(
+        "def login(username, password):\n"
+        "    c.execute(f\"SELECT * FROM users WHERE username = '{username}'\")\n"
+        "    c.execute(f\"SELECT * FROM users WHERE password = '{password}'\")\n"
+        "def unused(table):\n"
+        "    c.execute(f'SELECT * FROM {table}')\n"
+    )
+    (pkg / "dao.py").write_text(
+        "class Student:\n"
+        "    @staticmethod\n"
+        "    def create(conn, name):\n"
+        "        q = \"INSERT INTO students (name) VALUES ('%s')\" % name\n"
+        "        conn.execute(q)\n"
+    )
+    by_site = {
+        (f["file"].rsplit("/", 1)[-1], f["line"]): f
+        for f in _scan_json(tmp_path)
+        if f["cwe_id"] == "CWE-89"
+    }
+    assert by_site[("libuser.py", 2)]["confidence"] == "HIGH"
+    assert "from a caller in the package" in by_site[("libuser.py", 2)]["description"]
+    assert by_site[("libuser.py", 3)]["confidence"] == "MEDIUM"  # literal argument
+    assert by_site[("libuser.py", 5)]["confidence"] == "MEDIUM"  # never called
+    assert by_site[("dao.py", 5)]["confidence"] == "HIGH"  # static method via class
+
+
+def test_caller_taint_crosses_two_helpers_and_relative_imports(tmp_path):
+    pkg = tmp_path / "pkg"
+    (pkg / "svc").mkdir(parents=True)
+    (pkg / "svc" / "__init__.py").write_text("")
+    (pkg / "svc" / "views.py").write_text(
+        "from flask import request\n"
+        "from .logic import handle\n"
+        "@app.route('/x')\n"
+        "def view():\n"
+        "    handle(request.args['q'])\n"
+    )
+    (pkg / "svc" / "logic.py").write_text(
+        "from . import db\n"
+        "def handle(value):\n"
+        "    db.run(table=value)\n"
+    )
+    (pkg / "svc" / "db.py").write_text(
+        "def run(conn=None, table=''):\n    conn.execute('SELECT * FROM ' + table)\n"
+    )
+    findings = [f for f in _scan_json(tmp_path) if f["cwe_id"] == "CWE-89"]
+    assert [(f["file"].rsplit("/", 1)[-1], f["confidence"]) for f in findings] == [
+        ("db.py", "HIGH")
+    ]

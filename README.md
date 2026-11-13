@@ -183,14 +183,20 @@ what they find:
 | The sink is fed by | Confidence |
 | --- | --- |
 | A recognised entry point: a `request` object, `os.environ`, `sys.argv`, `input()`, a socket read, or a parameter of a route-decorated function or handler method | `HIGH` |
+| A parameter that some caller elsewhere in the package feeds request data | `HIGH`, with a note on the finding |
 | Plain function parameters, `self` attributes, or values the function cannot resolve | `MEDIUM`, with a note on the finding |
 | Only literals, module constants, library references, or values that cannot carry a payload (a length, an `int()`, a `shlex.quote()`) | not reported |
 
-The analysis stays inside one function and follows assignments without
-regard to order, so it is deliberately pessimistic: a name assigned a
-constant and later a request value counts as a request value. It does not
-see through `self` fields set elsewhere or through calls into other
-functions; those land in the `MEDIUM` row. Use `--confidence-min medium` to
+Within a function the analysis follows assignments without regard to order,
+so it is deliberately pessimistic: a name assigned a constant and later a
+request value counts as a request value. Across functions it follows calls:
+once every file of a package is parsed, each call's arguments are bound to
+the callee's parameters, and a parameter that receives request data from
+any caller is treated as request data inside the callee, repeated until a
+value that crosses several helpers has arrived. Callees are resolved by
+name (same file, `import mod`, `from .mod import f`, `Class.method`,
+`self.method`); a method called on an object of unknown type, and `self`
+fields set elsewhere, still land in the `MEDIUM` row. Use `--confidence-min medium` to
 cut noise from the fuzzier regex checks, and `--confidence-min high` to see
 only findings where attacker-controlled input provably reaches the sink.
 

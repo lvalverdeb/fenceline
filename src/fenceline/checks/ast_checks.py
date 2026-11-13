@@ -31,7 +31,7 @@ from fenceline.ast_helpers import (
 )
 from fenceline.models import Finding
 from fenceline.scanner import _rel
-from fenceline.taint import INTERNAL_NOTE, Taint, bound_values, classify, confidence_for
+from fenceline.taint import Taint, bound_values, classify, confidence_for
 
 __all__ = [
     "check_tempfile",
@@ -974,10 +974,7 @@ def _tainted(tree: ast.Module, anchor: ast.AST, exprs: list[ast.expr]) -> tuple[
     """``(confidence, description_suffix)`` for a sink fed by *exprs*, or
     ``None`` when every input is provably constant and there is nothing to
     report. See ``fenceline.taint`` for the three-way model."""
-    confidence = confidence_for(classify(tree, anchor, exprs))
-    if confidence is None:
-        return None
-    return confidence, ("" if confidence == "HIGH" else INTERNAL_NOTE)
+    return confidence_for(classify(tree, anchor, exprs))
 
 
 _PICKLE_CALLS: tuple[tuple[str, str, str], ...] = (
@@ -1216,9 +1213,10 @@ def check_crlf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
         line = _node_line(node)
         hits[line] = max(hits.get(line, Taint.CLEAN), classify(tree, node, data))
     for line, taint in hits.items():
-        confidence = confidence_for(taint)
-        if confidence is None:
+        scored = confidence_for(taint)
+        if scored is None:
             continue
+        confidence, note = scored
         results.append(
             Finding(
                 cwe_id="CWE-93",
@@ -1230,7 +1228,7 @@ def check_crlf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
                 line=line,
                 code_snippet=_code_at(lines, line),
                 description="CRLF sequence combined with non-literal data — may enable HTTP response splitting / log injection."
-                + ("" if confidence == "HIGH" else INTERNAL_NOTE),
+                + note,
             )
         )
     return results

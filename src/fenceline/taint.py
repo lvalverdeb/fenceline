@@ -29,23 +29,37 @@ from __future__ import annotations
 
 import ast
 import builtins
-import functools
 from dataclasses import dataclass, field
 from enum import IntEnum
 
 from fenceline.ast_helpers import _dotted_name, _walk_skip_nested_scopes
 
-__all__ = ["Taint", "bound_values", "classify", "confidence_for", "INTERNAL_NOTE"]
+__all__ = [
+    "Taint",
+    "bound_values",
+    "classify",
+    "confidence_for",
+    "enclosing_class",
+    "mark_caller_param",
+    "CALLER_NOTE",
+    "INTERNAL_NOTE",
+]
 
 
 class Taint(IntEnum):
     CLEAN = 0
     INTERNAL = 1
-    SOURCE = 2
+    #: A parameter that a caller elsewhere in the package feeds request data
+    #: (``fenceline.callers``); as reportable as SOURCE, with its own note.
+    CALLER = 2
+    SOURCE = 3
 
 
 #: Appended to a finding's description when no source reaches the sink.
 INTERNAL_NOTE = " No request or environment input reaches this call within the enclosing function."
+
+#: Appended when the source is a caller's argument, not this function's code.
+CALLER_NOTE = " Request data reaches a parameter of this function from a caller in the package."
 
 # Names that carry request data in the frameworks fenceline recognises when
 # used as the root of an attribute, subscript or call chain.
@@ -170,6 +184,19 @@ class _Scope:
     handler: bool
     assigns: dict[str, list[ast.expr]] = field(default_factory=dict)
     imports: set[str] = field(default_factory=set)
+    #: ``Class.method`` / ``func`` / ``outer.inner``; "" for the module.
+    qualname: str = ""
+    #: Name of the class whose body directly holds this function, if any.
+    cls: str | None = None
+    #: Parameters some caller in the package feeds request data (set by
+    #: ``fenceline.callers`` after every file of the package is parsed).
+    caller_params: set[str] = field(default_factory=set)
+
+
+@dataclass
+class _Scopes:
+    at: dict[int, _Scope]
+    functions: dict[str, _Scope]
 
 
 def _bind(scope: _Scope, target: ast.expr, value: ast.expr) -> None:
@@ -214,23 +241,28 @@ def _is_handler(fn: ast.FunctionDef | ast.AsyncFunctionDef, cls: ast.ClassDef | 
     return False
 
 
-@functools.lru_cache(maxsize=4)
-def _scope_map(tree: ast.Module) -> dict[int, _Scope]:
-    """``id(node) -> scope`` for every node in *tree*; module-level names
-    are folded into every function scope so a module constant resolves
-    the same way a local one does."""
+def _scope_map(tree: ast.Module) -> _Scopes:
+    """``id(node) -> scope`` for every node in *tree* plus ``qualname ->
+    scope`` for every function; module-level names are folded into every
+    function scope so a module constant resolves the same way a local one
+    does. Cached on the tree itself: the scopes are mutable (caller
+    parameters) and must stay the same objects for the tree's lifetime."""
+    cached = getattr(tree, "_fenceline_scopes", None)
+    if cached is not None:
+        return cached
     module = _Scope(params=frozenset(), handler=False)
     _collect(module, tree.body)
     scopes: dict[int, _Scope] = {}
+    functions: dict[str, _Scope] = {}
     for stmt in tree.body:
         for node in _walk_skip_nested_scopes(stmt):
             scopes[id(node)] = module
 
-    def visit_functions(body: list[ast.stmt], cls: ast.ClassDef | None) -> None:
+    def visit_functions(body: list[ast.stmt], cls: ast.ClassDef | None, prefix: str) -> None:
         for stmt in body:
             for node in _walk_skip_nested_scopes(stmt):
                 if isinstance(node, ast.ClassDef):
-                    visit_functions(node.body, node)
+                    visit_functions(node.body, node, f"{prefix}{node.name}.")
                 elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     args = node.args
                     params = frozenset(
@@ -238,17 +270,26 @@ def _scope_map(tree: ast.Module) -> dict[int, _Scope]:
                         for a in (*args.posonlyargs, *args.args, *args.kwonlyargs)
                         if a.arg not in ("self", "cls")
                     ) | frozenset(a.arg for a in (args.vararg, args.kwarg) if a is not None)
-                    scope = _Scope(params=params, handler=_is_handler(node, cls))
+                    qualname = f"{prefix}{node.name}"
+                    scope = _Scope(
+                        params=params,
+                        handler=_is_handler(node, cls),
+                        qualname=qualname,
+                        cls=cls.name if cls is not None else None,
+                    )
                     scope.assigns = {k: list(v) for k, v in module.assigns.items()}
                     scope.imports = set(module.imports)
                     _collect(scope, node.body)
+                    functions[qualname] = scope
                     for inner in node.body:
                         for n in _walk_skip_nested_scopes(inner):
                             scopes[id(n)] = scope
-                    visit_functions(node.body, None)
+                    visit_functions(node.body, None, f"{qualname}.")
 
-    visit_functions(tree.body, None)
-    return scopes
+    visit_functions(tree.body, None, "")
+    result = _Scopes(at=scopes, functions=functions)
+    tree._fenceline_scopes = result  # type: ignore[attr-defined]
+    return result
 
 
 def _source_chain(dotted: str) -> bool:
@@ -266,7 +307,9 @@ class _Classifier:
         if name in _REQUEST_ROOTS:
             return Taint.SOURCE
         if name in scope.params:
-            return Taint.SOURCE if scope.handler else Taint.INTERNAL
+            if scope.handler:
+                return Taint.SOURCE
+            return Taint.CALLER if name in scope.caller_params else Taint.INTERNAL
         if name in scope.assigns:
             if name in self.active:
                 return Taint.CLEAN  # cycle: the other branch decides
@@ -354,7 +397,7 @@ def classify(tree: ast.Module, anchor: ast.AST, exprs: list[ast.expr]) -> Taint:
     """Worst taint over *exprs*, resolved in the scope that contains
     *anchor* (the sink node itself). An empty *exprs* is ``CLEAN``: a sink
     fed nothing has nothing to inject."""
-    scope = _scope_map(tree).get(id(anchor))
+    scope = _scope_map(tree).at.get(id(anchor))
     if scope is None:
         return Taint.INTERNAL
     return _Classifier(scope).many(exprs, 0)
@@ -364,16 +407,35 @@ def bound_values(tree: ast.Module, anchor: ast.AST, name: str) -> list[ast.expr]
     """Every expression assigned to *name* in the scope that contains
     *anchor*, in source order; empty when the scope is unknown or the name
     is never assigned there. Lets a check see through ``q = ...; execute(q)``."""
-    scope = _scope_map(tree).get(id(anchor))
+    scope = _scope_map(tree).at.get(id(anchor))
     if scope is None:
         return []
     return list(scope.assigns.get(name, ()))
 
 
-def confidence_for(taint: Taint) -> str | None:
-    """Finding confidence for a sink's taint, or ``None`` to drop it."""
+def enclosing_class(tree: ast.Module, node: ast.AST) -> str | None:
+    """Name of the class whose method directly contains *node*, if any."""
+    scope = _scope_map(tree).at.get(id(node))
+    return scope.cls if scope is not None else None
+
+
+def mark_caller_param(tree: ast.Module, qualname: str, param: str) -> bool:
+    """Record that some caller feeds request data to *param* of the function
+    *qualname* in *tree*; ``True`` when this is new information."""
+    scope = _scope_map(tree).functions.get(qualname)
+    if scope is None or param not in scope.params or param in scope.caller_params:
+        return False
+    scope.caller_params.add(param)
+    return True
+
+
+def confidence_for(taint: Taint) -> tuple[str, str] | None:
+    """``(confidence, description_suffix)`` for a sink's taint, or ``None``
+    to drop the finding: nothing attacker-reachable feeds it."""
     if taint is Taint.SOURCE:
-        return "HIGH"
+        return "HIGH", ""
+    if taint is Taint.CALLER:
+        return "HIGH", CALLER_NOTE
     if taint is Taint.INTERNAL:
-        return "MEDIUM"
+        return "MEDIUM", INTERNAL_NOTE
     return None
