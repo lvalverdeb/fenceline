@@ -42,7 +42,7 @@ def _fenceline_version() -> str:
 # often enough that treating it identically to a production hit drowns out
 # genuine findings in the same category -- real-world feedback report,
 # see README.md's "Test code" section for the full rationale per category.
-_TEST_DEPRIORITIZED_CWES = frozenset({"CWE-798", "CWE-617", "CWE-918", "CWE-770"})
+_TEST_DEPRIORITIZED_CWES = frozenset({"CWE-798", "CWE-617", "CWE-918", "CWE-770", "CWE-295"})
 
 
 def _find_manifest_files(root: Path, *, ceiling: Path | None) -> list[Path]:

@@ -1338,3 +1338,47 @@ def test_taint_does_not_cross_nested_function_boundary():
     src = "def outer(blob):\n    def inner():\n        sink('fixed')\n    sink(blob)\n"
     assert _taint_of(src, 3) is Taint.CLEAN
     assert _taint_of(src, 4) is Taint.INTERNAL
+
+
+def test_disabled_tls_verification_in_test_code_is_suppressed_by_default(tmp_path):
+    pkg_dir = tmp_path / "pkg" / "tests"
+    pkg_dir.mkdir(parents=True)
+    (pkg_dir / "test_client.py").write_text(
+        "import ssl\nctx = ssl.create_default_context()\nctx.check_hostname = False\n"
+    )
+    (tmp_path / "pkg" / "client.py").write_text(
+        "import ssl\nctx = ssl.create_default_context()\nctx.check_hostname = False\n"
+    )
+
+    def run(*extra):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "fenceline.cli",
+                "--package",
+                "pkg=pkg",
+                "--json",
+                "--quiet",
+                *extra,
+            ],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return json.loads(result.stdout)
+
+    default = run()
+    files = sorted(
+        f["file"].rsplit("/", 1)[-1] for f in default["findings"] if f["cwe_id"] == "CWE-295"
+    )
+    assert files == ["client.py"]
+    assert default["test_suppressed"] == 1
+    included = run("--include-tests")
+    assert sorted(
+        f["file"].rsplit("/", 1)[-1] for f in included["findings"] if f["cwe_id"] == "CWE-295"
+    ) == [
+        "client.py",
+        "test_client.py",
+    ]
