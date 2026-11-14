@@ -46,7 +46,8 @@
       "B506": "deserialization",
       "B307": "code-injection",
       "B317": "xxe",
-      "B319": "xxe"
+      "B319": "xxe",
+      "B605": "cmdi"
     },
     "semgrep": {
       "avoid_app_run_with_bad_host": "bind-all",
@@ -69,7 +70,9 @@
       "user-eval": "code-injection",
       "eval-injection": "code-injection",
       "ssrf-injection-requests": "ssrf",
-      "ssrf-requests": "ssrf"
+      "ssrf-requests": "ssrf",
+      "open-redirect": "open-redirect",
+      "django-using-request-post-after-is-valid": "post-after-valid"
     }
   },
   "false_positive_rules": {
@@ -269,6 +272,108 @@
       "CWE-377",
       "vulpy/good/cutpasswd.py:3",
       "reads a public wordlist"
+    ],
+    [
+      "bandit",
+      "B105",
+      "django.nV/taskManager/views.py:751",
+      "clears a reset token with an empty string, not a secret"
+    ],
+    [
+      "bandit",
+      "B105",
+      "django.nV/taskManager/views.py:767",
+      "clears a reset token with an empty string, not a secret"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "django.nV/taskManager/views.py:225",
+      "stored upload path under /static/, not a request value"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "django.nV/taskManager/views.py:194",
+      "target starts with the literal path /taskManager/"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "django.nV/taskManager/views.py:264",
+      "target starts with the literal path /taskManager/"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "django.nV/taskManager/views.py:291",
+      "target starts with the literal path /taskManager/"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "django.nV/taskManager/views.py:306",
+      "target starts with the literal path /taskManager/"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "django.nV/taskManager/views.py:319",
+      "target starts with the literal path /taskManager/"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "django.nV/taskManager/views.py:368",
+      "target starts with the literal path /taskManager/"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "django.nV/taskManager/views.py:545",
+      "target starts with the literal path /taskManager/"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "django.nV/taskManager/views.py:573",
+      "target starts with the literal path /taskManager/"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "django.nV/taskManager/views.py:590",
+      "target starts with the literal path /taskManager/"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "django.nV/taskManager/views.py:756",
+      "Django flash message, nothing secret logged"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "django.nV/taskManager/views.py:762",
+      "Django flash message, nothing secret logged"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "django.nV/taskManager/views.py:807",
+      "Django flash message, nothing secret logged"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "django.nV/taskManager/views.py:828",
+      "Django flash message, nothing secret logged"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "django.nV/taskManager/views.py:830",
+      "Django flash message, nothing secret logged"
     ]
   ],
   "same_instance": [
@@ -313,6 +418,31 @@
       [
         57,
         61
+      ]
+    ],
+    [
+      "django.nV/taskManager/views.py",
+      "sqli",
+      [
+        183,
+        184,
+        178
+      ]
+    ],
+    [
+      "django.nV/taskManager/views.py",
+      "post-after-valid",
+      [
+        718,
+        719,
+        720,
+        721,
+        722,
+        723,
+        724,
+        725,
+        726,
+        727
       ]
     ]
   ],

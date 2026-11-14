@@ -23,9 +23,10 @@ cd "$work/apps"
 clone adeyosemanputra/pygoat pygoat 2aa4cc14f251e4a780e94e200aed6b36a5b15c21
 clone fportantier/vulpy vulpy 5249cc8b05a1c37f6b2f757b1cf16a509c327122
 clone anxolerd/dvpwa dvpwa 4a8f4a43fafcc1b304f1b97d0f0a8dea755a7756
+clone nVisium/django.nV django.nV a48901f106da4888417339b7b44b8ed56b64c63f
 
-$fenceline --package pygoat=pygoat --package vulpy=vulpy --package dvpwa=dvpwa --json >"$work/fenceline.json" || true
-uvx --quiet bandit==1.9.4 -q -r pygoat vulpy dvpwa -f json -o "$work/bandit.json" || true
-uvx --quiet semgrep==1.185.0 --config p/python --metrics=off --json -o "$work/semgrep.json" -q pygoat vulpy dvpwa || true
+$fenceline --package pygoat=pygoat --package vulpy=vulpy --package dvpwa=dvpwa --package django.nV=django.nV --json >"$work/fenceline.json" || true
+uvx --quiet bandit==1.9.4 -q -r pygoat vulpy dvpwa django.nV -f json -o "$work/bandit.json" || true
+uvx --quiet semgrep==1.185.0 --config p/python --metrics=off --json -o "$work/semgrep.json" -q pygoat vulpy dvpwa django.nV || true
 
 python3 -I "$here/score.py" "$here/labels.json" "$work/fenceline.json" "$work/bandit.json" "$work/semgrep.json" "$@"

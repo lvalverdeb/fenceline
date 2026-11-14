@@ -1,6 +1,6 @@
 # Benchmark: fenceline vs Bandit vs Semgrep
 
-A labelled, reproducible comparison on three intentionally vulnerable Python
+A labelled, reproducible comparison on four intentionally vulnerable Python
 web applications. The point is not a leaderboard but a measurement that can
 be re-run after every change to see which gaps closed and what it cost in
 false positives.
@@ -12,10 +12,13 @@ false positives.
 | [pygoat](https://github.com/adeyosemanputra/pygoat) | Django + Flask labs | `2aa4cc1` | 8118 |
 | [vulpy](https://github.com/fportantier/vulpy) | Flask | `5249cc8` | 2373 |
 | [dvpwa](https://github.com/anxolerd/dvpwa) | aiohttp | `4a8f4a4` | 674 |
+| [django.nV](https://github.com/nVisium/django.nV) | Django | `a48901f` | 2461 |
 
-Tools: fenceline 1.8.0 for the current table and 1.6.0 for the baseline (this
-repository; the Python and Rust ports give identical findings), Bandit 1.9.4 with default settings, Semgrep 1.185.0 with the
-community `p/python` ruleset. Test files (`tests.py`, `test_*.py`, `tests/`),
+Tools: fenceline main after 1.8.0 for the current table, 1.8.0 for the
+three-app tables and 1.6.0 for the baseline (this repository; the Python and
+Rust ports give identical findings), Bandit 1.9.4 with default settings,
+Semgrep 1.185.0 with the community `p/python` ruleset. django.nV was added
+after 1.8.0, so every table before the four-app one covers three apps. Test files (`tests.py`, `test_*.py`, `tests/`),
 migrations and non-Python files are excluded for every tool alike, so
 fenceline's manifest checks and Bandit's test-code hits are both out.
 
@@ -32,7 +35,10 @@ public wordlist, a specific exception type deliberately passed, a
 dev utility's command-line URL reported as SSRF. When several tools point at
 different lines of the same vulnerability (the taint source, the SQL string
 and the `execute` call), `labels.json` merges them into one instance so no
-tool is rewarded for reporting the same bug three times.
+tool is rewarded for reporting the same bug three times. The same merge
+applies to one weakness repeated line after line in one function: the ten
+raw `request.POST` reads after `form.is_valid()` in a django.nV view are one
+instance.
 
 Two consequences to keep in mind. A weakness none of the three tools reports
 is invisible (the path traversal at `ssrf_lab/app.py:21` is one such). And
@@ -41,6 +47,54 @@ benchmark is better at exposing recall gaps than at estimating a tool's
 false-positive rate on ordinary code.
 
 ## Results
+
+### Unreleased main, four apps (2026-11-13)
+
+django.nV joins the corpus. It was chosen because its request data crosses a
+file boundary before reaching a sink (`views.upload` passes the POSTed name
+and file to `misc.store_uploaded_file`, which runs `os.system`), which the
+three earlier apps barely do. Two other candidates were rejected: vulnpy
+dispatches every vulnerable function through `importlib` and `getattr`, so
+no static analysis can follow it, and VAmPI routes through a connexion
+OpenAPI spec and is 520 lines.
+
+| Tool | Findings | True | False | Precision | Recall |
+|---|---|---|---|---|---|
+| fenceline | 233 | 201 | 32 | 86% | 190/204 (93%) |
+| fenceline (--confidence-min high) | 154 | 149 | 5 | 97% | 139/204 (68%) |
+| Bandit | 179 | 159 | 20 | 89% | 156/204 (76%) |
+| Semgrep | 91 | 90 | 1 | 99% | 68/204 (33%) |
+
+The new app adds six instances: a shell command, a hardcoded `SECRET_KEY`, a
+SQL insert, an open redirect from a query parameter, and two views that read
+raw `request.POST` after validating a form (Semgrep's
+`django-using-request-post-after-is-valid`, a new category only Semgrep
+has). fenceline finds the first four, all at HIGH; the shell command is HIGH
+because the cross-file pass carries the view's request data into the helper,
+which is the one place in the corpus where that pass changes a verdict on
+its own.
+
+It also adds sixteen fenceline false positives, which is what drops
+precision from 92% to 86%, and they are check-shaped, not taint-shaped:
+
+- Nine `redirect('/taskManager/' + project_id + ...)` calls reported as open
+  redirects. A target that starts with a literal path can only ever be a
+  same-site redirect. One more is `redirect(user.userprofile.image)`, a
+  stored upload path under `/static/`.
+- Five `messages.warning(request, 'Invalid password reset token')`-style
+  Django flash messages reported as logging secrets. A flash message is not
+  a log sink. (The same shape is already labelled false once in pygoat.)
+- One whole-file read of a stored upload, which the CWE-770 rule already
+  treats as noise.
+
+Bandit adds two false positives of its own (`reset_token = ''` reported as a
+hardcoded password). The HIGH-only numbers are unchanged in substance because
+all sixteen new false positives are MEDIUM.
+
+What no tool reports, and so stays outside the ground truth: the path
+traversal in `store_uploaded_file` (the upload's title becomes part of the
+destination path), the IDOR on every `pk=` lookup, the CSRF-exempt profile
+update, and the reflected XSS the app documents.
 
 ### Unreleased main (2026-11-13)
 
