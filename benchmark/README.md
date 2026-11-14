@@ -51,6 +51,31 @@ false-positive rate on ordinary code.
 
 ## Results
 
+### After C2, unreleased (2026-11-14)
+
+The clean-corpus work (below) changed twenty-odd check shapes. On the
+vulnerable apps the effect is three false positives fewer and no recall
+change, which is what a regression gate is supposed to say:
+
+| Tool | Findings | True | False | Precision | Recall |
+|---|---|---|---|---|---|
+| fenceline | 210 | 201 | 9 | 96% | 190/204 (93%) |
+| fenceline (--confidence-min high) | 152 | 149 | 3 | 98% | 139/204 (68%) |
+| Bandit | 179 | 159 | 20 | 89% | 156/204 (76%) |
+| Semgrep | 91 | 90 | 1 | 99% | 68/204 (33%) |
+
+Gone: pygoat's `ALLOWED_HOSTS` entry reported as a bind address (the
+`0.0.0.0` check now skips lists of nothing but strings), a dvpwa log
+message about CSRF tokens reported as a secret leak (secret words now match
+whole words), and a `url_for()` redirect in pygoat's template lab (route
+builders are clean). The five `CWE-770` reads of program-chosen files that
+were already excluded by rule are no longer reported either; the one
+labelled true (a user-controlled path read whole) stays at HIGH. Every
+weak-hash and weak-random instance keeps HIGH confidence under the new
+credential-context rule. The nine remaining false positives are the seven
+`CWE-391` specific-exception handlers labelled intentional and two
+CLI-utility SSRFs.
+
 ### 1.9.0: Django function views (2026-11-14)
 
 In a module that imports a web framework, a function whose first parameter
@@ -350,6 +375,65 @@ Strict precision counts only *true*; lenient precision also counts *by
 design*. Recall is not measured: nobody knows how many weaknesses these
 applications hold. `clean/score.py` refuses to run if any in-scope finding
 has no verdict, so the labels are complete by construction.
+
+### After C2, unreleased (2026-11-14)
+
+Two rounds of check-shape fixes against the per-check table below, each
+validated on all three corpora with Rust parity (the work list and the
+reasoning are in `ROADMAP.md`, the shapes in the commit messages):
+
+| Tool | Findings | True | By design | False | Precision (strict) | Precision (lenient) | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| fenceline | 116 | 23 | 21 | 72 | 20% | 38% | 0.9 |
+| fenceline (--confidence-min high) | 45 | 19 | 13 | 13 | 42% | 71% | 0.3 |
+| Bandit | 222 | 12 | 11 | 199 | 5% | 10% | 1.7 |
+| Semgrep | 17 | 0 | 1 | 16 | 0% | 6% | 0.1 |
+
+fenceline confidence calibration:
+
+| Confidence | Findings | True | By design | False | Share true |
+|---|---|---|---|---|---|
+| HIGH | 45 | 19 | 13 | 13 | 42% |
+| MEDIUM | 69 | 4 | 8 | 57 | 6% |
+| LOW | 2 | 0 | 0 | 2 | 0% |
+
+fenceline per app:
+
+| App | Findings | True | By design | False | Per 1000 lines |
+|---|---|---|---|---|---|
+| healthchecks | 16 | 0 | 3 | 13 | 0.9 |
+| dispatch | 58 | 19 | 8 | 31 | 0.9 |
+| flaskbb | 29 | 4 | 8 | 17 | 1.2 |
+| hacore | 13 | 0 | 2 | 11 | 0.5 |
+
+**What changed.** Findings went from 637 to 116 with one true finding
+gained (flaskbb's `SECRET_KEY = "secret key"`, the recall miss C1 named)
+and none lost. Confidence now means something here: a HIGH finding is true
+42% of the time and true-or-deliberate 71%, a MEDIUM one 6%. A team
+turning on `--confidence-min high` sees one alert per 3,000 lines, and
+seven in ten of those are real or intentional.
+
+**Where the remaining noise is.** 72 false positives, by check:
+`CWE-117` 23, `CWE-601` 15, `CWE-918` 8, `CWE-328` 6, `CWE-73` 4,
+`CWE-79` 3, `CWE-22` 3, and eleven more across nine checks. Only 13 are
+at HIGH: five `CWE-117` (request fields logged directly in dispatch's
+MFA views, where the field is a typed integer), four `CWE-601` (redirects
+to a `reverse()` path with the Referer's query string appended, which the
+check cannot see is same-site, and one to a validated URL), and one each
+of `CWE-502`, `CWE-770`, `CWE-22` and `CWE-79`. The 23 `CWE-117` false
+positives are now MEDIUM: all are f-strings over fields of a Pydantic
+request model reaching a logger through a service function, where the
+engine sees request data two calls away but not that the field is an
+integer id. The 15 `CWE-601` are flaskbb redirects to model URL
+properties (`topic.url`, built with `url_for`) and redirects through a
+validating helper; the eight `CWE-918` are administrator-configured
+integration URLs in dispatch plugins. None of these three has a
+check-shape fix left; they are what inter-procedural type knowledge would
+buy.
+
+**Port divergence.** One finding: the `CWE-338` in `config_entries.py`,
+which uses PEP 695 type parameters that rustpython-parser does not accept.
+The `CWE-778` text fallback that produced the other six is gone.
 
 ### 1.9.0 (2026-11-14)
 

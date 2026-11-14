@@ -3,8 +3,11 @@
 **Status**: D1–D5 accepted 2026-11-14. Phase 0 done (1.9.0 on PyPI and
 crates.io, `v1.9.0` tags). C1 done 2026-11-14: `benchmark/clean/` with the
 four accepted apps, 872 verdicts, scorer and runner; result 3% strict
-precision at 1.9.0 (4% at HIGH), Bandit 5%, Semgrep 0%. C2 is next; its
-input is the per-check false-positive table in the benchmark README.
+precision at 1.9.0 (4% at HIGH), Bandit 5%, Semgrep 0%. C2 two rounds done
+2026-11-14 (unreleased): 20% strict / 38% lenient at default, 42% / 71% at
+HIGH, vulnerable benchmark 96% precision with no recall change. The C2
+gates as written are not met and, on the evidence, not reachable by shape
+fixes; D6 below asks for their recalibration before the held-out step.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 
@@ -119,6 +122,43 @@ either direction; the point is a stated bar, not this specific one.
 framework already in the corpus, adjudicate it blind, and report its number
 separately. Tuning against the C1 apps and then quoting the C1 apps is the
 mistake this guards against.
+
+**Outcome so far (2026-11-14).** Two rounds, both ports, parity held.
+Round one took the C1 work list in order: `CWE-117` taint-aware, literal
+first argument and route builders for `redirect()`, ORM lookups
+generalised, configuration key names out of the secrets check, the timing
+check rewritten on `Compare` nodes, SSTI only for request data, SQLAlchemy
+`session.query()` out of the pandas check, the `CWE-778` text fallback
+removed. Round two took the next tier: `.read()` only on request-fed
+receivers, fixed-program list argv only for request data, escaping helpers
+clean in the taint engine, the request's own path and class-level getters
+for redirects, `0.0.0.0` in address sets, whole-word secret terms for log
+leaks, `traceback.print_exc()` as a diagnostic, and two confidence
+calibrations (weak hash and weak random HIGH only in a credential context;
+log injection through a caller MEDIUM). Clean corpus: 637 findings → 116,
+3% → 20% strict, 4% → 42% at HIGH, 71% lenient at HIGH, one true finding
+gained and none lost. Vulnerable benchmark: 92% → 96% precision, recall
+190/204 unchanged, 98% at HIGH. The tables are in the benchmark README.
+
+What remains is not check-shaped. Of the 13 false positives at HIGH, five
+are request fields logged in views where the field is a typed integer,
+four are redirects whose same-site prefix is a `reverse()` result the
+check cannot see through a concatenation. Of the 59 at MEDIUM, 23 are
+Pydantic request fields reaching a logger through a service function, 15
+are flaskbb redirects to model URL properties, 8 are administrator-
+configured integration URLs. Each would need type knowledge of parameter
+fields or a notion of "configured by an administrator", which is a
+different kind of work from C2's.
+
+**D6, open.** The gates (85% strict at HIGH, 70% strict at default) count
+by-design findings against precision by definition, and 13 of the 45 HIGH
+findings on this corpus are deliberate code the check is right to report.
+Strict precision at HIGH cannot exceed 71% here even with zero false
+positives. Proposed restatement: *lenient* precision ≥ 70% at HIGH (met,
+71%) and ≥ 35% at default (met, 38%), with density ≤ 1 finding per 1,000
+lines at default (met, 0.9) and the vulnerable benchmark unchanged. If
+accepted, C2 closes with the held-out application; if the strict bars
+stand, C2 continues into type-aware work and the held-out step waits.
 
 ### Phase C3: a CVE regression set
 
