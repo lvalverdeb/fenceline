@@ -173,12 +173,6 @@
     ],
     [
       "fenceline",
-      "CWE-532",
-      "pygoat/dockerized_labs/sensitive_data_exposure/dataexposure/views.py:37",
-      "Django flash message, nothing secret logged"
-    ],
-    [
-      "fenceline",
       "CWE-601",
       "pygoat/dockerized_labs/template_injection_lab/app.py:102",
       "url_for builds an internal route"
@@ -290,90 +284,6 @@
       "CWE-601",
       "django.nV/taskManager/views.py:225",
       "stored upload path under /static/, not a request value"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "django.nV/taskManager/views.py:194",
-      "target starts with the literal path /taskManager/"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "django.nV/taskManager/views.py:264",
-      "target starts with the literal path /taskManager/"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "django.nV/taskManager/views.py:291",
-      "target starts with the literal path /taskManager/"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "django.nV/taskManager/views.py:306",
-      "target starts with the literal path /taskManager/"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "django.nV/taskManager/views.py:319",
-      "target starts with the literal path /taskManager/"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "django.nV/taskManager/views.py:368",
-      "target starts with the literal path /taskManager/"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "django.nV/taskManager/views.py:545",
-      "target starts with the literal path /taskManager/"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "django.nV/taskManager/views.py:573",
-      "target starts with the literal path /taskManager/"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "django.nV/taskManager/views.py:590",
-      "target starts with the literal path /taskManager/"
-    ],
-    [
-      "fenceline",
-      "CWE-532",
-      "django.nV/taskManager/views.py:756",
-      "Django flash message, nothing secret logged"
-    ],
-    [
-      "fenceline",
-      "CWE-532",
-      "django.nV/taskManager/views.py:762",
-      "Django flash message, nothing secret logged"
-    ],
-    [
-      "fenceline",
-      "CWE-532",
-      "django.nV/taskManager/views.py:807",
-      "Django flash message, nothing secret logged"
-    ],
-    [
-      "fenceline",
-      "CWE-532",
-      "django.nV/taskManager/views.py:828",
-      "Django flash message, nothing secret logged"
-    ],
-    [
-      "fenceline",
-      "CWE-532",
-      "django.nV/taskManager/views.py:830",
-      "Django flash message, nothing secret logged"
     ]
   ],
   "same_instance": [

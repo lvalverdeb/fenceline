@@ -1334,16 +1334,50 @@ _REDIRECT_CALLS = frozenset(
 )
 
 
+def _leading_str(expr: ast.expr) -> str | None:
+    """The string literal a built-up string starts with: ``"/a/" + x``,
+    ``f"/a/{x}"``, ``"/a/%s" % x`` and ``"/a/{}".format(x)`` all give
+    ``"/a/"``. ``None`` when the expression does not start with a literal."""
+    while True:
+        if isinstance(expr, ast.Constant):
+            return expr.value if isinstance(expr.value, str) else None
+        if isinstance(expr, ast.BinOp) and isinstance(expr.op, (ast.Add, ast.Mod)):
+            expr = expr.left
+        elif isinstance(expr, ast.JoinedStr) and expr.values:
+            expr = expr.values[0]
+        elif (
+            isinstance(expr, ast.Call)
+            and isinstance(expr.func, ast.Attribute)
+            and expr.func.attr == "format"
+        ):
+            expr = expr.func.value
+        else:
+            return None
+
+
+def _is_same_site_path(target: ast.expr) -> bool:
+    """A redirect target that starts with a literal absolute path
+    (``"/account/" + user_id``) can only land on the same site. A bare
+    ``"/"`` or ``"\\"`` prefix does not count: browsers read ``///host``
+    and ``/\\host`` as scheme-relative URLs."""
+    lead = _leading_str(target)
+    return lead is not None and len(lead) >= 2 and lead[0] == "/" and lead[1] not in "/\\"
+
+
 def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-601. A ``redirect(...)``/``Redirect(...)`` call fed a non-literal
-    destination. ``HTTPTemporaryRedirect(...)``, ``authorize_redirect(...)``
-    and a redirect to a fixed path are not open redirects."""
+    destination. ``HTTPTemporaryRedirect(...)``, ``authorize_redirect(...)``,
+    a redirect to a fixed path and one whose destination starts with a
+    literal path (``"/tasks/" + task_id``) are not open redirects."""
     pk = _rel(path)
     results: list[Finding] = []
     for node in _calls(tree):
         if _call_name(node) not in _REDIRECT_CALLS:
             continue
-        taint = _tainted(tree, node, _call_data(node))
+        data = _call_data(node)
+        if data and _is_same_site_path(data[0]):
+            continue
+        taint = _tainted(tree, node, data)
         if taint is None:
             continue
         confidence, note = taint
@@ -2197,11 +2231,14 @@ _SHARED_LIB_RE = re.compile(r"\.(?:so|dll|dylib)\b")
 def _is_logging_call(node: ast.Call, aliases: dict[str, str]) -> bool:
     """``x.info(...)``/``x.debug(...)``/... on anything but the ``warnings``
     module, whose ``warn`` goes to stderr, not a log (``_warnings=warnings``
-    default-argument idiom included)."""
+    default-argument idiom included), and Django's ``django.contrib.messages``,
+    whose ``warning``/``error`` queue a flash message for the next response."""
     if not (isinstance(node.func, ast.Attribute) and node.func.attr in _LOGGING_METHOD_NAMES):
         return False
-    root = _callee(node, aliases).split(".", 1)[0]
-    return root.lstrip("_") != "warnings"
+    callee = _callee(node, aliases)
+    if callee.startswith("django.contrib.messages."):
+        return False
+    return callee.split(".", 1)[0].lstrip("_") != "warnings"
 
 
 def _string_fragments(exprs: list[ast.expr]) -> list[str]:

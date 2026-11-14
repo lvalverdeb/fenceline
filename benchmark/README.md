@@ -48,6 +48,32 @@ false-positive rate on ordinary code.
 
 ## Results
 
+### Unreleased main, check-shape fixes (2026-11-14)
+
+The two check shapes django.nV exposed are fixed. `check_open_redirect` no
+longer reports a target that starts with a literal absolute path
+(`'/taskManager/' + project_id`, `f"/account/{target}"`, `"/p/%s" % x`,
+`"/p/{}".format(x)`): such a target can only land on the same site. A bare
+`"/"` or `"\"` prefix still counts, because browsers read `///host` and
+`/\host` as scheme-relative URLs. `check_log_secrets` no longer treats
+`django.contrib.messages` as a logger: its `warning`/`error` queue a flash
+message for the next response, not a log line. Fifteen findings disappear,
+every one previously labelled false (nine redirects and five flash messages
+in django.nV, one flash message in pygoat). Nothing else changes on the four
+apps or on the library corpus, and the two ports still agree finding for
+finding.
+
+| Tool | Findings | True | False | Precision | Recall |
+|---|---|---|---|---|---|
+| fenceline | 218 | 201 | 17 | 92% | 190/204 (93%) |
+| fenceline (--confidence-min high) | 154 | 149 | 5 | 97% | 139/204 (68%) |
+| Bandit | 179 | 159 | 20 | 89% | 156/204 (76%) |
+| Semgrep | 91 | 90 | 1 | 99% | 68/204 (33%) |
+
+Two django.nV false positives remain: `redirect(user.userprofile.image)`,
+a stored path fenceline cannot know is under `/static/`, and the whole-file
+read of a stored upload. Both are MEDIUM.
+
 ### Unreleased main, four apps (2026-11-13)
 
 django.nV joins the corpus. It was chosen because its request data crosses a

@@ -166,12 +166,10 @@ django.nV), with every finding of all three tools adjudicated by hand. At
 1.6.0 fenceline sat between the two (76% precision, 53% recall against
 Bandit's 90% / 82% on the first three apps); the gap was three checks, and
 closing them put 1.8.0 at 92% precision and 94% recall there. On all four
-apps the current main is at 86% precision and 93% recall, against Bandit's
+apps the current main is at 92% precision and 93% recall, against Bandit's
 89% / 76% and Semgrep's 99% / 33% on the same ground truth, and 97%
-precision at `--confidence-min high`; the drop is sixteen check-shaped false
-positives on django.nV, listed in the benchmark README. The
-numbers, the labelling rules and `run.sh` are in
-[`benchmark/README.md`](benchmark/README.md).
+precision at `--confidence-min high`. The numbers, the labelling rules and
+`run.sh` are in [`benchmark/README.md`](benchmark/README.md).
 
 So on those apps fenceline finds more than Bandit with fewer false
 positives, and at `--confidence-min high` it finds twice what Semgrep's
