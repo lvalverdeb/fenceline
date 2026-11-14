@@ -7,8 +7,9 @@ precision at 1.9.0 (4% at HIGH), Bandit 5%, Semgrep 0%. C2 two rounds done
 2026-11-14 and released as 1.10.0: 20% strict / 38% lenient at default,
 42% / 71% at HIGH, vulnerable benchmark 96% precision with no recall
 change. D6 accepted 2026-11-14: the C2 gates are the lenient ones stated
-there, and they are met; the held-out application is the remaining C2
-step.
+there, and they are met on the tuning set. Held-out application (pretalx)
+measured 2026-11-14: 0% precise, 224 findings, three shapes the tuning
+set did not contain. C2 is not closed; D7 below asks how to proceed.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 
@@ -161,6 +162,25 @@ lines at default (met, 0.9) and the vulnerable benchmark unchanged.
 Accepted: C2 closes with the held-out application; type-aware work on the
 remaining shapes is deferred past C3 and C4.
 
+**Held-out outcome (2026-11-14).** pretalx (Django, 64,074 lines), scanned
+once at 1.10.0 and adjudicated blind: 224 findings, 0 true, 2 by design,
+222 false; 0% strict and 1% lenient at default, 0% and 2% at HIGH, 3.5
+findings per 1,000 lines. Bandit 116 findings and Semgrep 18, none true.
+Every C2 gate fails here. The causes are three shapes the four tuning apps
+did not contain, in `benchmark/README.md`: urlman URL properties and
+Django's `get_success_url()` idiom as redirect targets (143), class-body
+literals classifying as INTERNAL because the taint engine has no class
+scope (26 of 35 `CWE-79`), and ANSI escapes in terminal output (15). The
+held-out step did what it is for: the 1.10.0 corpus numbers describe the
+tuning set, and the README now says so.
+
+**D7, open.** Three ways forward: (a) fix the three shapes, add pretalx to
+the tuning corpus, and repeat the held-out measurement on a further
+application before claiming C2 closed; (b) fix the shapes and close C2 on
+the pretalx re-measurement alone, accepting that it is no longer blind;
+(c) leave the checks, close C2 as measured, and let C3 proceed. (a) is the
+honest one and costs one more adjudication; it is the recommendation.
+
 ### Phase C3: a CVE regression set
 
 The instrument with headroom for recall. Instead of a fifth intentionally
@@ -292,3 +312,6 @@ Semgrep replacement.
 - **D5** Release 1.9.0 before C1 starts.
 - **D6** C2 gates restated as lenient precision ≥ 70% at HIGH and ≥ 35% at
   default with density ≤ 1 per 1,000 lines (see Phase C2); accepted.
+- **D7** After the held-out failure: fix the three pretalx shapes and
+  re-measure on a further held-out app (recommended), re-measure on pretalx
+  alone, or close C2 as measured.

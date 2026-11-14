@@ -376,6 +376,59 @@ design*. Recall is not measured: nobody knows how many weaknesses these
 applications hold. `clean/score.py` refuses to run if any in-scope finding
 has no verdict, so the labels are complete by construction.
 
+### Held-out application: pretalx (2026-11-14, at 1.10.0)
+
+The check this corpus exists to pass. After the C2 work was frozen and
+released, one more application of a framework already in the corpus was
+scanned once and adjudicated blind: [pretalx](https://github.com/pretalx/pretalx)
+(Django, `1510dea`, `src/pretalx/`, 64074 lines in scope), a maintained
+conference-management system. Labels are in `heldout-labels.json`, the
+runner is `heldout.sh`; the three tools ran as for the corpus.
+
+| Tool | Findings | True | By design | False | Precision (strict) | Precision (lenient) | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| fenceline | 224 | 0 | 2 | 222 | 0% | 1% | 3.5 |
+| fenceline (--confidence-min high) | 86 | 0 | 2 | 84 | 0% | 2% | 1.3 |
+| Bandit | 116 | 0 | 0 | 116 | 0% | 0% | 1.8 |
+| Semgrep | 18 | 0 | 0 | 18 | 0% | 0% | 0.3 |
+
+**What it says.** The tuned numbers do not transfer. Nobody finds anything
+true in pretalx, which is plausible for a project that carries a
+maintainers' note on every suppressed Bandit line; but fenceline reports
+four times the density it reaches on the tuning set, and 143 of the 224
+findings are one shape the tuning set did not contain. The 1.10.0 corpus
+numbers above describe the four apps the checks were tuned on; this table
+is what a team should expect today.
+
+**The three shapes, by false positives.**
+
+- `CWE-601`, 143. pretalx builds every URL through
+  [urlman](https://github.com/andrewgodwin/urlman): `event.urls.base`,
+  `submission.orga_urls.reviews`. Reached through `request.event` the chain
+  is SOURCE (70 at HIGH); through `self.object` it is INTERNAL (MEDIUM).
+  Another 40-odd are Django's own idiom, `redirect(self.get_success_url())`,
+  where the method returns a `reverse()` result or a `?next=` validated by
+  `url_has_allowed_host_and_scheme()`. None is a destination the request
+  chooses. The two signed safe-redirect sites are the by-design ones.
+- `CWE-79`, 35. Twenty-six are MEDIUM `mark_safe()` of static markup
+  (`placeholder = mark_safe("&mdash;")`) at class level: the taint engine
+  has no scope for a class body, so a literal there classifies as INTERNAL
+  where the same literal at module level is CLEAN and dropped. The rest are
+  bleach-sanitised markdown, escaped fragments and urlman URLs, each
+  carrying the maintainers' `S308` note saying so.
+- `CWE-158`, 15. ANSI colour escapes (`\033[33m`) in a terminal-rendered
+  schedule, plus the NUL-byte validation and control-character sanitiser
+  shapes already seen on the corpus.
+
+The remainder (31) are the known tails: `random` for test fixtures, MD5 for
+cache busting, `FileResponse` of a model's file, configuration names.
+
+**Consequence.** C2's gates were met on the tuning set and are not met
+here. The three shapes are check- and engine-shaped, not type-shaped, so
+they are fixable; but once fixed against, pretalx is part of the tuning
+set, and the held-out measurement has to be repeated on a further
+application. See `ROADMAP.md`, D7.
+
 ### 1.10.0 (2026-11-14)
 
 Two rounds of check-shape fixes against the per-check table below, each
