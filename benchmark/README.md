@@ -1,9 +1,12 @@
 # Benchmark: fenceline vs Bandit vs Semgrep
 
 A labelled, reproducible comparison on four intentionally vulnerable Python
-web applications. The point is not a leaderboard but a measurement that can
-be re-run after every change to see which gaps closed and what it cost in
-false positives.
+web applications, plus a second corpus of four ordinary, maintained
+applications that measures the other side: how much of what the tools report
+on code nobody made vulnerable is worth a reviewer's time (see
+[Clean-code corpus](#clean-code-corpus)). The point is not a leaderboard but
+a measurement that can be re-run after every change to see which gaps closed
+and what it cost in false positives.
 
 ## Corpus
 
@@ -307,6 +310,134 @@ False positives by rule: fenceline CWE-770 14, CWE-391 7, CWE-918 3, CWE-532
 2, CWE-611 2, one each of CWE-117/798/601/1327/78; Bandit B603 4, B404 3,
 B403 2, B105 2, B406 2, B608 2, one each of B409/B104/B108; Semgrep one
 (`dangerous-subprocess-use-tainted-env-args` on a CLI tool).
+
+## Clean-code corpus
+
+`clean/` holds the measurement the vulnerable apps cannot give: precision on
+ordinary code. Four maintained applications, one per framework, pinned and
+scanned at their application package; every finding of all three tools in
+scope adjudicated by hand.
+
+| App | Framework | Commit | Scanned | Lines in scope |
+|---|---|---|---|---|
+| [healthchecks](https://github.com/healthchecks/healthchecks) | Django | `cb5c976` | `hc/` | 16884 |
+| [dispatch](https://github.com/Netflix/dispatch) | FastAPI | `dd2837e` | `src/dispatch/` | 62177 |
+| [flaskbb](https://github.com/flaskbb/flaskbb) | Flask | `1028f17` | `flaskbb/` | 23731 |
+| [home-assistant/core](https://github.com/home-assistant/core) | aiohttp | `e68768b` | `homeassistant/auth/`, `homeassistant/components/http/` (sparse checkout) | 25967 |
+
+Tools: fenceline 1.9.0, Bandit 1.9.4, Semgrep 1.185.0 `p/python`, as in the
+main benchmark. The universe is the same too: findings on `.py` files outside
+tests and migrations (alembic `revisions/` included), so manifest findings
+and fenceline's test-code suppression are out of the picture for every tool.
+Home Assistant is scanned at the two packages that face requests; the
+sparse checkout also brings in the top-level modules they import, which are
+scanned and counted.
+
+### Labels
+
+Each finding carries one of three labels and a one-line reason, in
+`clean/labels.json`:
+
+- **true**: a genuine instance a maintainer would fix.
+- **false**: a reviewer would dismiss it.
+- **by design**: a correct detection of deliberate code. A home server
+  binding `0.0.0.0` by default, an integration whose feature is running the
+  command the project owner configured, a placeholder token in a test
+  fixture. Ordinary code has many of these, and lumping them with either of
+  the other labels misstates the tool.
+
+Strict precision counts only *true*; lenient precision also counts *by
+design*. Recall is not measured: nobody knows how many weaknesses these
+applications hold. `clean/score.py` refuses to run if any in-scope finding
+has no verdict, so the labels are complete by construction.
+
+### 1.9.0 (2026-11-14)
+
+| Tool | Findings | True | By design | False | Precision (strict) | Precision (lenient) | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| fenceline | 637 | 22 | 21 | 594 | 3% | 7% | 4.9 |
+| fenceline (--confidence-min high) | 528 | 19 | 15 | 494 | 4% | 6% | 4.1 |
+| Bandit | 222 | 12 | 11 | 199 | 5% | 10% | 1.7 |
+| Semgrep | 17 | 0 | 1 | 16 | 0% | 6% | 0.1 |
+
+fenceline confidence calibration:
+
+| Confidence | Findings | True | By design | False | Share true |
+|---|---|---|---|---|---|
+| HIGH | 528 | 19 | 15 | 494 | 4% |
+| MEDIUM | 91 | 3 | 6 | 82 | 3% |
+| LOW | 18 | 0 | 0 | 18 | 0% |
+
+fenceline per app:
+
+| App | Findings | True | By design | False | Per 1000 lines |
+|---|---|---|---|---|---|
+| healthchecks | 93 | 0 | 3 | 90 | 5.5 |
+| dispatch | 440 | 19 | 8 | 413 | 7.1 |
+| flaskbb | 68 | 3 | 8 | 57 | 2.9 |
+| hacore | 36 | 0 | 2 | 34 | 1.4 |
+
+**What the number means.** On the vulnerable apps fenceline is 92% precise;
+on ordinary code it is 3%, and `--confidence-min high` does not help because
+the noise is reported at HIGH. Confidence is not calibrated on this corpus:
+HIGH, MEDIUM and LOW findings are true at nearly the same rate. Bandit is
+5%, and Semgrep's community Python rules report almost nothing and nothing
+true. A team turning any of the three on without a baseline file sees
+roughly one alert per 200 to 600 lines, of which one in twenty or thirty
+deserves a look.
+
+**Where fenceline's noise comes from.** Two check shapes account for 477 of
+the 594 false positives:
+
+- `CWE-117` log injection, 394. The check reports every f-string with an
+  interpolation passed to a logger, with no regard to what is interpolated.
+  Running the taint classifier over the interpolated values finds 11 of the
+  400 reach request data; the other 389 are identifiers, counts, exceptions
+  and configuration. Five of the eleven are labelled true (raw headers and
+  a request body logged in dispatch's auth code).
+- `CWE-601` open redirect, 83. Sixty-odd are Django's `redirect("hc-channels",
+  project.code)`: a URL pattern *name* with URL parameters, resolved
+  server-side, not a destination. The rest are `url_for()` results,
+  `reverse()` results, model URL properties and targets validated by a
+  helper the check cannot see.
+
+The remaining 117 are a long tail of shapes, each small: configuration key
+names reported as hardcoded credentials (`CONF_PASSWORD = "password"`, 17),
+literal comparisons of provider names and status strings reported as timing
+attacks (16), notification templates rendered from the module's own
+constants reported as SSTI (14), SQLAlchemy `session.query()` reported as
+pandas `DataFrame.query()` (8), administrator-configured integration URLs
+reported as SSRF (8), and `except Exception:` handlers that do log reported
+as silent (7, see below).
+
+**What fenceline found that the others did not.** Of the 22 true findings:
+11 outbound HTTP calls without a timeout (Bandit finds 8), 5 raw request
+headers or bodies written to logs, a redirect to the `Referer` header in
+flaskbb, an SSRF in dispatch's AWS ALB authentication plugin where the
+region and key id from an unverified JWT header are spliced into a URL, a
+default CSRF secret in flaskbb's base config, a login handler that swallows
+every exception, a Zoom meeting password drawn from `random`, and
+user-authored markdown marked safe in dispatch's email filters. Bandit's
+one true finding fenceline missed is flaskbb's `SECRET_KEY = "secret key"`
+default, which the secrets check discards as placeholder-shaped.
+
+**Port divergence.** The Rust port reports 701 findings here against the
+Python port's 708. Four Home Assistant files use Python 3.14's
+unparenthesised `except A, B:` syntax and fail to parse under CPython 3.13
+and rustpython-parser alike; on those the Python port's `CWE-778` check
+falls back to a line scan that cannot see the handler body and reports six
+handlers that do log, while the Rust port has no fallback and reports
+nothing. Three more files use PEP 695 type parameters, which CPython parses
+and rustpython-parser does not; one `CWE-338` finding in `config_entries.py`
+is lost there. The first is a divergence to resolve in C2 (the fallback
+produced six false positives and no true ones); the second is a parser gap
+to record.
+
+```bash
+benchmark/clean/run.sh                         # default settings
+benchmark/clean/run.sh --confidence-min high --fps
+BENCH_DIR=/tmp/fl-clean benchmark/clean/run.sh # keep the clones and raw JSON
+```
 
 ## What the baseline said
 

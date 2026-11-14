@@ -1,6 +1,10 @@
 # Roadmap: from "beats Bandit on vulnerable apps" to "a scanner a team turns on"
 
-**Status**: proposed 2026-11-14. Decisions D1–D5 at the end are open.
+**Status**: D1–D5 accepted 2026-11-14. Phase 0 done (1.9.0 on PyPI and
+crates.io, `v1.9.0` tags). C1 done 2026-11-14: `benchmark/clean/` with the
+four accepted apps, 872 verdicts, scorer and runner; result 3% strict
+precision at 1.9.0 (4% at HIGH), Bandit 5%, Semgrep 0%. C2 is next; its
+input is the per-check false-positive table in the benchmark README.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 
@@ -82,6 +86,21 @@ Recall is not measurable here and is not claimed.
 `benchmark/README.md` next to the vulnerable-app table, and the per-check
 false-positive table exists. No check is changed during C1: the corpus is a
 measurement first and a tuning set second.
+
+**Outcome (2026-11-14).** 637 fenceline findings in scope, not the 400
+budgeted; the overshoot is one check, `CWE-117`, with 394 false positives
+of a single shape, so adjudication stayed within budget in effort. Strict
+precision 3%, lenient 7%, 4% at HIGH; confidence is uncalibrated on this
+corpus (HIGH 4% true, MEDIUM 3%, LOW 0%). The C2 work list, in order of
+false positives removed: make `CWE-117` taint-aware (394), treat a literal
+first argument to `redirect()` as a URL name or fixed path and `url_for` /
+`reverse` as same-site (83), stop reporting configuration key names as
+credentials (17), restrict the timing-attack check to comparisons that
+involve a secret-shaped operand (16), exempt templates built from module
+constants from SSTI (14), stop matching SQLAlchemy `session.query()` as
+pandas (8), and drop the `CWE-778` text fallback on unparsable files (7,
+and it is also the Rust parity gap). One recall miss to fix alongside:
+`SECRET_KEY = "secret key"` discarded as placeholder-shaped.
 
 ### Phase C2: fix what C1 exposes
 
