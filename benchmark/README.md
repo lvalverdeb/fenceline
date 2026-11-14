@@ -51,7 +51,7 @@ false-positive rate on ordinary code.
 
 ## Results
 
-### After C2, unreleased (2026-11-14)
+### 1.10.0 (2026-11-14)
 
 The clean-corpus work (below) changed twenty-odd check shapes. On the
 vulnerable apps the effect is three false positives fewer and no recall
@@ -376,7 +376,7 @@ design*. Recall is not measured: nobody knows how many weaknesses these
 applications hold. `clean/score.py` refuses to run if any in-scope finding
 has no verdict, so the labels are complete by construction.
 
-### After C2, unreleased (2026-11-14)
+### 1.10.0 (2026-11-14)
 
 Two rounds of check-shape fixes against the per-check table below, each
 validated on all three corpora with Rust parity (the work list and the

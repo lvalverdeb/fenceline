@@ -4,10 +4,11 @@
 crates.io, `v1.9.0` tags). C1 done 2026-11-14: `benchmark/clean/` with the
 four accepted apps, 872 verdicts, scorer and runner; result 3% strict
 precision at 1.9.0 (4% at HIGH), Bandit 5%, Semgrep 0%. C2 two rounds done
-2026-11-14 (unreleased): 20% strict / 38% lenient at default, 42% / 71% at
-HIGH, vulnerable benchmark 96% precision with no recall change. The C2
-gates as written are not met and, on the evidence, not reachable by shape
-fixes; D6 below asks for their recalibration before the held-out step.
+2026-11-14 and released as 1.10.0: 20% strict / 38% lenient at default,
+42% / 71% at HIGH, vulnerable benchmark 96% precision with no recall
+change. D6 accepted 2026-11-14: the C2 gates are the lenient ones stated
+there, and they are met; the held-out application is the remaining C2
+step.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 
@@ -150,15 +151,15 @@ configured integration URLs. Each would need type knowledge of parameter
 fields or a notion of "configured by an administrator", which is a
 different kind of work from C2's.
 
-**D6, open.** The gates (85% strict at HIGH, 70% strict at default) count
+**D6, accepted 2026-11-14.** The gates (85% strict at HIGH, 70% strict at default) count
 by-design findings against precision by definition, and 13 of the 45 HIGH
 findings on this corpus are deliberate code the check is right to report.
 Strict precision at HIGH cannot exceed 71% here even with zero false
 positives. Proposed restatement: *lenient* precision ≥ 70% at HIGH (met,
 71%) and ≥ 35% at default (met, 38%), with density ≤ 1 finding per 1,000
-lines at default (met, 0.9) and the vulnerable benchmark unchanged. If
-accepted, C2 closes with the held-out application; if the strict bars
-stand, C2 continues into type-aware work and the held-out step waits.
+lines at default (met, 0.9) and the vulnerable benchmark unchanged.
+Accepted: C2 closes with the held-out application; type-aware work on the
+remaining shapes is deferred past C3 and C4.
 
 ### Phase C3: a CVE regression set
 
@@ -289,3 +290,5 @@ Semgrep replacement.
 - **D4** Rule format: TOML, the four kinds, the stated non-goals, and that
   the Rust port gets rules but still no plugin API.
 - **D5** Release 1.9.0 before C1 starts.
+- **D6** C2 gates restated as lenient precision ≥ 70% at HIGH and ≥ 35% at
+  default with density ≤ 1 per 1,000 lines (see Phase C2); accepted.
