@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import ast
 import builtins
+import re
 from dataclasses import dataclass, field
 from enum import IntEnum
 
@@ -143,6 +144,20 @@ _CLEAN_CALLS = frozenset(
         "urllib.parse.quote_plus",
         "html.escape",
         "re.escape",
+        # Escaping and encoding helpers: their output is safe for the
+        # context they target, and that context is where it is used.
+        "escape",
+        "markupsafe.escape",
+        "django.utils.html.escape",
+        "conditional_escape",
+        "django.utils.html.conditional_escape",
+        "format_html",
+        "django.utils.html.format_html",
+        "quote",
+        "quote_plus",
+        "urlencode",
+        "urllib.parse.urlencode",
+        "django.utils.http.urlencode",
         # Route builders: a same-site URL from a route name and escaped parameters.
         "url_for",
         "flask.url_for",
@@ -490,14 +505,29 @@ def _is_handler(
     return web and positional[:1] == ["request"]
 
 
+# Introspection attributes: a class or module name, never request content.
+_CLEAN_ATTRS = frozenset({"__name__", "__qualname__", "__module__", "__class__", "__doc__"})
+_CLASS_NAME_RE = re.compile(r"^[A-Z][a-z]")
+
+
 def _is_orm_lookup(dotted: str) -> bool:
     """A database lookup: the arguments pick rows, the result is stored data,
     not the request's. Django managers (``Model.objects.get(pk=x)``),
     Flask-SQLAlchemy models (``Model.query.filter_by(id=x)``) and SQLAlchemy
     sessions (``session.query(M)``, ``session.execute(stmt)``,
-    ``session.scalars(stmt)``, ``session.get(M, x)``)."""
+    ``session.scalars(stmt)``, ``session.get(M, x)``), class-level getters
+    (``Topic.get_topic(topic_id)``, ``User.find_by_email(e)``) and the
+    Flask-SQLAlchemy ``*_or_404`` helpers."""
     parts = dotted.split(".")
     if ".objects." in dotted or (len(parts) >= 2 and parts[-1] == "query"):
+        return True
+    if parts[-1] in ("first_or_404", "get_or_404", "one_or_404"):
+        return True
+    if (
+        len(parts) >= 2
+        and _CLASS_NAME_RE.match(parts[0])
+        and (parts[-1].startswith(("get", "find", "lookup")) or parts[-1].endswith("_or_404"))
+    ):
         return True
     return (
         len(parts) >= 3
@@ -675,6 +705,8 @@ class _Classifier:
             return Taint.CLEAN
         if isinstance(node, ast.Name):
             return self.name(node.id, depth)
+        if isinstance(node, ast.Attribute) and node.attr in _CLEAN_ATTRS:
+            return Taint.CLEAN
         if isinstance(node, (ast.Attribute, ast.Subscript)):
             dotted = _dotted_name(node.value if isinstance(node, ast.Subscript) else node) or ""
             if dotted and self.source_chain(dotted):

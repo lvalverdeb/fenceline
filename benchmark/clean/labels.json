@@ -4861,6 +4861,13 @@
     [
       "fenceline",
       "CWE-601",
+      "flaskbb/flaskbb/forum/views.py:208",
+      "false",
+      "destination is a model URL property or mod_forum_url, both built with url_for()"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
       "flaskbb/flaskbb/forum/views.py:273",
       "false",
       "destination is a model URL property or mod_forum_url, both built with url_for()"

@@ -68,8 +68,8 @@ def check_xxe(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fin
     lxml_alias = _lxml_etree_alias(tree)
     lxml_pattern = re.compile(rf"\b{re.escape(lxml_alias)}\.") if lxml_alias else None
     for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
+        if _skip(line) or "xml.sax.saxutils" in line:
+            continue  # saxutils is the escaping helper, not a parser
         if re.search(r"(?:xml\.etree|xml\.dom|xml\.sax)\.", line) or (
             lxml_pattern and lxml_pattern.search(line)
         ):

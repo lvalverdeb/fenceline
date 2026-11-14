@@ -182,43 +182,142 @@ def check_insufficient_logging(
     return results
 
 
+def _parent_map(tree: ast.Module | None) -> dict[int, ast.AST]:
+    """``id(child) -> parent`` for every node."""
+    parents: dict[int, ast.AST] = {}
+    for node in ast.walk(tree) if tree else []:
+        for child in ast.iter_child_nodes(node):
+            parents[id(child)] = node
+    return parents
+
+
+def _enclosing_targets(node: ast.AST, parents: dict[int, ast.AST]) -> list[ast.expr]:
+    """The targets of the assignment statement *node* is part of
+    (``token = f(x)``, ``self.key: str = f(x)``, ``h += f(x)``); empty when
+    the enclosing statement is not an assignment."""
+    parent = parents.get(id(node))
+    while parent is not None and not isinstance(parent, ast.stmt):
+        parent = parents.get(id(parent))
+    if isinstance(parent, ast.Assign):
+        return list(parent.targets)
+    if isinstance(parent, (ast.AnnAssign, ast.AugAssign)):
+        return [parent.target]
+    return []
+
+
+# A value named like a credential: what a weak hash or a weak random source
+# must not produce.
+_CREDENTIAL_NAME_RE = re.compile(
+    r"(?:^|_)(?:password|passwd|pwd|secret|token|api_key|apikey|key|otp|credential|credentials"
+    r"|auth|session|nonce|salt|signature|csrf|pin)(?:_|$)",
+    re.I,
+)
+# Character sets a token is drawn from: random.choices(string.ascii_letters, k=16).
+_ALPHABET_NAMES = frozenset(
+    {
+        "ascii_letters",
+        "ascii_lowercase",
+        "ascii_uppercase",
+        "digits",
+        "hexdigits",
+        "octdigits",
+        "letters",
+        "printable",
+        "punctuation",
+        "chars",
+        "charset",
+        "alphabet",
+        "symbols",
+    }
+)
+_NOT_CREDENTIAL_NOTE = " — neither the inputs nor the assigned name look like a credential; confirm the value is not used as one."
+_RANDOM_FNS = frozenset(
+    {
+        "random",
+        "randint",
+        "choice",
+        "choices",
+        "uniform",
+        "triangular",
+        "shuffle",
+        "sample",
+        "randrange",
+        "getrandbits",
+        "randbytes",
+    }
+)
+
+
+def _looks_like_alphabet(text: str) -> bool:
+    """``"abc...XYZ0123456789"``: a character set, not a message."""
+    return len(text) >= 10 and " " not in text and any(ch.isalnum() for ch in text)
+
+
+def _draws_from_alphabet(tree: ast.Module, node: ast.Call) -> bool:
+    """``random.choices(string.ascii_letters, k=16)``,
+    ``random.sample(field, n)`` with ``field = "abc...789"`` in scope."""
+    if _names_in(node.args) & _ALPHABET_NAMES:
+        return True
+    if not node.args:
+        return False
+    first = node.args[0]
+    values = bound_values(tree, node, first.id) if isinstance(first, ast.Name) else [first]
+    return any(
+        isinstance(v, ast.Constant) and isinstance(v.value, str) and _looks_like_alphabet(v.value)
+        for v in values
+    )
+
+
+def _credential_context(node: ast.Call, parents: dict[int, ast.AST]) -> bool:
+    """The call's arguments or the name its result is bound to are named like
+    a credential."""
+    exprs = [*node.args, *(kw.value for kw in node.keywords), *_enclosing_targets(node, parents)]
+    return any(_CREDENTIAL_NAME_RE.search(n) for n in _names_in(exprs))
+
+
 def check_insecure_random(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """CWE-338. ``random.*`` is HIGH confidence when it plainly produces a
+    secret: the result is bound to a credential-like name, it is drawn from
+    a character set (``random.choices(string.ascii_letters, k=16)``), or it
+    is ``getrandbits``/``randbytes``. Jitter, sampling and shuffling
+    (``randint(0, 120)`` minutes, ``random.choice(servers)``) are MEDIUM:
+    they need no cryptographic source, and on ordinary code they are most
+    of what ``random`` is used for."""
     pk = _rel(path)
     results: list[Finding] = []
     aliases = _import_aliases(tree)
-    for node in ast.walk(tree) if tree else []:
-        if isinstance(node, ast.Call):
-            fn = _callee(node, aliases)
-            if fn.startswith("random.") and fn not in ("random.SystemRandom", "random.secrets"):
-                base = fn.split(".")[1] if "." in fn else fn
-                if base in (
-                    "random",
-                    "randint",
-                    "choice",
-                    "choices",
-                    "uniform",
-                    "triangular",
-                    "shuffle",
-                    "sample",
-                    "randrange",
-                    "getrandbits",
-                    "randbytes",
-                ):
-                    line = _node_line(node)
-                    code = lines[line - 1].strip() if 1 <= line <= len(lines) else ""
-                    results.append(
-                        Finding(
-                            cwe_id="CWE-338",
-                            cwe_name="Insecure Randomness",
-                            severity="LOW",
-                            confidence="HIGH",
-                            package="",
-                            file=pk,
-                            line=line,
-                            code_snippet=code,
-                            description=f"random.{base}() uses Mersenne Twister (not crypto-secure). Use secrets module for security-sensitive contexts.",
-                        )
-                    )
+    parents = _parent_map(tree)
+    for node in _calls(tree):
+        fn = _callee(node, aliases)
+        if not fn.startswith("random.") or fn in ("random.SystemRandom", "random.secrets"):
+            continue
+        base = fn.split(".")[1]
+        if base not in _RANDOM_FNS:
+            continue
+        from_alphabet = base in ("choice", "choices", "sample") and _draws_from_alphabet(tree, node)
+        if (
+            base in ("getrandbits", "randbytes")
+            or from_alphabet
+            or _credential_context(node, parents)
+        ):
+            confidence, note = "HIGH", ""
+        else:
+            confidence, note = "MEDIUM", _NOT_CREDENTIAL_NOTE
+        line = _node_line(node)
+        results.append(
+            Finding(
+                cwe_id="CWE-338",
+                cwe_name="Insecure Randomness",
+                severity="LOW",
+                confidence=confidence,
+                package="",
+                file=pk,
+                line=line,
+                code_snippet=_code_at(lines, line),
+                description=f"random.{base}() uses Mersenne Twister (not crypto-secure). Use secrets module for security-sensitive contexts."
+                + note,
+            )
+        )
     return results
 
 
@@ -1037,10 +1136,27 @@ _COMMAND_CALLS: tuple[tuple[str, str], ...] = (
 )
 
 
+def _is_fixed_program_argv(node: ast.Call) -> bool:
+    """``["pybabel", "compile", "-d", folder]`` or ``[sys.executable, "-m",
+    ...]``: the program is fixed and there is no shell, so the most a
+    non-literal element can be is an argument."""
+    if not node.args or not isinstance(node.args[0], (ast.List, ast.Tuple)):
+        return False
+    elts = node.args[0].elts
+    if not elts:
+        return False
+    first = elts[0]
+    if isinstance(first, ast.Constant) and isinstance(first.value, str):
+        return True
+    return _dotted_name(first) == "sys.executable"
+
+
 def check_command_injection(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-78 rank #9, CWE-77 rank #23. A fully literal command
     (``subprocess.run(["git", "status"])``) is not reported; the argument's
-    origin sets confidence (see ``fenceline.taint``)."""
+    origin sets confidence (see ``fenceline.taint``). A list-form command
+    with a fixed program and no shell is reported only for request data:
+    with the program fixed, internal values can at most be arguments."""
     pk = _rel(path)
     results: list[Finding] = []
     aliases = _import_aliases(tree)
@@ -1053,11 +1169,14 @@ def check_command_injection(path: Path, lines: list[str], tree: ast.Module | Non
             continue
         # The command and its arguments; `shell=`/`cwd=`/`env=` and friends
         # don't carry the payload.
-        taint = _tainted(
+        level = classify(
             tree,
             node,
             [*node.args, *(kw.value for kw in node.keywords if kw.arg in ("args", "cmd"))],
         )
+        if not shell and _is_fixed_program_argv(node) and level not in (Taint.SOURCE, Taint.CALLER):
+            continue
+        taint = confidence_for(level)
         if taint is None:
             continue
         confidence, note = taint
@@ -1273,27 +1392,36 @@ _WEAK_HASH_NAMES = frozenset({"md5", "md4", "md2", "sha1"})
 def check_weak_hash(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-328. ``hashlib.md5()``/``sha1()``, plus the ``hashlib.new("md5")``
     indirection (B324). ``usedforsecurity=False`` -- the stdlib's own way of
-    saying "this is a checksum, not a credential" -- is exempt."""
+    saying "this is a checksum, not a credential" -- is exempt. HIGH
+    confidence when the hashed value or the name the digest is bound to is
+    credential-like (``md5(password.encode())``, ``token = sha1(...)``);
+    MEDIUM otherwise, since a digest of anything else is as likely an
+    identifier or a cache key as a credential."""
     pk = _rel(path)
     results: list[Finding] = []
     aliases = _import_aliases(tree)
+    parents = _parent_map(tree)
     for node in _calls(tree):
         if _keyword_is(node, "usedforsecurity", False):
             continue
         fn = _callee(node, aliases)
         line = _node_line(node)
+        if _credential_context(node, parents):
+            confidence, note = "HIGH", ""
+        else:
+            confidence, note = "MEDIUM", _NOT_CREDENTIAL_NOTE
         if _dotted_matches(fn, "hashlib.md5") or _dotted_matches(fn, "hashlib.sha1"):
             results.append(
                 Finding(
                     cwe_id="CWE-328",
                     cwe_name="Weak Cryptographic Hash",
                     severity="MEDIUM",
-                    confidence="HIGH",
+                    confidence=confidence,
                     package="",
                     file=pk,
                     line=line,
                     code_snippet=_code_at(lines, line),
-                    description="Use of MD5/SHA-1 — collision-prone, use SHA-256 or better.",
+                    description="Use of MD5/SHA-1 — collision-prone, use SHA-256 or better." + note,
                 )
             )
         elif (
@@ -1308,14 +1436,14 @@ def check_weak_hash(path: Path, lines: list[str], tree: ast.Module | None) -> li
                     cwe_id="CWE-328",
                     cwe_name="Weak Cryptographic Hash",
                     severity="MEDIUM",
-                    confidence="HIGH",
+                    confidence=confidence,
                     package="",
                     file=pk,
                     line=line,
                     code_snippet=_code_at(lines, line),
                     description="hashlib.new() with a weak algorithm name (MD5/MD4/MD2/SHA-1) — "
                     "same collision risk as calling hashlib.md5()/sha1() directly, "
-                    "just reached through the generic constructor. Use SHA-256 or better.",
+                    "just reached through the generic constructor. Use SHA-256 or better." + note,
                 )
             )
     return results
@@ -1365,6 +1493,19 @@ def _is_same_site_path(target: ast.expr) -> bool:
     return lead is not None and len(lead) >= 2 and lead[0] == "/" and lead[1] not in "/\\"
 
 
+# The request's own path: a redirect back to it stays on the site.
+_REQUEST_OWN_PATH_ATTRS = frozenset(
+    {"path", "path_info", "full_path", "get_full_path", "script_root", "url_rule"}
+)
+
+
+def _is_request_own_path(target: ast.expr) -> bool:
+    if isinstance(target, ast.Call) and not target.args:
+        target = target.func
+    parts = (_dotted_name(target) or "").split(".")
+    return len(parts) >= 2 and parts[-2] == "request" and parts[-1] in _REQUEST_OWN_PATH_ATTRS
+
+
 def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-601. A ``redirect(...)``/``Redirect(...)`` call fed a non-literal
     destination. ``HTTPTemporaryRedirect(...)``, ``authorize_redirect(...)``
@@ -1372,7 +1513,8 @@ def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -
     redirects: the literal is a fixed path or, in Django, a URL pattern name
     whose other arguments are URL parameters (``redirect("hc-checks",
     project.code)``). Nor is one whose destination starts with a literal
-    path (``"/tasks/" + task_id``)."""
+    path (``"/tasks/" + task_id``) or is the request's own path
+    (``redirect(request.path)``)."""
     pk = _rel(path)
     results: list[Finding] = []
     for node in _calls(tree):
@@ -1385,7 +1527,7 @@ def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -
         ):
             continue
         data = _call_data(node)
-        if data and _is_same_site_path(data[0]):
+        if data and (_is_same_site_path(data[0]) or _is_request_own_path(data[0])):
             continue
         taint = _tainted(tree, node, data)
         if taint is None:
@@ -1746,8 +1888,9 @@ def check_resource_limits(path: Path, lines: list[str], tree: ast.Module | None)
     """CWE-770 rank #25. ``x.read()`` with no size argument, where whoever
     controls ``x`` controls the size: a socket, a response body, ``sys.stdin``,
     or a file whose path came from outside. A file opened at a path the
-    program chose (``open("config.toml")``) is the program's own and is not
-    reported. A line that mentions chunking/streaming is taken as bounded."""
+    program chose (``open("config.toml")``, a configured path, a bundled
+    resource) is the program's own and is not reported. A line that
+    mentions chunking/streaming is taken as bounded."""
     pk = _rel(path)
     results: list[Finding] = []
     for node in _calls(tree):
@@ -1762,10 +1905,10 @@ def check_resource_limits(path: Path, lines: list[str], tree: ast.Module | None)
         code = _code_at(lines, line)
         if _STREAMING_CONTEXT_RE.search(code):
             continue
-        tainted = _tainted(tree, node, [node.func.value])
-        if tainted is None:
+        taint = classify(tree, node, [node.func.value])
+        if taint not in (Taint.SOURCE, Taint.CALLER):
             continue
-        confidence, note = tainted
+        confidence, note = confidence_for(taint) or ("HIGH", "")
         results.append(
             Finding(
                 cwe_id="CWE-770",
@@ -2111,16 +2254,34 @@ def _is_true(expr: ast.expr | None) -> bool:
     return isinstance(expr, ast.Constant) and expr.value is True
 
 
+_BIND_NAME_RE = re.compile(r"bind|listen", re.I)
+
+
 def check_bind_all_interfaces(
     path: Path, lines: list[str], tree: ast.Module | None
 ) -> list[Finding]:
-    """B104 / CWE-1327. The string literal ``"0.0.0.0"`` anywhere in code: a
-    server bound to it listens on every interface, not just localhost."""
+    """B104 / CWE-1327. The string literal ``"0.0.0.0"`` as a value: a
+    server bound to it listens on every interface, not just localhost. Not
+    one in a comparison or in a list/set/tuple of nothing but strings
+    (``ALLOWED_HOSTS = ["0.0.0.0"]``, ``WILDCARDS = {"0.0.0.0", "::"}``):
+    those recognise the address rather than bind to it. A list bound to a
+    name that says bind (``DEFAULT_BIND = ["0.0.0.0", "::"]``) still is one."""
     pk = _rel(path)
     results: list[Finding] = []
     seen: set[int] = set()
+    parents = _parent_map(tree)
     for node in ast.walk(tree) if tree else []:
         if not (isinstance(node, ast.Constant) and node.value == "0.0.0.0"):
+            continue
+        parent = parents.get(id(node))
+        bound_to_bind = any(
+            _BIND_NAME_RE.search(n) for n in _names_in(_enclosing_targets(node, parents))
+        )
+        if isinstance(parent, ast.Compare) or (
+            isinstance(parent, (ast.List, ast.Set, ast.Tuple))
+            and not bound_to_bind
+            and all(isinstance(e, ast.Constant) and isinstance(e.value, str) for e in parent.elts)
+        ):
             continue
         line = _node_line(node)
         if line in seen:
@@ -2231,8 +2392,17 @@ def check_legacy_pycrypto(path: Path, lines: list[str], tree: ast.Module | None)
 # ── Logging and library-loading calls (converted from line regexes so a
 # call whose arguments continue on later lines is still matched) ──────────
 
+# In message text: whole words, so "tokeniser" and "tokens" do not count.
 _SECRET_KEYWORD_RE = re.compile(
-    r"password|passwd|secret|token|api_key|apikey|auth_token|access_key|private_key|credential",
+    r"\b(?:password|passwd|secret|token|api_key|apikey|auth_token|access_key"
+    r"|private_key|credential|credentials)\b",
+    re.I,
+)
+# In identifiers: whole ``_``-separated segments (``self.password``,
+# ``user.api_key``), not ``model_token_limit`` or ``tokeniser``.
+_SECRET_IDENT_RE = re.compile(
+    r"(?:^|_)(?:password|passwd|secret|secrets|token|tokens|api_key|apikey|auth_token|access_key"
+    r"|private_key|credential|credentials)(?:_|$)",
     re.I,
 )
 _SHARED_LIB_RE = re.compile(r"\.(?:so|dll|dylib)\b")
@@ -2282,7 +2452,10 @@ def check_log_secrets(path: Path, lines: list[str], tree: ast.Module | None) -> 
         if not _is_logging_call(node, aliases):
             continue
         data = _call_data(node)
-        if any(_SECRET_KEYWORD_RE.search(n) for n in _names_in(data)):
+        if any(
+            _SECRET_IDENT_RE.search(n) and not _DESCRIPTOR_NAME_RE.search(n)
+            for n in _names_in(data)
+        ):
             confidence = "HIGH"
             description = "Logger call includes a variable whose name suggests it holds a secret — potential credential leakage in logs."
         elif _has_dynamic_arg(node) and any(
@@ -2328,7 +2501,9 @@ def check_log_injection(path: Path, lines: list[str], tree: ast.Module | None) -
     carrying a newline forges a log entry. An f-string over identifiers,
     counts, exceptions or configuration is not reported: on ordinary code
     those are nearly every logging line, and none of them is attacker
-    content."""
+    content. Data that arrives through a caller is MEDIUM here rather than
+    HIGH: what is logged is usually a field of the parameter, and whether
+    that field is free text or a typed identifier is not visible."""
     pk = _rel(path)
     results: list[Finding] = []
     aliases = _import_aliases(tree)
@@ -2342,6 +2517,8 @@ def check_log_injection(path: Path, lines: list[str], tree: ast.Module | None) -
         if taint not in (Taint.SOURCE, Taint.CALLER):
             continue
         confidence, note = confidence_for(taint) or ("HIGH", "")
+        if taint is Taint.CALLER:
+            confidence = "MEDIUM"
         line = _node_line(node)
         results.append(
             Finding(
@@ -2677,10 +2854,12 @@ def check_tempfile(path: Path, lines: list[str], tree: ast.Module | None) -> lis
 _TIMING_SECRET_RE = re.compile(
     r"(?:^|_)(?:password|passwd|pwd|secret|token|auth|api_key|apikey|signature|otp)(?:_|$)", re.I
 )
-# A name that describes a secret rather than holding one: auth_type, token_kind.
-_TIMING_DESCRIPTOR_RE = re.compile(
+# A name that describes a secret rather than holding one: auth_type,
+# token_kind, model_token_limit.
+_DESCRIPTOR_NAME_RE = re.compile(
     r"(?:^|_)(?:type|kind|provider|scheme|version|status|mode|method|name|field|url|uri|id|len"
-    r"|length|count|enabled|disabled|required)(?:_|$)",
+    r"|length|count|limit|max|min|size|ttl|timeout|expiry|expires|enabled|disabled|required)"
+    r"(?:_|$)",
     re.I,
 )
 _TIMING_PASSTHROUGH_METHODS = frozenset(
@@ -2708,9 +2887,7 @@ def _compared_name(expr: ast.expr) -> str:
 
 def _is_secret_name(name: str) -> bool:
     return (
-        bool(name)
-        and bool(_TIMING_SECRET_RE.search(name))
-        and not _TIMING_DESCRIPTOR_RE.search(name)
+        bool(name) and bool(_TIMING_SECRET_RE.search(name)) and not _DESCRIPTOR_NAME_RE.search(name)
     )
 
 

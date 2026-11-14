@@ -1615,3 +1615,26 @@ def test_self_field_carries_caller_taint_across_files(tmp_path):
     )
     findings = [f for f in _scan_json(tmp_path) if f["cwe_id"] == "CWE-918"]
     assert [(f["line"], f["confidence"]) for f in findings] == [(6, "HIGH")]
+
+
+def test_taint_class_getters_and_introspection():
+    from fenceline.taint import Taint
+
+    flask = "from flask import request\n"
+    # A class-level getter is a lookup: its result is stored data.
+    assert _taint_of(flask + "def v():\n    sink(Topic.get_topic(request.args['t']).url)\n", 3) is (
+        Taint.INTERNAL
+    )
+    assert _taint_of(
+        flask
+        + "def v():\n    sink(first_or_404(select(Forum).where(Forum.id == request.args['f'])))\n",
+        3,
+    ) is (Taint.INTERNAL)
+    # A lowercase receiver is not a class: cache.get(x) hands x's data back.
+    assert _taint_of(flask + "def v():\n    sink(cache.get(request.args['t']))\n", 3) is (
+        Taint.SOURCE
+    )
+    # Introspection attributes name a class, never request content.
+    assert _taint_of(flask + "def v():\n    sink(request.__class__.__name__)\n", 3) is (Taint.CLEAN)
+    # Escaping helpers are clean for the context they target.
+    assert _taint_of(flask + "def v():\n    sink(escape(request.args['x']))\n", 3) is (Taint.CLEAN)

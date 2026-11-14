@@ -44,6 +44,9 @@ _LOGGING_METHOD_NAMES = frozenset(
 # logging calls; none of them tokenize to a standalone "log"-family word.
 _LOG_NAME_TOKENS = frozenset({"log", "logs", "logger", "logging"})
 
+# ``traceback.print_exc()`` and friends surface the exception on stderr.
+_TRACEBACK_FUNCS = frozenset({"print_exc", "print_exception", "print_stack", "format_exc"})
+
 # AST node types that introduce a new, separately-executed scope. A statement
 # merely *defined* inside one of these (a nested function/lambda/class body)
 # does not run when the enclosing except block runs, so diagnostics found
@@ -220,6 +223,8 @@ def _handler_has_diagnostic(handler: ast.ExceptHandler) -> bool:
                 return True
             full = _full_attr(node)
             if full == "warnings.warn" or _has_log_like_token(full):
+                return True
+            if full.rsplit(".", 1)[-1] in _TRACEBACK_FUNCS:
                 return True
     return False
 
