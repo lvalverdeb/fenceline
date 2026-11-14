@@ -890,6 +890,13 @@
       "empty default in a config template"
     ],
     [
+      "fenceline",
+      "CWE-798",
+      "flaskbb/flaskbb/configs/default.py:182",
+      "true",
+      "default SECRET_KEY shipped in the base config"
+    ],
+    [
       "bandit",
       "B105",
       "flaskbb/flaskbb/configs/default.py:182",

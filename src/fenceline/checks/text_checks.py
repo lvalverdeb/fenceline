@@ -25,7 +25,6 @@ __all__ = [
     "check_symlink",
     "check_assert_security",
     "check_supply_chain",
-    "check_timing_attack",
     "check_sensitive_exposure",
     "check_null_byte",
     "check_ldap",
@@ -158,31 +157,6 @@ def check_supply_chain(path: Path, lines: list[str], tree: ast.Module | None) ->
                     code_snippet=line.strip(),
                     description="--extra-index-url enables dependency confusion. Use --index-url instead.",
                     zero_day_relevance="CVE-2025-61774: PyVista dependency confusion RCE. Supply-chain attacks on PyPI surged in 2025-2026.",
-                )
-            )
-    return results
-
-
-def check_timing_attack(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    pk = _rel(path)
-    results: list[Finding] = []
-    for lineno, line in enumerate(lines, 1):
-        if _skip(line):
-            continue
-        if re.search(r"==\s*['\"]", line) and re.search(
-            r"(?:token|secret|password|auth)", line, re.I
-        ):
-            results.append(
-                Finding(
-                    cwe_id="CWE-208",
-                    cwe_name="Timing Attack",
-                    severity="LOW",
-                    confidence="LOW",
-                    package="",
-                    file=pk,
-                    line=lineno,
-                    code_snippet=line.strip(),
-                    description="String comparison with == may leak timing information for secret comparison. Use secrets.compare_digest().",
                 )
             )
     return results

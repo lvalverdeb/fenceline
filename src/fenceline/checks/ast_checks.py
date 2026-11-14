@@ -44,6 +44,7 @@ __all__ = [
     "check_command_injection",
     "check_yaml_deserialize",
     "check_ssti",
+    "check_timing_attack",
     "check_crlf",
     "check_weak_hash",
     "check_open_redirect",
@@ -144,32 +145,13 @@ def check_insufficient_logging(
     _handler_has_diagnostic) rather than a fixed line-window text scan, so a
     diagnostic call anywhere in the block — including deep in a nested
     if/try, or via a non-attribute logging helper — is correctly recognized
-    and the block is not flagged. Falls back to the old broadest-catch-only
-    line scan (with no body inspection) when the file failed to parse.
+    and the block is not flagged. A file that failed to parse is not
+    scanned: a line scan cannot see the handler body, and every handler it
+    reported on real code turned out to log.
     """
     pk = _rel(path)
     results: list[Finding] = []
-
     if tree is None:
-        for lineno, line in enumerate(lines, 1):
-            stripped = line.strip()
-            if _skip(line):
-                continue
-            if re.match(r"except\s*(?::|Exception\s*:)", stripped):
-                results.append(
-                    Finding(
-                        cwe_id="CWE-778",
-                        cwe_name="Insufficient Logging",
-                        severity="LOW",
-                        confidence="HIGH",
-                        package="",
-                        file=pk,
-                        line=lineno,
-                        code_snippet=stripped,
-                        description="Bare except: or except Exception: — should at minimum log the exception.",
-                        zero_day_relevance="Insufficient logging delays zero-day attack detection by months.",
-                    )
-                )
         return results
 
     for node in ast.walk(tree):
@@ -483,6 +465,19 @@ def check_except_pass(path: Path, lines: list[str], tree: ast.Module | None) -> 
     return results
 
 
+def _is_sqlalchemy_query(node: ast.Call) -> bool:
+    """``session.query(Model)`` / ``db_session.query(cls)``: the receiver is a
+    session or the first argument is a class, so this is an ORM query, not
+    ``DataFrame.query(expr)``."""
+    receiver = _dotted_name(node.func.value) if isinstance(node.func, ast.Attribute) else ""
+    if any(seg.endswith("session") for seg in receiver.split(".")):
+        return True
+    if node.args and isinstance(node.args[0], (ast.Name, ast.Attribute)):
+        last = _dotted_name(node.args[0]).rsplit(".", 1)[-1]
+        return last[:1].isupper()
+    return False
+
+
 def check_pandas_eval(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """Trail of Bits: pandas.eval(), df.eval(), df.query() — arbitrary code execution via expression eval.
 
@@ -504,6 +499,8 @@ def check_pandas_eval(path: Path, lines: list[str], tree: ast.Module | None) -> 
             description = "pandas.eval() evaluates arbitrary Python expressions — code injection if user input reaches the expression."
             zero_day = "CVE-2024-9880 / Trail of Bits: pandas.eval() / df.query() sandbox bypass via dunder methods. Pandas docs now warn explicitly."
         elif isinstance(node.func, ast.Attribute) and node.func.attr in ("eval", "query"):
+            if _is_sqlalchemy_query(node):
+                continue
             cwe_name, severity = "Code Injection (DataFrame eval/query)", "HIGH"
             description = "DataFrame.eval() or DataFrame.query() evaluates Python expressions — code injection if user-controlled input reaches the expression."
             zero_day = "CVE-2024-9880: pandas.DataFrame.query() sandbox bypass. Thousands of attribute chains lead to os.system."
@@ -1135,18 +1132,22 @@ def check_yaml_deserialize(path: Path, lines: list[str], tree: ast.Module | None
 
 
 def check_ssti(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-1336. Zero-day: LangChain CVE-2025-68664. A ``Template(...)``
-    instantiation (jinja2, string, or any other) fed a non-literal: a
-    template built from a string literal can't be user-controlled."""
+    """CWE-1336. Zero-day: LangChain CVE-2025-68664. A ``Template(...)`` or
+    ``env.from_string(...)`` fed request data (or a parameter some caller
+    feeds request data). A template built from anything else is not
+    reported: a template string of unknown provenance is, on ordinary code,
+    nearly always one the program authored (a loader reading its own files,
+    a notification message constant), and the corpora held eighteen of those
+    against no true one."""
     pk = _rel(path)
     results: list[Finding] = []
     for node in _calls(tree):
         if _call_name(node) not in ("Template", "from_string"):
             continue
-        taint = _tainted(tree, node, _call_data(node))
-        if taint is None:
+        taint_level = classify(tree, node, _call_data(node))
+        if taint_level not in (Taint.SOURCE, Taint.CALLER):
             continue
-        confidence, note = taint
+        confidence, note = confidence_for(taint_level) or ("HIGH", "")
         line = _node_line(node)
         results.append(
             Finding(
@@ -2409,10 +2410,14 @@ _PASSWORD_NAME_RE = re.compile(r"password|passwd|pwd", re.I)
 # A name that holds a *description* of a credential, not the credential:
 # password_field = "password", token_type = "Bearer", auth_header = "X-Auth".
 _NOT_A_SECRET_NAME_RE = re.compile(
-    r"(field|header|name|param|prefix|suffix|type|kind|url|hint|label|help|placeholder|regex"
-    r"|pattern|length|len|path|file|hash_algorithm|algorithm|salt)$",
+    r"(?:^|_)(?:field|name|param|prefix|suffix|type|kind|url|uri|hint|label|help|placeholder"
+    r"|regex|pattern|length|len|path|file|algorithm|salt|provider|status|id)(?:_|$)"
+    r"|header$"
+    # A configuration-key constant: CONF_PASSWORD = "password", DATA_SIGN_SECRET = "...".
+    r"|^(?:conf|key|data|storage|attr|setting|option)_",
     re.I,
 )
+
 _PLACEHOLDER_RE = re.compile(
     r"your[-_ ]|placeholder|example|change[-_ ]?me|xxxx|\*\*\*\*|<[^>]+>|^\.\.\.$|dummy|sample"
     r"|insert[-_ ]|fill[-_ ]?in|redacted|^\$\{|^%\(|%s|\{",
@@ -2528,7 +2533,8 @@ def _classify_secret(name: str, value: str) -> tuple[str, str, str] | None:
         len(value) < 4
         or value in _LITERAL_WORDS
         or _CONSTANT_NAME_RE.match(value)
-        or _normalised(value) == _normalised(name)
+        # aliases = {"secretsmanager": "secrets-manager"}: a name, not a credential.
+        or (_normalised(value) == _normalised(name) and " " not in value)
     ):
         return None
     if _PRIVATE_KEY_NAME_RE.search(name):
@@ -2537,7 +2543,9 @@ def _classify_secret(name: str, value: str) -> tuple[str, str, str] | None:
         severity, description = "HIGH", "Hardcoded password"
     else:
         severity, description = "HIGH", "Hardcoded secret"
-    if _PLACEHOLDER_RE.search(value):
+    # SECRET_KEY = "secret key": a phrase that names itself is still the
+    # default a forgotten deployment runs with.
+    if _PLACEHOLDER_RE.search(value) or _normalised(value) == _normalised(name):
         return severity, "MEDIUM", description + _PLACEHOLDER_NOTE
     if _IDENTIFIER_LIKE_RE.match(value):
         return severity, "MEDIUM", description + _IDENTIFIER_NOTE
@@ -2660,4 +2668,90 @@ def check_tempfile(path: Path, lines: list[str], tree: ast.Module | None) -> lis
                         description="Hardcoded path under a shared temporary directory — predictable name any local user can pre-create or symlink. Use the tempfile module.",
                     )
                 )
+    return results
+
+
+# ── Timing attack (converted from a line regex so the *compared name* is
+# what decides, not any word on the line) ─────────────────────────────────
+
+_TIMING_SECRET_RE = re.compile(
+    r"(?:^|_)(?:password|passwd|pwd|secret|token|auth|api_key|apikey|signature|otp)(?:_|$)", re.I
+)
+# A name that describes a secret rather than holding one: auth_type, token_kind.
+_TIMING_DESCRIPTOR_RE = re.compile(
+    r"(?:^|_)(?:type|kind|provider|scheme|version|status|mode|method|name|field|url|uri|id|len"
+    r"|length|count|enabled|disabled|required)(?:_|$)",
+    re.I,
+)
+_TIMING_PASSTHROUGH_METHODS = frozenset(
+    {"strip", "lstrip", "rstrip", "lower", "upper", "casefold", "decode", "encode", "hexdigest"}
+)
+
+
+def _compared_name(expr: ast.expr) -> str:
+    """The name of the value an operand denotes: ``token`` for ``token``,
+    ``self.token``, ``d["token"]``, ``headers.get("token")`` and
+    ``token.strip()``; ``""`` when there is none."""
+    if isinstance(expr, ast.Name):
+        return expr.id
+    if isinstance(expr, ast.Attribute):
+        return expr.attr
+    if isinstance(expr, ast.Subscript):
+        return _str_value(expr.slice) or ""
+    if isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute):
+        if expr.func.attr == "get" and expr.args:
+            return _str_value(expr.args[0]) or ""
+        if expr.func.attr in _TIMING_PASSTHROUGH_METHODS:
+            return _compared_name(expr.func.value)
+    return ""
+
+
+def _is_secret_name(name: str) -> bool:
+    return (
+        bool(name)
+        and bool(_TIMING_SECRET_RE.search(name))
+        and not _TIMING_DESCRIPTOR_RE.search(name)
+    )
+
+
+def check_timing_attack(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """CWE-208. ``==``/``!=`` between a value named like a secret
+    (``password``, ``auth_header``, ``request.args.get("token")``) and a
+    non-empty string literal. ``auth_type == "bearer"`` compares a
+    descriptor, ``token == ""`` tests emptiness; neither is reported."""
+    pk = _rel(path)
+    results: list[Finding] = []
+    seen: set[int] = set()
+    for node in ast.walk(tree) if tree else []:
+        if not isinstance(node, ast.Compare):
+            continue
+        operands = [node.left, *node.comparators]
+        for op, left, right in zip(node.ops, operands, operands[1:]):
+            if not isinstance(op, (ast.Eq, ast.NotEq)):
+                continue
+            for literal, other in ((left, right), (right, left)):
+                text = _str_value(literal)
+                # token != "None": a sentinel test, not a secret comparison.
+                if text is None or text in _LITERAL_WORDS or not any(ch.isalnum() for ch in text):
+                    continue
+                if not _is_secret_name(_compared_name(other)):
+                    continue
+                line = _node_line(node)
+                if line in seen:
+                    break
+                seen.add(line)
+                results.append(
+                    Finding(
+                        cwe_id="CWE-208",
+                        cwe_name="Timing Attack",
+                        severity="LOW",
+                        confidence="LOW",
+                        package="",
+                        file=pk,
+                        line=line,
+                        code_snippet=_code_at(lines, line),
+                        description="String comparison with == may leak timing information for secret comparison. Use secrets.compare_digest().",
+                    )
+                )
+                break
     return results
