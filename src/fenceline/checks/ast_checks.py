@@ -1366,13 +1366,22 @@ def _is_same_site_path(target: ast.expr) -> bool:
 
 def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-601. A ``redirect(...)``/``Redirect(...)`` call fed a non-literal
-    destination. ``HTTPTemporaryRedirect(...)``, ``authorize_redirect(...)``,
-    a redirect to a fixed path and one whose destination starts with a
-    literal path (``"/tasks/" + task_id``) are not open redirects."""
+    destination. ``HTTPTemporaryRedirect(...)``, ``authorize_redirect(...)``
+    and a redirect whose first argument is a string literal are not open
+    redirects: the literal is a fixed path or, in Django, a URL pattern name
+    whose other arguments are URL parameters (``redirect("hc-checks",
+    project.code)``). Nor is one whose destination starts with a literal
+    path (``"/tasks/" + task_id``)."""
     pk = _rel(path)
     results: list[Finding] = []
     for node in _calls(tree):
         if _call_name(node) not in _REDIRECT_CALLS:
+            continue
+        if (
+            node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
             continue
         data = _call_data(node)
         if data and _is_same_site_path(data[0]):
@@ -2300,34 +2309,51 @@ def check_log_secrets(path: Path, lines: list[str], tree: ast.Module | None) -> 
     return results
 
 
+def _fstring_values(args: list[ast.expr]) -> list[ast.expr]:
+    """The interpolated expressions of every f-string in *args*."""
+    return [
+        v.value
+        for a in args
+        if isinstance(a, ast.JoinedStr)
+        for v in a.values
+        if isinstance(v, ast.FormattedValue)
+    ]
+
+
 def check_log_injection(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-117. An f-string with interpolation passed positionally to a
-    logging call: the logger's own ``%s`` formatting is bypassed, so a value
-    carrying a newline forges a log entry."""
+    """CWE-117. An f-string passed positionally to a logging call
+    interpolates request data (or a parameter some caller feeds request
+    data): the logger's own ``%s`` formatting is bypassed, so a value
+    carrying a newline forges a log entry. An f-string over identifiers,
+    counts, exceptions or configuration is not reported: on ordinary code
+    those are nearly every logging line, and none of them is attacker
+    content."""
     pk = _rel(path)
     results: list[Finding] = []
     aliases = _import_aliases(tree)
     for node in _calls(tree):
         if not _is_logging_call(node, aliases):
             continue
-        if not any(
-            isinstance(a, ast.JoinedStr)
-            and any(isinstance(v, ast.FormattedValue) for v in a.values)
-            for a in node.args
-        ):
+        values = _fstring_values(node.args)
+        if not values:
             continue
+        taint = classify(tree, node, values)
+        if taint not in (Taint.SOURCE, Taint.CALLER):
+            continue
+        confidence, note = confidence_for(taint) or ("HIGH", "")
         line = _node_line(node)
         results.append(
             Finding(
                 cwe_id="CWE-117",
                 cwe_name="Log Injection / Forging",
                 severity="LOW",
-                confidence="HIGH",
+                confidence=confidence,
                 package="",
                 file=pk,
                 line=line,
                 code_snippet=_code_at(lines, line),
-                description="f-string in logger call — may embed newlines/CRLF from user input, forging log entries.",
+                description="f-string in logger call interpolates request data — a value carrying a newline or CRLF forges a log entry."
+                + note,
             )
         )
     return results

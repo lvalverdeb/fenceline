@@ -143,6 +143,15 @@ _CLEAN_CALLS = frozenset(
         "urllib.parse.quote_plus",
         "html.escape",
         "re.escape",
+        # Route builders: a same-site URL from a route name and escaped parameters.
+        "url_for",
+        "flask.url_for",
+        "reverse",
+        "reverse_lazy",
+        "django.urls.reverse",
+        "django.urls.reverse_lazy",
+        "resolve_url",
+        "django.shortcuts.resolve_url",
     }
 )
 
@@ -482,9 +491,19 @@ def _is_handler(
 
 
 def _is_orm_lookup(dotted: str) -> bool:
-    """``Model.objects.get(pk=x)`` and the rest of a Django manager chain:
-    the arguments pick a row, the result is stored data, not the request's."""
-    return ".objects." in dotted
+    """A database lookup: the arguments pick rows, the result is stored data,
+    not the request's. Django managers (``Model.objects.get(pk=x)``),
+    Flask-SQLAlchemy models (``Model.query.filter_by(id=x)``) and SQLAlchemy
+    sessions (``session.query(M)``, ``session.execute(stmt)``,
+    ``session.scalars(stmt)``, ``session.get(M, x)``)."""
+    parts = dotted.split(".")
+    if ".objects." in dotted or (len(parts) >= 2 and parts[-1] == "query"):
+        return True
+    return (
+        len(parts) >= 3
+        and parts[-2].endswith("session")
+        and parts[-1] in ("execute", "scalars", "scalar", "get")
+    )
 
 
 def _imports_web_framework(tree: ast.Module) -> bool:

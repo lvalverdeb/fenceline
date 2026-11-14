@@ -1379,6 +1379,35 @@ def test_taint_django_function_views_are_handlers():
     assert _taint_of(chain, 3) is Taint.INTERNAL
 
 
+def test_taint_orm_lookups_and_route_builders_are_not_request_data():
+    from fenceline.taint import Taint
+
+    flask = "from flask import request\n"
+    assert _taint_of(
+        flask + "def v(tid):\n    sink(Topic.query.filter_by(id=tid).first().url)\n", 3
+    ) is (Taint.INTERNAL)
+    assert (
+        _taint_of(flask + "def v(tid):\n    sink(db.session.get(Topic, tid))\n", 3)
+        is Taint.INTERNAL
+    )
+    assert _taint_of(
+        flask + "def v(tid):\n    sink(db_session.query(M).filter(M.id == tid))\n", 3
+    ) is (Taint.INTERNAL)
+    assert _taint_of(flask + "def v(tid):\n    sink(session.execute(stmt, {'id': tid}))\n", 3) is (
+        Taint.INTERNAL
+    )
+    # ``request.query`` is still the query string, not a lookup.
+    assert _taint_of("import aiohttp\ndef v(request):\n    sink(request.query.get('x'))\n", 3) is (
+        Taint.SOURCE
+    )
+    assert _taint_of(
+        flask + "def v(tid):\n    sink(url_for('topic', id=request.args['t']))\n", 3
+    ) is (Taint.CLEAN)
+    assert _taint_of(
+        "import django\ndef v(request, pk):\n    sink(reverse('x', args=[pk]))\n", 3
+    ) is (Taint.CLEAN)
+
+
 def test_taint_is_flow_insensitive_over_reassignment():
     from fenceline.taint import Taint
 
