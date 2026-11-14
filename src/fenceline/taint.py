@@ -458,7 +458,14 @@ def _is_view_class(cls: ast.ClassDef | None) -> bool:
     )
 
 
-def _is_handler(fn: ast.FunctionDef | ast.AsyncFunctionDef, cls: ast.ClassDef | None) -> bool:
+def _is_handler(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef, cls: ast.ClassDef | None, web: bool
+) -> bool:
+    """Does *fn* receive a request directly: a route-decorated function, an
+    HTTP-method handler on a view class, an AWS Lambda entry point, or, in a
+    module that imports a web framework (*web*), a function whose first
+    parameter is ``request`` (a Django, Pyramid or aiohttp function view,
+    whose other parameters are URL captures)?"""
     for deco in fn.decorator_list:
         target = deco.func if isinstance(deco, ast.Call) else deco
         dotted = _dotted_name(target) or ""
@@ -466,8 +473,18 @@ def _is_handler(fn: ast.FunctionDef | ast.AsyncFunctionDef, cls: ast.ClassDef | 
             return True
     if fn.name in _HANDLER_METHODS and _is_view_class(cls):
         return True
-    # An AWS Lambda entry point: the event is the request.
-    return [a.arg for a in (*fn.args.posonlyargs, *fn.args.args)] == ["event", "context"]
+    positional = [a.arg for a in (*fn.args.posonlyargs, *fn.args.args)]
+    if positional == ["event", "context"]:  # an AWS Lambda entry point
+        return True
+    if positional[:1] in (["self"], ["cls"]):
+        positional = positional[1:]
+    return web and positional[:1] == ["request"]
+
+
+def _is_orm_lookup(dotted: str) -> bool:
+    """``Model.objects.get(pk=x)`` and the rest of a Django manager chain:
+    the arguments pick a row, the result is stored data, not the request's."""
+    return ".objects." in dotted
 
 
 def _imports_web_framework(tree: ast.Module) -> bool:
@@ -525,7 +542,7 @@ def _scope_map(tree: ast.Module) -> _Scopes:
                     qualname = f"{prefix}{node.name}"
                     scope = _Scope(
                         params=params,
-                        handler=_is_handler(node, cls),
+                        handler=_is_handler(node, cls, module.web),
                         qualname=qualname,
                         cls=cls.name if cls is not None else None,
                         view_class=_is_view_class(cls),
@@ -657,6 +674,8 @@ class _Classifier:
                 return Taint.SOURCE
             if dotted in _CLEAN_CALLS or method in _CLEAN_METHODS:
                 return Taint.CLEAN
+            if _is_orm_lookup(dotted):
+                return Taint.INTERNAL
             return max(
                 self.expr(node.func, depth + 1),
                 self.many(node.args, depth + 1),

@@ -48,6 +48,22 @@ false-positive rate on ordinary code.
 
 ## Results
 
+### Unreleased main, Django function views (2026-11-14)
+
+In a module that imports a web framework, a function whose first parameter
+is `request` is now a handler, so its other parameters are URL captures and
+count as web input (`def upload(request, project_id)` in django.nV; the same
+shape serves Pyramid and aiohttp function views). Alongside it, a Django ORM
+lookup (`Model.objects.get(pk=project_id)` and the rest of a manager chain)
+now yields stored data at INTERNAL whatever selected the row, where before
+the row inherited the taint of its lookup key. The two rules cancel on
+django.nV: the view rule alone would have raised the two remaining false
+positives (`redirect(user.userprofile.image)` and the whole-file read of a
+stored upload) to HIGH, because both read a row selected by a URL capture,
+and the ORM rule keeps them at MEDIUM. No finding changes on the four apps
+or on the library corpus; the table above stands. The gain is in the model,
+not the numbers: a URL capture that reaches a sink directly is now HIGH.
+
 ### Unreleased main, check-shape fixes (2026-11-14)
 
 The two check shapes django.nV exposed are fixed. `check_open_redirect` no

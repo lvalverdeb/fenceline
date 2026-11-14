@@ -1357,6 +1357,28 @@ def test_taint_request_is_web_input_only_in_handlers_or_web_modules():
     )
 
 
+def test_taint_django_function_views_are_handlers():
+    from fenceline.taint import Taint
+
+    view = "def view(request, project_id):\n    sink(project_id)\n"
+    assert _taint_of(view, 2) is Taint.INTERNAL
+    assert _taint_of("import django\n" + view, 3) is Taint.SOURCE
+    assert _taint_of("from pyramid.view import view_config\n" + view, 3) is Taint.SOURCE
+    # ``request`` has to be the first parameter after ``self``/``cls``.
+    assert _taint_of("import django\ndef f(project_id, request):\n    sink(project_id)\n", 3) is (
+        Taint.INTERNAL
+    )
+    assert (
+        _taint_of("import django\nclass V:\n    def run(self, request, pk):\n        sink(pk)\n", 4)
+        is Taint.SOURCE
+    )
+    # A Django ORM lookup returns stored data, whatever selected the row.
+    orm = "import django\ndef view(request, pk):\n    obj = File.objects.get(pk=pk)\n    sink(obj.path)\n"
+    assert _taint_of(orm, 4) is Taint.INTERNAL
+    chain = "import django\ndef view(request, pk):\n    sink(File.objects.filter(pk=pk).first())\n"
+    assert _taint_of(chain, 3) is Taint.INTERNAL
+
+
 def test_taint_is_flow_insensitive_over_reassignment():
     from fenceline.taint import Taint
 
