@@ -14,7 +14,7 @@ false positives.
 | [dvpwa](https://github.com/anxolerd/dvpwa) | aiohttp | `4a8f4a4` | 674 |
 | [django.nV](https://github.com/nVisium/django.nV) | Django | `a48901f` | 2461 |
 
-Tools: fenceline main after 1.8.0 for the current table, 1.8.0 for the
+Tools: fenceline 1.9.0 for the current table, 1.8.0 for the
 three-app tables and 1.6.0 for the baseline (this repository; the Python and
 Rust ports give identical findings), Bandit 1.9.4 with default settings,
 Semgrep 1.185.0 with the community `p/python` ruleset. django.nV was added
@@ -48,7 +48,7 @@ false-positive rate on ordinary code.
 
 ## Results
 
-### Unreleased main, Django function views (2026-11-14)
+### 1.9.0: Django function views (2026-11-14)
 
 In a module that imports a web framework, a function whose first parameter
 is `request` is now a handler, so its other parameters are URL captures and
@@ -64,7 +64,7 @@ and the ORM rule keeps them at MEDIUM. No finding changes on the four apps
 or on the library corpus; the table above stands. The gain is in the model,
 not the numbers: a URL capture that reaches a sink directly is now HIGH.
 
-### Unreleased main, check-shape fixes (2026-11-14)
+### In 1.9.0: check-shape fixes (2026-11-14)
 
 The two check shapes django.nV exposed are fixed. `check_open_redirect` no
 longer reports a target that starts with a literal absolute path
@@ -90,7 +90,7 @@ Two django.nV false positives remain: `redirect(user.userprofile.image)`,
 a stored path fenceline cannot know is under `/static/`, and the whole-file
 read of a stored upload. Both are MEDIUM.
 
-### Unreleased main, four apps (2026-11-13)
+### In 1.9.0: four apps (2026-11-13)
 
 django.nV joins the corpus. It was chosen because its request data crosses a
 file boundary before reaching a sink (`views.upload` passes the POSTed name
@@ -138,7 +138,7 @@ traversal in `store_uploaded_file` (the upload's title becomes part of the
 destination path), the IDOR on every `pk=` lookup, the CSRF-exempt profile
 update, and the reflected XSS the app documents.
 
-### Unreleased main (2026-11-13)
+### In 1.9.0: request-name rule (2026-11-13)
 
 The name `request` is now web input only inside a handler or in a module
 that imports a web framework somewhere; elsewhere it resolves like any other

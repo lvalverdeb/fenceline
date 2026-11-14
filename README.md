@@ -152,7 +152,7 @@ tree whenever a Python file is staged:
 ```yaml
 repos:
   - repo: https://github.com/lvalverdeb/fenceline
-    rev: v1.8.0
+    rev: v1.9.0
     hooks:
       - id: fenceline
         # args: [--fail-on, critical, --baseline, fenceline-baseline.json]
@@ -166,7 +166,7 @@ django.nV), with every finding of all three tools adjudicated by hand. At
 1.6.0 fenceline sat between the two (76% precision, 53% recall against
 Bandit's 90% / 82% on the first three apps); the gap was three checks, and
 closing them put 1.8.0 at 92% precision and 94% recall there. On all four
-apps the current main is at 92% precision and 93% recall, against Bandit's
+apps 1.9.0 is at 92% precision and 93% recall, against Bandit's
 89% / 76% and Semgrep's 99% / 33% on the same ground truth, and 97%
 precision at `--confidence-min high`. The numbers, the labelling rules and
 `run.sh` are in [`benchmark/README.md`](benchmark/README.md).
