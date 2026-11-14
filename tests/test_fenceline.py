@@ -1325,6 +1325,38 @@ def test_taint_handler_parameters_are_sources():
     assert _taint_of("def helper(q):\n    sink(q)\n", 2) is Taint.INTERNAL
 
 
+def test_taint_request_is_web_input_only_in_handlers_or_web_modules():
+    from fenceline.taint import Taint
+
+    plain = "def helper(request):\n    sink(request.args['x'])\n"
+    assert _taint_of(plain, 2) is Taint.INTERNAL
+    assert _taint_of("import flask\n" + plain, 3) is Taint.SOURCE
+    assert _taint_of("from django.http import HttpResponse\n" + plain, 3) is Taint.SOURCE
+    assert _taint_of("from .http import request\n" + plain, 3) is Taint.INTERNAL
+    lazy = "def other():\n    from aiohttp import web\n" + plain
+    assert _taint_of(lazy, 4) is Taint.SOURCE
+    assert _taint_of("@app.route('/')\n" + plain, 3) is Taint.SOURCE
+    # ``from urllib import request`` is a module, not web input.
+    assert _taint_of(
+        "from urllib import request\ndef f(u):\n    sink(request.urlopen(u))\n", 3
+    ) is (Taint.INTERNAL)
+    # ``self.request`` follows the same rule, and ``self.request_timeout`` is
+    # not ``self.request``.
+    field = "class S:\n    def send(self):\n        sink(self.request.url)\n"
+    assert _taint_of(field, 3) is Taint.INTERNAL
+    assert _taint_of("import tornado\n" + field, 4) is Taint.SOURCE
+    assert (
+        _taint_of(
+            "import tornado\nclass S:\n    def send(self):\n        sink(self.request_timeout)\n", 4
+        )
+        is Taint.INTERNAL
+    )
+    # ``environ`` is unconditional.
+    assert _taint_of("def app(environ, start_response):\n    sink(environ['PATH_INFO'])\n", 2) is (
+        Taint.SOURCE
+    )
+
+
 def test_taint_is_flow_insensitive_over_reassignment():
     from fenceline.taint import Taint
 

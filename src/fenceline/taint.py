@@ -62,11 +62,40 @@ INTERNAL_NOTE = " No request or environment input reaches this call within the e
 CALLER_NOTE = " Request data reaches a parameter of this function from a caller in the package."
 
 # Names that carry request data in the frameworks fenceline recognises when
-# used as the root of an attribute, subscript or call chain.
+# used as the root of an attribute, subscript or call chain. ``request`` is
+# only a web request inside a handler or in a module that imports a web
+# framework (``_WEB_FRAMEWORKS``); elsewhere -- a client library building an
+# outbound request, ``from urllib import request`` -- it resolves like any
+# other name. ``environ`` is unconditional: WSGI or ``from os import environ``.
 _REQUEST_ROOTS = frozenset({"request", "environ"})
 
+# Top-level module names whose import marks a module as web-facing.
+_WEB_FRAMEWORKS = frozenset(
+    {
+        "aiohttp",
+        "blacksheep",
+        "bottle",
+        "chalice",
+        "cherrypy",
+        "connexion",
+        "django",
+        "falcon",
+        "fastapi",
+        "flask",
+        "litestar",
+        "pyramid",
+        "quart",
+        "rest_framework",
+        "sanic",
+        "starlette",
+        "tornado",
+        "webob",
+        "werkzeug",
+    }
+)
+
 # Dotted prefixes that are sources wherever they appear.
-_SOURCE_PREFIXES = ("os.environ", "sys.argv", "sys.stdin", "self.request")
+_SOURCE_PREFIXES = ("os.environ", "sys.argv", "sys.stdin")
 
 # Bare calls that read external input.
 _SOURCE_CALLS = frozenset({"input", "os.getenv", "os.environb.get"})
@@ -184,6 +213,9 @@ class _Scope:
     handler: bool
     assigns: dict[str, list[ast.expr]] = field(default_factory=dict)
     imports: set[str] = field(default_factory=set)
+    #: The module imports a web framework somewhere, so the name ``request``
+    #: (and ``self.request``) denotes an inbound web request.
+    web: bool = False
     #: ``Class.method`` / ``func`` / ``outer.inner``; "" for the module.
     qualname: str = ""
     #: Name of the class whose body directly holds this function, if any.
@@ -438,6 +470,19 @@ def _is_handler(fn: ast.FunctionDef | ast.AsyncFunctionDef, cls: ast.ClassDef | 
     return [a.arg for a in (*fn.args.posonlyargs, *fn.args.args)] == ["event", "context"]
 
 
+def _imports_web_framework(tree: ast.Module) -> bool:
+    """Does any ``import`` in *tree* (at any depth: views often import
+    lazily) name a web framework?"""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(alias.name.split(".", 1)[0] in _WEB_FRAMEWORKS for alias in node.names):
+                return True
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            if node.module.split(".", 1)[0] in _WEB_FRAMEWORKS:
+                return True
+    return False
+
+
 def _scope_map(tree: ast.Module) -> _Scopes:
     """``id(node) -> scope`` for every node in *tree* plus ``qualname ->
     scope`` for every function; module-level names are folded into every
@@ -447,7 +492,7 @@ def _scope_map(tree: ast.Module) -> _Scopes:
     cached = getattr(tree, "_fenceline_scopes", None)
     if cached is not None:
         return cached
-    module = _Scope(params=frozenset(), handler=False)
+    module = _Scope(params=frozenset(), handler=False, web=_imports_web_framework(tree))
     _collect(module, tree.body)
     scopes: dict[int, _Scope] = {}
     functions: dict[str, _Scope] = {}
@@ -484,6 +529,7 @@ def _scope_map(tree: ast.Module) -> _Scopes:
                         qualname=qualname,
                         cls=cls.name if cls is not None else None,
                         view_class=_is_view_class(cls),
+                        web=module.web,
                     )
                     scope.assigns = {k: list(v) for k, v in module.assigns.items()}
                     scope.imports = set(module.imports)
@@ -509,11 +555,6 @@ def _is_view_capture(dotted: str) -> bool:
     return dotted in ("self.kwargs", "self.args") or dotted.startswith(
         ("self.kwargs.", "self.args.")
     )
-
-
-def _source_chain(dotted: str) -> bool:
-    root = dotted.split(".", 1)[0]
-    return root in _REQUEST_ROOTS or dotted.startswith(_SOURCE_PREFIXES)
 
 
 class _Classifier:
@@ -545,9 +586,23 @@ class _Classifier:
                 break
         return worst
 
+    def request_root(self, name: str) -> bool:
+        """Is the bare name *name* (``request`` / ``environ``) a source here?"""
+        if name == "environ":
+            return True
+        return self.scope.web or self.scope.handler
+
+    def source_chain(self, dotted: str) -> bool:
+        root = dotted.split(".", 1)[0]
+        if root in _REQUEST_ROOTS:
+            return self.request_root(root)
+        if dotted == "self.request" or dotted.startswith("self.request."):
+            return self.request_root("request")
+        return dotted.startswith(_SOURCE_PREFIXES)
+
     def name(self, name: str, depth: int) -> Taint:
         scope = self.scope
-        if name in _REQUEST_ROOTS:
+        if name in _REQUEST_ROOTS and self.request_root(name):
             return Taint.SOURCE
         if name in self.clean_names:
             return Taint.CLEAN
@@ -586,7 +641,7 @@ class _Classifier:
             return self.name(node.id, depth)
         if isinstance(node, (ast.Attribute, ast.Subscript)):
             dotted = _dotted_name(node.value if isinstance(node, ast.Subscript) else node) or ""
-            if dotted and _source_chain(dotted):
+            if dotted and self.source_chain(dotted):
                 return Taint.SOURCE
             if self.scope.view_class and _is_view_capture(dotted):
                 return Taint.SOURCE
@@ -598,7 +653,7 @@ class _Classifier:
         if isinstance(node, ast.Call):
             dotted = _dotted_name(node.func) or ""
             method = node.func.attr if isinstance(node.func, ast.Attribute) else ""
-            if dotted in _SOURCE_CALLS or _source_chain(dotted) or method in _SOURCE_METHODS:
+            if dotted in _SOURCE_CALLS or self.source_chain(dotted) or method in _SOURCE_METHODS:
                 return Taint.SOURCE
             if dotted in _CLEAN_CALLS or method in _CLEAN_METHODS:
                 return Taint.CLEAN

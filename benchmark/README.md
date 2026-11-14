@@ -42,6 +42,20 @@ false-positive rate on ordinary code.
 
 ## Results
 
+### Unreleased main (2026-11-13)
+
+The name `request` is now web input only inside a handler or in a module
+that imports a web framework somewhere; elsewhere it resolves like any other
+name. No change on these three apps: every `request` here sits in a Flask,
+Django or aiohttp module. On the library corpus five findings moved from
+HIGH to MEDIUM: the two CRLF findings on botocore's chunked-encoding writer
+that the rule was meant to fix (the source was an outbound `AWSRequest`
+parameter), and three INFO-severity unbounded reads inside aiohttp's own
+websocket implementation, where `request` is a `BaseRequest` parameter but
+the framework imports itself relatively, so the module is not recognised as
+web-facing. The latter is a cost of the rule when scanning a framework's
+internals rather than an application built on it.
+
 ### 1.8.0 (2026-11-13)
 
 Cross-file parameter taint: a parameter that a caller anywhere in the
