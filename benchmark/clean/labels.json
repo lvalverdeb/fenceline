@@ -43,6 +43,14 @@
       "scanned": "cookbook + recipes",
       "lines": 20170,
       "note": "second held-out application of C2, scanned blind at 1.11.0 (141 findings, 3% strict, 65% lenient, 7.0 per 1,000 lines); in the tuning corpus since the Tandoor round"
+    },
+    "CTFd": {
+      "repo": "CTFd/CTFd",
+      "commit": "485d59e",
+      "framework": "Flask",
+      "scanned": "CTFd",
+      "lines": 23824,
+      "note": "third held-out application of C2, scanned blind at 1.12.0 (33 findings, 0% strict, 15% lenient, 1.4 per 1,000 lines); in the tuning corpus since the CTFd round"
     }
   },
   "labels": [
@@ -9934,6 +9942,412 @@
       "recipes/cookbook/views/api.py:2939",
       "false",
       "JSON-LD markup fed to the recipe scraper, never returned to a browser"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/admin/__init__.py:181",
+      "false",
+      "send_file() of an in-memory CSV export, not a path"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/admin/challenges.py:60",
+      "false",
+      "template paths declared by the challenge plugin class, not request data"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/admin/challenges.py:99",
+      "false",
+      "template paths declared by the challenge plugin class, not request data"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/admin/challenges.py:64",
+      "false",
+      "template paths declared by the challenge plugin class, not request data"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/api/v1/challenges.py:575",
+      "false",
+      "template paths declared by the challenge plugin class, not request data"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/api/v1/exports.py:32",
+      "false",
+      "send_file() of an in-memory CSV export, not a path"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "CTFd/CTFd/auth.py:404",
+      "false",
+      "the next parameter is checked with validators.is_safe_url() on the line before"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "CTFd/CTFd/auth.py:492",
+      "false",
+      "the next parameter is checked with validators.is_safe_url() on the line before"
+    ],
+    [
+      "fenceline",
+      "CWE-328",
+      "CTFd/CTFd/cache/__init__.py:122",
+      "false",
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "CTFd/CTFd/cli/__init__.py:61",
+      "by-design",
+      "the export command writes the backup where the operator asked"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "CTFd/CTFd/cli/__init__.py:68",
+      "by-design",
+      "the export command writes the backup where the operator asked"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "CTFd/CTFd/config.py:344",
+      "by-design",
+      "SECRET_KEY of the TestingConfig class, used by the test suite only"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "CTFd/CTFd/constants/email.py:20",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "CTFd/CTFd/constants/email.py:21",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "CTFd/CTFd/constants/email.py:27",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "CTFd/CTFd/constants/email.py:28",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/plugins/__init__.py:59",
+      "false",
+      "plugin-registered asset path captured in a closure at startup"
+    ],
+    [
+      "fenceline",
+      "CWE-89",
+      "CTFd/CTFd/utils/exports/__init__.py:247",
+      "false",
+      "KILL of a process id read from the database's own process list"
+    ],
+    [
+      "fenceline",
+      "CWE-89",
+      "CTFd/CTFd/utils/exports/__init__.py:416",
+      "by-design",
+      "Postgres sequence reset with a quote-checked table name from the database's own metadata (S608 note)"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "CTFd/CTFd/utils/exports/__init__.py:264",
+      "false",
+      "the handler prints the failure"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "CTFd/CTFd/utils/exports/__init__.py:487",
+      "false",
+      "the handler prints the failure"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "CTFd/CTFd/utils/git/github.py:52",
+      "false",
+      "GitHub/GitLab API client whose URL comes from the administrator's integration settings"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "CTFd/CTFd/utils/git/gitlab.py:36",
+      "false",
+      "GitHub/GitLab API client whose URL comes from the administrator's integration settings"
+    ],
+    [
+      "fenceline",
+      "CWE-79",
+      "CTFd/CTFd/utils/helpers/__init__.py:11",
+      "false",
+      "Markup() helper for template use; callers pass administrator-authored content (S704 note)"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "CTFd/CTFd/utils/initialization/__init__.py:383",
+      "false",
+      "the handler aborts with 401 to the client"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "CTFd/CTFd/utils/initialization/__init__.py:215",
+      "false",
+      "the configured application root joined with the request's own path"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "CTFd/CTFd/utils/sessions/__init__.py:87",
+      "by-design",
+      "an undeserialisable session is replaced by a fresh one"
+    ],
+    [
+      "fenceline",
+      "CWE-328",
+      "CTFd/CTFd/utils/uploads/__init__.py:76",
+      "false",
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/utils/uploads/uploaders.py:103",
+      "false",
+      "safe_join() with a None check for traversal"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "CTFd/CTFd/utils/uploads/uploaders.py:223",
+      "false",
+      "a presigned S3 URL generated by boto3, rehosted on the configured custom domain"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "CTFd/CTFd/utils/uploads/uploaders.py:81",
+      "false",
+      "destination from safe_join() after an invalid-filename check"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/views.py:543",
+      "false",
+      "safe_join() with a None check for traversal"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/views.py:566",
+      "false",
+      "safe_join() with a None check for traversal"
+    ],
+    [
+      "fenceline",
+      "CWE-1104",
+      "CTFd/uv.lock:1541",
+      "false",
+      "lockfile outside the scanned package; not part of the universe (werkzeug 2.2.3 is genuinely below the fixed version)"
+    ],
+    [
+      "bandit",
+      "B324",
+      "CTFd/CTFd/cache/__init__.py:122",
+      "false",
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+    ],
+    [
+      "bandit",
+      "B105",
+      "CTFd/CTFd/config.py:344",
+      "by-design",
+      "SECRET_KEY of the TestingConfig class, used by the test suite only"
+    ],
+    [
+      "bandit",
+      "B105",
+      "CTFd/CTFd/constants/email.py:20",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "bandit",
+      "B105",
+      "CTFd/CTFd/constants/email.py:22",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "bandit",
+      "B105",
+      "CTFd/CTFd/constants/email.py:27",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "bandit",
+      "B105",
+      "CTFd/CTFd/constants/email.py:29",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "bandit",
+      "B404",
+      "CTFd/CTFd/utils/exports/__init__.py:5",
+      "false",
+      "subprocess for the database dump tool with fixed argv (S603 note)"
+    ],
+    [
+      "bandit",
+      "B608",
+      "CTFd/CTFd/utils/exports/__init__.py:400",
+      "false",
+      "DELETE by an integer id read from the database"
+    ],
+    [
+      "bandit",
+      "B608",
+      "CTFd/CTFd/utils/exports/__init__.py:413",
+      "by-design",
+      "Postgres sequence reset with a quote-checked table name from the database's own metadata (S608 note)"
+    ],
+    [
+      "bandit",
+      "B603",
+      "CTFd/CTFd/utils/exports/__init__.py:522",
+      "false",
+      "subprocess for the database dump tool with fixed argv (S603 note)"
+    ],
+    [
+      "bandit",
+      "B704",
+      "CTFd/CTFd/utils/helpers/__init__.py:11",
+      "false",
+      "Markup() helper for template use; callers pass administrator-authored content (S704 note)"
+    ],
+    [
+      "bandit",
+      "B324",
+      "CTFd/CTFd/utils/uploads/__init__.py:76",
+      "false",
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+    ],
+    [
+      "semgrep",
+      "path-traversal-open",
+      "CTFd/CTFd/admin/__init__.py:95",
+      "false",
+      "plugin name checked against the plugins directory listing first"
+    ],
+    [
+      "semgrep",
+      "insecure-hash-algorithm-md5",
+      "CTFd/CTFd/cache/__init__.py:122",
+      "false",
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/email/__init__.py:43",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/email/__init__.py:59",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/email/__init__.py:78",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/email/__init__.py:99",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/email/__init__.py:115",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/social/__init__.py:57",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/social/__init__.py:95",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/social/__init__.py:113",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "insecure-hash-algorithm-sha1",
+      "CTFd/CTFd/utils/uploads/__init__.py:76",
+      "false",
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+    ],
+    [
+      "semgrep",
+      "raw-html-format",
+      "CTFd/CTFd/views.py:136",
+      "by-design",
+      "theme colour set by an administrator into the site's own style tag"
     ]
   ]
 }

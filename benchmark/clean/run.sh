@@ -31,9 +31,10 @@ clone flaskbb/flaskbb flaskbb 1028f176840be67a239be3763720c8e249eb70de
 clone home-assistant/core hacore e68768b8549fc7d6d06235858e9ebbc8bd1472b7 homeassistant/auth homeassistant/components/http
 clone pretalx/pretalx pretalx 1510dea9aafd580d1b2d7b8466736a09cd0298ec
 clone TandoorRecipes/recipes recipes 4fdc8549b5f1755ef135ccd05131f111f3b31a9c
+clone CTFd/CTFd CTFd 485d59e7bff790424f093be80ea9f6031b631f2d
 
-roots="healthchecks/hc dispatch/src/dispatch flaskbb/flaskbb hacore/homeassistant pretalx/src/pretalx recipes/cookbook recipes/recipes"
-$fenceline --package healthchecks=healthchecks/hc --package dispatch=dispatch/src/dispatch --package flaskbb=flaskbb/flaskbb --package hacore=hacore/homeassistant --package pretalx=pretalx/src/pretalx --package cookbook=recipes/cookbook --package settings=recipes/recipes --json >"$work/fenceline.json" || true
+roots="healthchecks/hc dispatch/src/dispatch flaskbb/flaskbb hacore/homeassistant pretalx/src/pretalx recipes/cookbook recipes/recipes CTFd/CTFd"
+$fenceline --package healthchecks=healthchecks/hc --package dispatch=dispatch/src/dispatch --package flaskbb=flaskbb/flaskbb --package hacore=hacore/homeassistant --package pretalx=pretalx/src/pretalx --package cookbook=recipes/cookbook --package settings=recipes/recipes --package ctfd=CTFd/CTFd --json >"$work/fenceline.json" || true
 uvx --quiet bandit==1.9.4 -q -r $roots -f json -o "$work/bandit.json" || true
 uvx --quiet semgrep==1.185.0 --config p/python --metrics=off --json -o "$work/semgrep.json" -q $roots || true
 

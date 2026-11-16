@@ -19,7 +19,7 @@ import sys
 CONFIDENCE_RANK = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
 # Test code and migrations are outside the universe for every tool alike.
 EXCLUDED = re.compile(
-    r"(^|/)(migrations|revisions|tests?|node_modules|venv|\.venv)(/|$)"
+    r"(^|/)(migrations|revisions|alembic|tests?|node_modules|venv|\.venv)(/|$)"
     r"|(^|/)tests?\.py$|(^|/)test_[^/]*\.py$|_test\.py$|(^|/)conftest\.py$"
 )
 TOOLS = ("fenceline", "bandit", "semgrep")

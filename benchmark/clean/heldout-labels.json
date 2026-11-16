@@ -1,11 +1,11 @@
 {
   "apps": {
-    "CTFd": {
-      "repo": "CTFd/CTFd",
-      "commit": "485d59e",
-      "framework": "Flask",
-      "scanned": "CTFd",
-      "lines": 23824
+    "mealie": {
+      "repo": "mealie-recipes/mealie",
+      "commit": "3d639dd",
+      "framework": "FastAPI",
+      "scanned": "mealie",
+      "lines": 43417
     }
   },
   "labels": [
@@ -16,409 +16,689 @@
   "verdicts": [
     [
       "fenceline",
-      "CWE-22",
-      "CTFd/CTFd/admin/__init__.py:181",
-      "false",
-      "send_file() of an in-memory CSV export, not a path"
+      "CWE-1327",
+      "mealie/mealie/app.py:178",
+      "by-design",
+      "a container-deployed server listens on all interfaces by default"
     ],
     [
       "fenceline",
-      "CWE-22",
-      "CTFd/CTFd/admin/challenges.py:60",
+      "CWE-90",
+      "mealie/mealie/core/security/providers/ldap_provider.py:126",
       "false",
-      "template paths declared by the challenge plugin class, not request data"
-    ],
-    [
-      "fenceline",
-      "CWE-22",
-      "CTFd/CTFd/admin/challenges.py:99",
-      "false",
-      "template paths declared by the challenge plugin class, not request data"
-    ],
-    [
-      "fenceline",
-      "CWE-22",
-      "CTFd/CTFd/admin/challenges.py:64",
-      "false",
-      "template paths declared by the challenge plugin class, not request data"
-    ],
-    [
-      "fenceline",
-      "CWE-22",
-      "CTFd/CTFd/api/v1/challenges.py:575",
-      "false",
-      "template paths declared by the challenge plugin class, not request data"
-    ],
-    [
-      "fenceline",
-      "CWE-22",
-      "CTFd/CTFd/api/v1/exports.py:32",
-      "false",
-      "send_file() of an in-memory CSV export, not a path"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "CTFd/CTFd/auth.py:404",
-      "false",
-      "the next parameter is checked with validators.is_safe_url() on the line before"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "CTFd/CTFd/auth.py:492",
-      "false",
-      "the next parameter is checked with validators.is_safe_url() on the line before"
-    ],
-    [
-      "fenceline",
-      "CWE-328",
-      "CTFd/CTFd/cache/__init__.py:122",
-      "false",
-      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+      "connects to the configured LDAP server; the queries are elsewhere"
     ],
     [
       "fenceline",
       "CWE-73",
-      "CTFd/CTFd/cli/__init__.py:61",
+      "mealie/mealie/core/security/providers/openid_provider.py:291",
+      "false",
+      "copies the application's own image files"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "mealie/mealie/core/settings/db_providers.py:38",
       "by-design",
-      "the export command writes the backup where the operator asked"
+      "the documented default of a settings class, overridden by the environment"
     ],
     [
       "fenceline",
-      "CWE-73",
-      "CTFd/CTFd/cli/__init__.py:68",
+      "CWE-798",
+      "mealie/mealie/core/settings/settings.py:328",
       "by-design",
-      "the export command writes the backup where the operator asked"
+      "the documented first-run default, with a docstring saying so"
     ],
     [
       "fenceline",
-      "CWE-798",
-      "CTFd/CTFd/config.py:344",
+      "CWE-532",
+      "mealie/mealie/core/settings/settings.py:110",
+      "false",
+      "a directory path whose name contains 'secrets'"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "mealie/mealie/core/settings/settings.py:115",
+      "false",
+      "a directory path whose name contains 'secrets'"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "mealie/mealie/db/models/_model_utils/datetime.py:47",
       "by-design",
-      "SECRET_KEY of the TestingConfig class, used by the test suite only"
+      "a datetime that cannot be normalised is stored as given"
     ],
     [
       "fenceline",
-      "CWE-798",
-      "CTFd/CTFd/constants/email.py:20",
-      "false",
-      "default e-mail subject and body templates named after the password-reset feature"
-    ],
-    [
-      "fenceline",
-      "CWE-798",
-      "CTFd/CTFd/constants/email.py:21",
-      "false",
-      "default e-mail subject and body templates named after the password-reset feature"
-    ],
-    [
-      "fenceline",
-      "CWE-798",
-      "CTFd/CTFd/constants/email.py:27",
-      "false",
-      "default e-mail subject and body templates named after the password-reset feature"
-    ],
-    [
-      "fenceline",
-      "CWE-798",
-      "CTFd/CTFd/constants/email.py:28",
-      "false",
-      "default e-mail subject and body templates named after the password-reset feature"
-    ],
-    [
-      "fenceline",
-      "CWE-22",
-      "CTFd/CTFd/plugins/__init__.py:59",
-      "false",
-      "plugin-registered asset path captured in a closure at startup"
-    ],
-    [
-      "fenceline",
-      "CWE-89",
-      "CTFd/CTFd/utils/exports/__init__.py:247",
-      "false",
-      "KILL of a process id read from the database's own process list"
-    ],
-    [
-      "fenceline",
-      "CWE-89",
-      "CTFd/CTFd/utils/exports/__init__.py:416",
+      "CWE-1327",
+      "mealie/mealie/main.py:37",
       "by-design",
-      "Postgres sequence reset with a quote-checked table name from the database's own metadata (S608 note)"
+      "a container-deployed server listens on all interfaces by default"
     ],
     [
       "fenceline",
-      "CWE-778",
-      "CTFd/CTFd/utils/exports/__init__.py:264",
+      "CWE-338",
+      "mealie/mealie/pkgs/cache/cache_key.py:8",
       "false",
-      "the handler prints the failure"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "CTFd/CTFd/utils/exports/__init__.py:487",
-      "false",
-      "the handler prints the failure"
+      "a cache key, not a credential"
     ],
     [
       "fenceline",
       "CWE-918",
-      "CTFd/CTFd/utils/git/github.py:52",
+      "mealie/mealie/pkgs/safehttp/flaresolverr.py:45",
       "false",
-      "GitHub/GitLab API client whose URL comes from the administrator's integration settings"
+      "the configured FlareSolverr endpoint"
     ],
     [
       "fenceline",
       "CWE-918",
-      "CTFd/CTFd/utils/git/gitlab.py:36",
+      "mealie/mealie/pkgs/safehttp/transport.py:246",
       "false",
-      "GitHub/GitLab API client whose URL comes from the administrator's integration settings"
+      "the SSRF-safe transport itself"
     ],
     [
       "fenceline",
-      "CWE-79",
-      "CTFd/CTFd/utils/helpers/__init__.py:11",
+      "CWE-798",
+      "mealie/mealie/repos/repository_factory.py:87",
       "false",
-      "Markup() helper for template use; callers pass administrator-authored content (S704 note)"
+      "a field name"
     ],
     [
       "fenceline",
-      "CWE-778",
-      "CTFd/CTFd/utils/initialization/__init__.py:383",
+      "CWE-338",
+      "mealie/mealie/repos/repository_users.py:41",
       "false",
-      "the handler aborts with 401 to the client"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "CTFd/CTFd/utils/initialization/__init__.py:215",
-      "false",
-      "the configured application root joined with the request's own path"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "CTFd/CTFd/utils/sessions/__init__.py:87",
-      "by-design",
-      "an undeserialisable session is replaced by a fresh one"
-    ],
-    [
-      "fenceline",
-      "CWE-328",
-      "CTFd/CTFd/utils/uploads/__init__.py:76",
-      "false",
-      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
-    ],
-    [
-      "fenceline",
-      "CWE-22",
-      "CTFd/CTFd/utils/uploads/uploaders.py:103",
-      "false",
-      "safe_join() with a None check for traversal"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "CTFd/CTFd/utils/uploads/uploaders.py:223",
-      "false",
-      "a presigned S3 URL generated by boto3, rehosted on the configured custom domain"
+      "a random default profile image"
     ],
     [
       "fenceline",
       "CWE-73",
-      "CTFd/CTFd/utils/uploads/uploaders.py:81",
+      "mealie/mealie/repos/repository_users.py:42",
       "false",
-      "destination from safe_join() after an invalid-filename check"
+      "copies the application's own image files"
     ],
     [
       "fenceline",
       "CWE-22",
-      "CTFd/CTFd/views.py:543",
+      "mealie/mealie/routes/_base/pdf.py:21",
       "false",
-      "safe_join() with a None check for traversal"
+      "a file the application wrote to its own temporary directory"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/routes/admin/admin_backups.py:99",
+      "false",
+      "the upload's stem (no directories) under the backup dir, admin-only"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/routes/admin/admin_debug.py:32",
+      "false",
+      "writes to a path the application chose inside its temporary directory"
+    ],
+    [
+      "fenceline",
+      "CWE-117",
+      "mealie/mealie/routes/auth/auth.py:269",
+      "true",
+      "the raw X-Forwarded-For header is logged unescaped"
+    ],
+    [
+      "fenceline",
+      "CWE-117",
+      "mealie/mealie/routes/auth/auth.py:265",
+      "true",
+      "the raw X-Forwarded-For header is logged unescaped"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "mealie/mealie/routes/auth/auth.py:269",
+      "false",
+      "the message names the password or token feature; no secret is interpolated"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "mealie/mealie/routes/auth/auth.py:391",
+      "false",
+      "the message names the password or token feature; no secret is interpolated"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/routes/groups/controller_migrations.py:40",
+      "false",
+      "writes to a path the application chose inside its temporary directory"
+    ],
+    [
+      "fenceline",
+      "CWE-117",
+      "mealie/mealie/routes/handlers.py:13",
+      "false",
+      "method and URL as parsed by the server; a line break cannot survive HTTP parsing or URL encoding"
+    ],
+    [
+      "fenceline",
+      "CWE-117",
+      "mealie/mealie/routes/handlers.py:14",
+      "true",
+      "the 422 error text echoes request body values unescaped"
     ],
     [
       "fenceline",
       "CWE-22",
-      "CTFd/CTFd/views.py:566",
+      "mealie/mealie/routes/media/media_recipe.py:29",
       "false",
-      "safe_join() with a None check for traversal"
+      "a UUID path parameter and an enum file name"
     ],
     [
       "fenceline",
-      "CWE-1104",
-      "CTFd/uv.lock:1541",
+      "CWE-22",
+      "mealie/mealie/routes/media/media_recipe.py:47",
       "false",
-      "lockfile outside the scanned package; not part of the universe (werkzeug 2.2.3 is genuinely below the fixed version)"
+      "a UUID path parameter and an enum file name"
     ],
     [
-      "bandit",
-      "B324",
-      "CTFd/CTFd/cache/__init__.py:122",
+      "fenceline",
+      "CWE-22",
+      "mealie/mealie/routes/media/media_recipe.py:64",
       "false",
-      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+      "resolve() then is_relative_to() against the owning directory, which is what the description asks for"
     ],
     [
-      "bandit",
-      "B105",
-      "CTFd/CTFd/config.py:344",
+      "fenceline",
+      "CWE-22",
+      "mealie/mealie/routes/media/media_user.py:22",
+      "false",
+      "resolve() then is_relative_to() against the owning directory, which is what the description asks for"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "mealie/mealie/routes/recipe/exports.py:39",
+      "false",
+      "a file the application wrote to its own temporary directory"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/routes/recipe/recipe_crud_routes.py:976",
+      "false",
+      "slugified name and allow-listed extension under the recipe's asset dir"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "mealie/mealie/routes/recipe/shared_routes.py:56",
+      "false",
+      "a file the application wrote to its own temporary directory"
+    ],
+    [
+      "fenceline",
+      "CWE-117",
+      "mealie/mealie/routes/recipe/shared_routes.py:32",
+      "false",
+      "token_id is a typed UUID path parameter"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "mealie/mealie/routes/recipe/shared_routes.py:32",
+      "false",
+      "a token id is logged, not the token"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "mealie/mealie/routes/spa/__init__.py:235",
+      "false",
+      "the handler returns a 404 response: the request ends with an error"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "mealie/mealie/routes/spa/__init__.py:257",
+      "false",
+      "the handler returns a 404 response: the request ends with an error"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "mealie/mealie/routes/spa/__init__.py:270",
+      "false",
+      "the handler returns a 404 response: the request ends with an error"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/routes/users/images.py:39",
+      "false",
+      "writes to a path the application chose inside its temporary directory"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/routes/users/images.py:34",
+      "false",
+      "writes to a path the application chose inside its temporary directory"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "mealie/mealie/routes/utility_routes.py:31",
+      "false",
+      "resolved path checked against the allowed directories first"
+    ],
+    [
+      "fenceline",
+      "CWE-1333",
+      "mealie/mealie/schema/_mealie/datetime_parse.py:30",
+      "false",
+      "anchored patterns whose repeats are separated by a literal; no overlapping alternatives"
+    ],
+    [
+      "fenceline",
+      "CWE-158",
+      "mealie/mealie/schema/openai/_base.py:8",
+      "false",
+      "a NUL-stripping regex: validation, not injection"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "mealie/mealie/schema/user/auth.py:24",
+      "false",
+      "a string field of a Pydantic request model; a length bound is a validation choice, not an unbounded read"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "mealie/mealie/schema/user/auth.py:25",
+      "false",
+      "a string field of a Pydantic request model; a length bound is a validation choice, not an unbounded read"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "mealie/mealie/schema/user/auth.py:40",
+      "false",
+      "a string field of a Pydantic request model; a length bound is a validation choice, not an unbounded read"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "mealie/mealie/schema/user/auth.py:41",
+      "false",
+      "a string field of a Pydantic request model; a length bound is a validation choice, not an unbounded read"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "mealie/mealie/schema/user/auth.py:42",
+      "false",
+      "a string field of a Pydantic request model; a length bound is a validation choice, not an unbounded read"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "mealie/mealie/schema/user/auth.py:43",
+      "false",
+      "a string field of a Pydantic request model; a length bound is a validation choice, not an unbounded read"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "mealie/mealie/scripts/change_password.py:31",
+      "false",
+      "the message names the password or token feature; no secret is interpolated"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "mealie/mealie/scripts/reprocess_images.py:117",
       "by-design",
-      "SECRET_KEY of the TestingConfig class, used by the test suite only"
+      "a maintenance script skips images it cannot process; the comment says so"
+    ],
+    [
+      "fenceline",
+      "CWE-1333",
+      "mealie/mealie/services/backups_v2/backup_v2.py:21",
+      "false",
+      "anchored patterns whose repeats are separated by a literal; no overlapping alternatives"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/services/backups_v2/backup_v2.py:39",
+      "false",
+      "the application's own backup, export and test files"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/services/backups_v2/backup_v2.py:88",
+      "false",
+      "the application's own backup, export and test files"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/services/backups_v2/backup_v2.py:84",
+      "false",
+      "the application's own backup, export and test files"
+    ],
+    [
+      "fenceline",
+      "CWE-208",
+      "mealie/mealie/services/email/email_senders.py:150",
+      "false",
+      "compares a configured mode name, not a secret"
+    ],
+    [
+      "fenceline",
+      "CWE-208",
+      "mealie/mealie/services/email/email_senders.py:151",
+      "false",
+      "compares a configured mode name, not a secret"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/services/exporter/exporter.py:37",
+      "false",
+      "the application's own backup, export and test files"
+    ],
+    [
+      "fenceline",
+      "CWE-93",
+      "mealie/mealie/services/household_services/mealplan_ical_service.py:194",
+      "false",
+      "the iCalendar format requires CRLF line endings"
+    ],
+    [
+      "fenceline",
+      "CWE-158",
+      "mealie/mealie/services/openai/openai.py:287",
+      "false",
+      "silence samples written to a WAV file"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/services/openai/openai.py:238",
+      "false",
+      "the application's own backup, export and test files"
+    ],
+    [
+      "fenceline",
+      "CWE-1333",
+      "mealie/mealie/services/parser_services/parser_utils/string_utils.py:82",
+      "false",
+      "anchored patterns whose repeats are separated by a literal; no overlapping alternatives"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "mealie/mealie/services/recipe/ai_recipe_service.py:118",
+      "false",
+      "writes to a path the application chose inside its temporary directory"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "mealie/mealie/services/recipe/import_workflow/context.py:21",
+      "false",
+      "a string field of a Pydantic request model; a length bound is a validation choice, not an unbounded read"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "mealie/mealie/services/recipe/import_workflow/context.py:30",
+      "false",
+      "a string field of a Pydantic request model; a length bound is a validation choice, not an unbounded read"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "mealie/mealie/services/recipe/import_workflow/context.py:33",
+      "false",
+      "a string field of a Pydantic request model; a length bound is a validation choice, not an unbounded read"
+    ],
+    [
+      "fenceline",
+      "CWE-1333",
+      "mealie/mealie/services/recipe/import_workflow/steps/translate_recipe.py:24",
+      "false",
+      "anchored patterns whose repeats are separated by a literal; no overlapping alternatives"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "mealie/mealie/services/user_services/password_reset_service.py:26",
+      "false",
+      "the message names the password or token feature; no secret is interpolated"
+    ],
+    [
+      "fenceline",
+      "CWE-532",
+      "mealie/mealie/services/user_services/password_reset_service.py:30",
+      "false",
+      "the message names the password or token feature; no secret is interpolated"
+    ],
+    [
+      "bandit",
+      "B104",
+      "mealie/mealie/app.py:178",
+      "by-design",
+      "a container-deployed server listens on all interfaces by default"
     ],
     [
       "bandit",
       "B105",
-      "CTFd/CTFd/constants/email.py:20",
+      "mealie/mealie/core/security/providers/openid_provider.py:125",
       "false",
-      "default e-mail subject and body templates named after the password-reset feature"
+      "an auth-provider marker, field name, cookie name or token type, not a credential"
     ],
     [
       "bandit",
       "B105",
-      "CTFd/CTFd/constants/email.py:22",
+      "mealie/mealie/core/security/providers/reverse_proxy_provider.py:38",
       "false",
-      "default e-mail subject and body templates named after the password-reset feature"
+      "an auth-provider marker, field name, cookie name or token type, not a credential"
+    ],
+    [
+      "bandit",
+      "B110",
+      "mealie/mealie/db/models/_model_utils/datetime.py:47",
+      "by-design",
+      "a datetime that cannot be normalised is stored as given"
+    ],
+    [
+      "bandit",
+      "B101",
+      "mealie/mealie/db/models/recipe/category.py:71",
+      "false",
+      "an assert on a model name or route type, not a security check"
+    ],
+    [
+      "bandit",
+      "B101",
+      "mealie/mealie/db/models/recipe/recipe.py:192",
+      "false",
+      "an assert on a model name or route type, not a security check"
+    ],
+    [
+      "bandit",
+      "B101",
+      "mealie/mealie/db/models/recipe/tag.py:65",
+      "false",
+      "an assert on a model name or route type, not a security check"
+    ],
+    [
+      "bandit",
+      "B104",
+      "mealie/mealie/main.py:37",
+      "by-design",
+      "a container-deployed server listens on all interfaces by default"
+    ],
+    [
+      "bandit",
+      "B311",
+      "mealie/mealie/pkgs/cache/cache_key.py:8",
+      "false",
+      "cache keys, a seeded shuffle and a default profile image, not credentials"
     ],
     [
       "bandit",
       "B105",
-      "CTFd/CTFd/constants/email.py:27",
+      "mealie/mealie/repos/repository_factory.py:87",
       "false",
-      "default e-mail subject and body templates named after the password-reset feature"
+      "an auth-provider marker, field name, cookie name or token type, not a credential"
+    ],
+    [
+      "bandit",
+      "B311",
+      "mealie/mealie/repos/repository_generic.py:449",
+      "false",
+      "cache keys, a seeded shuffle and a default profile image, not credentials"
+    ],
+    [
+      "bandit",
+      "B311",
+      "mealie/mealie/repos/repository_users.py:41",
+      "false",
+      "cache keys, a seeded shuffle and a default profile image, not credentials"
+    ],
+    [
+      "bandit",
+      "B101",
+      "mealie/mealie/routes/_base/controller.py:127",
+      "false",
+      "an assert on a model name or route type, not a security check"
     ],
     [
       "bandit",
       "B105",
-      "CTFd/CTFd/constants/email.py:29",
+      "mealie/mealie/routes/auth/auth.py:52",
       "false",
-      "default e-mail subject and body templates named after the password-reset feature"
+      "an auth-provider marker, field name, cookie name or token type, not a credential"
     ],
     [
       "bandit",
-      "B404",
-      "CTFd/CTFd/utils/exports/__init__.py:5",
+      "B105",
+      "mealie/mealie/routes/auth/auth.py:117",
       "false",
-      "subprocess for the database dump tool with fixed argv (S603 note)"
+      "an auth-provider marker, field name, cookie name or token type, not a credential"
+    ],
+    [
+      "bandit",
+      "B107",
+      "mealie/mealie/routes/auth/auth.py:238",
+      "false",
+      "an auth-provider marker, field name, cookie name or token type, not a credential"
+    ],
+    [
+      "bandit",
+      "B105",
+      "mealie/mealie/routes/users/api_tokens.py:30",
+      "false",
+      "an auth-provider marker, field name, cookie name or token type, not a credential"
+    ],
+    [
+      "bandit",
+      "B105",
+      "mealie/mealie/routes/users/registration.py:24",
+      "false",
+      "an auth-provider marker, field name, cookie name or token type, not a credential"
     ],
     [
       "bandit",
       "B608",
-      "CTFd/CTFd/utils/exports/__init__.py:400",
+      "mealie/mealie/scripts/reprocess_images.py:63",
       "false",
-      "DELETE by an integer id read from the database"
+      "table and sequence names from the ORM's own metadata"
+    ],
+    [
+      "bandit",
+      "B112",
+      "mealie/mealie/scripts/reprocess_images.py:117",
+      "by-design",
+      "a maintenance script skips images it cannot process; the comment says so"
     ],
     [
       "bandit",
       "B608",
-      "CTFd/CTFd/utils/exports/__init__.py:413",
-      "by-design",
-      "Postgres sequence reset with a quote-checked table name from the database's own metadata (S608 note)"
-    ],
-    [
-      "bandit",
-      "B603",
-      "CTFd/CTFd/utils/exports/__init__.py:522",
+      "mealie/mealie/services/backups_v2/alchemy_exporter.py:251",
       "false",
-      "subprocess for the database dump tool with fixed argv (S603 note)"
-    ],
-    [
-      "bandit",
-      "B704",
-      "CTFd/CTFd/utils/helpers/__init__.py:11",
-      "false",
-      "Markup() helper for template use; callers pass administrator-authored content (S704 note)"
-    ],
-    [
-      "bandit",
-      "B324",
-      "CTFd/CTFd/utils/uploads/__init__.py:76",
-      "false",
-      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+      "table and sequence names from the ORM's own metadata"
     ],
     [
       "semgrep",
-      "path-traversal-open",
-      "CTFd/CTFd/admin/__init__.py:95",
+      "python-logger-credential-disclosure",
+      "mealie/mealie/routes/auth/auth.py:391",
       "false",
-      "plugin name checked against the plugins directory listing first"
+      "the message names the password or token feature; no secret is interpolated"
     ],
     [
       "semgrep",
-      "insecure-hash-algorithm-md5",
-      "CTFd/CTFd/cache/__init__.py:122",
+      "avoid-sqlalchemy-text",
+      "mealie/mealie/schema/_mealie/mealie_model.py:186",
       "false",
-      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+      "a float class attribute, a table name from the ORM's metadata or a fixed state value in a text() statement"
     ],
     [
       "semgrep",
-      "flask-url-for-external-true",
-      "CTFd/CTFd/utils/email/__init__.py:43",
+      "avoid-sqlalchemy-text",
+      "mealie/mealie/schema/recipe/recipe.py:415",
       "false",
-      "absolute URLs for e-mails and OAuth, built from the configured server name"
+      "a float class attribute, a table name from the ORM's metadata or a fixed state value in a text() statement"
     ],
     [
       "semgrep",
-      "flask-url-for-external-true",
-      "CTFd/CTFd/utils/email/__init__.py:59",
+      "avoid-sqlalchemy-text",
+      "mealie/mealie/schema/recipe/recipe.py:432",
       "false",
-      "absolute URLs for e-mails and OAuth, built from the configured server name"
+      "a float class attribute, a table name from the ORM's metadata or a fixed state value in a text() statement"
     ],
     [
       "semgrep",
-      "flask-url-for-external-true",
-      "CTFd/CTFd/utils/email/__init__.py:78",
+      "python-logger-credential-disclosure",
+      "mealie/mealie/scripts/change_password.py:31",
       "false",
-      "absolute URLs for e-mails and OAuth, built from the configured server name"
+      "the message names the password or token feature; no secret is interpolated"
     ],
     [
       "semgrep",
-      "flask-url-for-external-true",
-      "CTFd/CTFd/utils/email/__init__.py:99",
+      "avoid-sqlalchemy-text",
+      "mealie/mealie/scripts/reprocess_images.py:63",
       "false",
-      "absolute URLs for e-mails and OAuth, built from the configured server name"
+      "a float class attribute, a table name from the ORM's metadata or a fixed state value in a text() statement"
     ],
     [
       "semgrep",
-      "flask-url-for-external-true",
-      "CTFd/CTFd/utils/email/__init__.py:115",
+      "avoid-sqlalchemy-text",
+      "mealie/mealie/services/backups_v2/alchemy_exporter.py:44",
       "false",
-      "absolute URLs for e-mails and OAuth, built from the configured server name"
+      "a float class attribute, a table name from the ORM's metadata or a fixed state value in a text() statement"
     ],
     [
       "semgrep",
-      "flask-url-for-external-true",
-      "CTFd/CTFd/utils/social/__init__.py:57",
+      "avoid-sqlalchemy-text",
+      "mealie/mealie/services/backups_v2/alchemy_exporter.py:47",
       "false",
-      "absolute URLs for e-mails and OAuth, built from the configured server name"
+      "a float class attribute, a table name from the ORM's metadata or a fixed state value in a text() statement"
     ],
     [
       "semgrep",
-      "flask-url-for-external-true",
-      "CTFd/CTFd/utils/social/__init__.py:95",
+      "avoid-sqlalchemy-text",
+      "mealie/mealie/services/backups_v2/alchemy_exporter.py:253",
       "false",
-      "absolute URLs for e-mails and OAuth, built from the configured server name"
-    ],
-    [
-      "semgrep",
-      "flask-url-for-external-true",
-      "CTFd/CTFd/utils/social/__init__.py:113",
-      "false",
-      "absolute URLs for e-mails and OAuth, built from the configured server name"
-    ],
-    [
-      "semgrep",
-      "insecure-hash-algorithm-sha1",
-      "CTFd/CTFd/utils/uploads/__init__.py:76",
-      "false",
-      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
-    ],
-    [
-      "semgrep",
-      "raw-html-format",
-      "CTFd/CTFd/views.py:136",
-      "by-design",
-      "theme colour set by an administrator into the site's own style tag"
+      "a float class attribute, a table name from the ORM's metadata or a fixed state value in a text() statement"
     ]
   ]
 }

@@ -51,6 +51,12 @@ false-positive rate on ordinary code.
 
 ## Results
 
+### Unreleased (2026-11-16): the CTFd round
+
+No change on the vulnerable apps: 207 raw findings in both ports, the same
+201 scored, 96% precision, recall 187/201. The round's seven shapes (under
+the clean corpus below) do not occur in intentionally vulnerable code.
+
 ### 1.12.0 (2026-11-16): the Tandoor round
 
 The handler round (under the clean corpus below) changed six check shapes.
@@ -364,12 +370,12 @@ B403 2, B105 2, B406 2, B608 2, one each of B409/B104/B108; Semgrep one
 ## Clean-code corpus
 
 `clean/` holds the measurement the vulnerable apps cannot give: precision on
-ordinary code. Six maintained applications, pinned and scanned at their
+ordinary code. Seven maintained applications, pinned and scanned at their
 application package; every finding of all three tools in scope adjudicated
-by hand. The first four were chosen one per framework; the fifth and sixth,
-pretalx and Tandoor Recipes, were the held-out applications of the first
-two tuning rounds and joined the corpus once the checks had been tuned
-against them (D7 and D8 in `ROADMAP.md`).
+by hand. The first four were chosen one per framework; the fifth, sixth and
+seventh, pretalx, Tandoor Recipes and CTFd, were the held-out applications
+of the first three tuning rounds and joined the corpus once the checks had
+been tuned against them (D7, D8 and D9 in `ROADMAP.md`).
 
 | App | Framework | Commit | Scanned | Lines in scope |
 |---|---|---|---|---|
@@ -379,10 +385,11 @@ against them (D7 and D8 in `ROADMAP.md`).
 | [home-assistant/core](https://github.com/home-assistant/core) | aiohttp | `e68768b` | `homeassistant/auth/`, `homeassistant/components/http/` (sparse checkout) | 25967 |
 | [pretalx](https://github.com/pretalx/pretalx) | Django | `1510dea` | `src/pretalx/` | 64074 |
 | [Tandoor Recipes](https://github.com/TandoorRecipes/recipes) | Django | `4fdc854` | `cookbook/`, `recipes/` | 20170 |
+| [CTFd](https://github.com/CTFd/CTFd) | Flask | `485d59e` | `CTFd/` | 23824 |
 
 Tools: fenceline 1.9.0, Bandit 1.9.4, Semgrep 1.185.0 `p/python`, as in the
 main benchmark. The universe is the same too: findings on `.py` files outside
-tests and migrations (alembic `revisions/` included), so manifest findings
+tests and migrations (alembic `revisions/` and `alembic/` included), so manifest findings
 and fenceline's test-code suppression are out of the picture for every tool.
 Home Assistant is scanned at the two packages that face requests; the
 sparse checkout also brings in the top-level modules they import, which are
@@ -406,7 +413,143 @@ design*. Recall is not measured: nobody knows how many weaknesses these
 applications hold. `clean/score.py` refuses to run if any in-scope finding
 has no verdict, so the labels are complete by construction.
 
-### Held-out application: CTFd (2026-11-16, at 1.12.0)
+### Held-out application: Mealie (2026-11-16, unreleased tree after the CTFd round)
+
+The fourth blind measurement, the second on a framework other than Django:
+[Mealie](https://github.com/mealie-recipes/mealie) (FastAPI, `3d639dd`,
+`mealie/`, 43417 lines in scope), a recipe manager with a FastAPI backend,
+chosen before any check of the CTFd round was touched. Labels are in
+`heldout-labels.json`, the runner is `heldout.sh`. Mealie's alembic
+migrations live under `alembic/versions/`, so `alembic/` joined the
+exclusion list of the universe; no finding of the seven corpus apps moved.
+
+| Tool | Findings | True | By design | False | Precision (strict) | Precision (lenient) | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| fenceline | 68 | 3 | 6 | 59 | 4% | 13% | 1.6 |
+| fenceline (--confidence-min high) | 27 | 3 | 4 | 20 | 11% | 26% | 0.6 |
+| Bandit | 21 | 0 | 4 | 17 | 0% | 19% | 0.5 |
+| Semgrep | 9 | 0 | 0 | 9 | 0% | 0% | 0.2 |
+
+**What it says.** All three gates fail again: 13% lenient at default
+against 35%, 26% at HIGH against 70%, 1.6 findings per 1,000 lines against
+1.0. The three true findings are log injection, found by fenceline alone:
+the raw `X-Forwarded-For` header interpolated into two error logs in the
+token endpoint, and the 422 handler logging the validation error text,
+which echoes request body values. Blind density across the four held-out
+applications has read 3.5, 7.0, 1.4, 1.6.
+
+**The false positives, 59.** `CWE-73` 14: `shutil.copyfileobj(upload.file,
+buffer)` into a temporary path the application chose, rated HIGH because
+the check rates the content being copied, not the destination; copies of
+the application's own backup, export and image files. `CWE-770` 9:
+`username: str`, `password: str` and other string fields of Pydantic
+request models reported as unbounded reads. `CWE-532` 8: a `secrets_dir`
+path, messages that name the password-reset or token feature, a token id.
+`CWE-22` 8: `FileResponse()` of a path checked with `.resolve()` and
+`is_relative_to()` (the guard the description asks for), of a UUID path
+parameter joined with an enum file name, or of a file the application
+wrote to its own temporary directory. `CWE-1333` 4: anchored regexes whose
+repeats are separated by a literal. `CWE-778` 3: SPA handlers that
+`return response_404()`. `CWE-208` 2: a configured SMTP mode compared with
+`==`. `CWE-158` 2: a NUL-stripping regex `[\x00\u0000]` and silence
+samples in a WAV file. `CWE-117` 2: the request method and URL as parsed
+by the server, and a UUID path parameter. `CWE-338` 2, `CWE-918` 2 (one is
+the SSRF-safe transport itself), `CWE-90`, `CWE-798` (a field name),
+`CWE-93` (iCalendar requires CRLF).
+
+**Observations, recorded and not fixed** (the blind rule): `CWE-73` rates
+the copied content rather than the destination path; `.resolve()` followed
+by `is_relative_to()` is not recognised as a path guard; Pydantic `str`
+fields are reported as unbounded reads; a handler that returns an error
+response is not recognised as handling; a `[\x00...]` character class is
+not recognised as validation; `==` on a configured mode name is reported
+as a timing leak. `ROADMAP.md`, D10.
+
+**Port divergence.** None in findings: 71 in both ports. The Rust port
+skips ten files for PEP 701 f-strings, none of which carries a finding in
+the Python port.
+
+### Unreleased (2026-11-16): the CTFd round, seven apps
+
+The round the D9 text asked for, in both ports with parity. A guard may
+vouch for a stable expression and not only a name, so `if
+is_safe_url(request.args.get("next")): return
+redirect(request.args.get("next"))` is validated; guard keys are canonical
+forms of the expression and die when their root name is rebound.
+`safe_join()` (werkzeug, flask, django) is a path sanitiser, and a
+comprehension whose element is clean is clean whatever it iterates over, so
+`send_file(cand)` fed from `(safe_join(...) for t in themes)` is not
+reported. `x.lstrip("/")` on a field read off the application's own object
+is normalisation, not a sanitiser of input; a bare name stays at MEDIUM. A
+catch-all handler that `print()`s, echoes, writes to stdout or stderr, or
+`abort()`s has dealt with the exception. A redirect concatenation whose tail
+is literals, the request's own path or route builders takes the taint of its
+leading operand (`prefix + "/login/?next=" + request.path` goes where
+`prefix` goes). `password_reset` and `password_change` names in the other
+word order are not secrets. And `# noqa: S608` or `# nosec B608` suppress
+the fenceline checks that cover the same Bandit rule: the authors have
+adjudicated that line for another tool already. Then CTFd joined the corpus
+and Mealie was measured blind (above).
+
+The corpus is now seven apps and 236,827 lines:
+
+| Tool | Findings | True | By design | False | Precision (strict) | Precision (lenient) | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| fenceline | 200 | 25 | 50 | 125 | 12% | 38% | 0.8 |
+| fenceline (--confidence-min high) | 108 | 21 | 38 | 49 | 19% | 55% | 0.5 |
+| Bandit | 391 | 14 | 39 | 338 | 4% | 14% | 1.7 |
+| Semgrep | 52 | 0 | 3 | 49 | 0% | 6% | 0.2 |
+
+| Confidence | Findings | True | By design | False | Share true |
+|---|---|---|---|---|---|
+| HIGH | 108 | 21 | 38 | 49 | 19% |
+| MEDIUM | 90 | 4 | 12 | 74 | 4% |
+| LOW | 2 | 0 | 0 | 2 | 0% |
+
+| App | Framework | Lines | Findings | True | By design | False | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| healthchecks | Django | 16884 | 15 | 0 | 3 | 12 | 0.9 |
+| dispatch | FastAPI | 62177 | 53 | 19 | 4 | 30 | 0.9 |
+| flaskbb | Flask | 23731 | 21 | 4 | 7 | 10 | 0.9 |
+| hacore | aiohttp | 25967 | 13 | 0 | 2 | 11 | 0.5 |
+| pretalx | Django | 64074 | 43 | 0 | 1 | 42 | 0.7 |
+| recipes | Django | 20170 | 41 | 2 | 28 | 11 | 2.0 |
+| CTFd | Flask | 23824 | 14 | 0 | 5 | 9 | 0.6 |
+
+False positives by check: `CWE-601` 41 (28 at HIGH), `CWE-117` 23,
+`CWE-22` 12, `CWE-918` 10, `CWE-73` 7, `CWE-328` 7, `CWE-338` 6, `CWE-770`
+5, `CWE-79` 3, `CWE-798` 2, nine others once each.
+
+**The six apps, before and after.** 233 findings at 1.12.0, 186 now: 25
+true, 45 by design, 116 false, 13% strict and 38% lenient at 0.9 per 1,000
+(HIGH: 105 findings, 20% and 55% at 0.5; was 117, 18% and 50%). Forty-three
+of the 47 findings removed are pretalx lines carrying `# noqa: S308`,
+`S311` or `S324`: `mark_safe()` of static markup, cosmetic `random`, MD5
+for cache busting, each with the authors' reason in the comment. pretalx
+went from 86 findings to 43 (1.3 to 0.7 per 1,000). Tandoor went from 45
+to 41: the login redirect led by a configured prefix, and three handlers
+that print or write the failure to the command output. For the first time
+the tuning set meets the density gate and the default lenient gate; the
+HIGH lenient gate (70%) is not met at 55%.
+
+**CTFd, before and after.** 33 findings at 1.12.0, 14 now: 0 true, 5 by
+design, 9 false, 36% lenient at 0.6 per 1,000 (HIGH: 3 findings, 0.1).
+Gone: the two validated `next` redirects, the application-root redirect
+(now MEDIUM: its lead is configuration), the seven `send_file()` and
+`lstrip()` paths, the four password-action e-mail templates, the two
+handlers that print and the one that aborts, and the three `# noqa` lines.
+What remains: `send_file()` of an in-memory CSV export (two, HIGH: a
+type-shaped case the model cannot see), the two API client wrappers, the
+presigned S3 URL, `KILL {proc_id}`, `copyfileobj()` to a `safe_join()`
+destination (the copied content is rated), and the by-design findings.
+
+**Elsewhere.** Library corpus unchanged at 220; vulnerable benchmark
+unchanged (top of this file).
+
+**Port divergence.** Unchanged: the PEP 695 file in Home Assistant and the
+two PEP 701 files in Tandoor.
+
+### Held-out application: CTFd (2026-11-16, at 1.12.0; in the corpus since 2026-11-16)
 
 The third blind measurement and the first on an application that is not
 Django: [CTFd](https://github.com/CTFd/CTFd) (Flask, `485d59e`, `CTFd/`,

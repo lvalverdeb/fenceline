@@ -22,8 +22,13 @@ Third held-out application (CTFd, Flask, 23,824 lines) measured blind: 0%
 strict, 15% lenient, 1.4 per 1,000 lines, nothing true found by any tool;
 all three gates fail, and blind density has read 3.5, 7.0, 1.4 across the
 three rounds. D9 accepted 2026-11-16 as (a): released as 1.12.0 from
-that tree; the CTFd round (seven shapes, CTFd into the corpus, a fourth
-blind application on a third framework) is the current work.
+that tree. CTFd round done 2026-11-16, unreleased: seven-app corpus 12%
+strict / 38% lenient at 0.8 per 1,000 lines (19% / 55% at HIGH, 0.5), the
+first time the tuning set meets the density and default gates; vulnerable
+benchmark unchanged. Fourth held-out application (Mealie, FastAPI, 43,417
+lines) measured blind: 4% strict, 13% lenient, 1.6 per 1,000, three true
+log-injection findings; all three gates fail, blind density 3.5, 7.0, 1.4,
+1.6. D10 open.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 
@@ -277,6 +282,48 @@ seven times in the other five apps.
 **D9 accepted 2026-11-16, as (a).** 1.12.0 released from the measured
 tree. The CTFd round follows, as the first item.
 
+**CTFd round done 2026-11-16, unreleased. Outcome.** Seven shapes in both
+ports: guards on stable expressions (`is_safe_url(request.args.get("next"))`),
+`safe_join()` as a sanitiser with clean-element comprehensions, `lstrip()`
+on the application's own fields, `print()`/`abort()`/stdout writes as
+handling, redirect concatenations rated by their leading operand,
+`password_reset` word order, and `# noqa: Sxxx`/`# nosec Bxxx` suppressing
+the matching fenceline checks. CTFd went from 33 findings to 14 (1.4 to
+0.6 per 1,000, 36% lenient) and joined the corpus. Seven apps, 236,827
+lines: 200 findings, 25 true, 50 by design, 125 false, 12% strict and 38%
+lenient at 0.8 per 1,000; at HIGH 108 findings, 19% and 55% at 0.5. The
+six previous apps went from 233 to 186, forty-three of them pretalx lines
+the authors had already marked with `# noqa` and a reason. Vulnerable
+benchmark and library corpus unchanged. The fourth held-out application,
+Mealie (FastAPI, `3d639dd`, 43,417 lines, chosen before any check was
+touched), read 68 findings, 3 true, 6 by design, 59 false: 4% strict, 13%
+lenient, 1.6 per 1,000; at HIGH 27 findings, 26% lenient at 0.6. The three
+true findings are log injection of the raw `X-Forwarded-For` header and of
+the 422 error text, found by fenceline alone; Bandit and Semgrep found
+nothing true at 0.5 and 0.2 per 1,000. Two of the 59 false findings are
+check defects rather than shapes: `CWE-73` rates the content copied rather
+than the destination path (14 findings), and `.resolve()` followed by
+`is_relative_to()` is not recognised as the path guard the `CWE-22`
+description itself asks for. The rest are recorded in
+`benchmark/README.md` and not fixed.
+
+**D10, open.** Where C2 ends. Four blind applications have read 1%, 65%,
+15% and 13% lenient at 3.5, 7.0, 1.4 and 1.6 per 1,000 lines; the tuning
+set, now seven apps, meets two of the three gates. (a) Release 1.13.0 from
+this tree; a Mealie round limited to the two check defects and the two
+cheap shapes (error-response returns as handling, Pydantic `str` fields),
+Mealie into the corpus; then close C2 as measured and not met on blind
+applications, keep the eight-app corpus as the regression gate (no check
+change may lower its lenient precision or raise its density), and start
+C3. (b) The same, then a fifth blind application and another round. (c)
+Close C2 now, without the Mealie round. (a) is the recommendation: blind
+density has plateaued near 1.5 per 1,000 across two frameworks while each
+round still removes a third of a blind app's findings, so the remaining
+gap is per-application idiom rather than a shape a next round would
+generalise; the two Mealie defects are worth fixing regardless; and C3 is
+the instrument with headroom for the number that matters next, recall on
+real vulnerabilities.
+
 ### Phase C3: a CVE regression set
 
 The instrument with headroom for recall. Instead of a fifth intentionally
@@ -420,3 +467,7 @@ Semgrep replacement.
   with a fourth blind app on a third framework (recommended), close C2 as
   measured, or restore fallback-value handlers at lower confidence.
   Accepted 2026-11-16 as the first.
+- **D10** After the fourth held-out measurement (all gates failed again,
+  blind density 1.6): release 1.13.0, a Mealie round limited to the two
+  check defects, then close C2 with the corpus as the regression gate and
+  start C3 (recommended); the same plus a fifth blind app; or close C2 now.
