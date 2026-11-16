@@ -11091,6 +11091,48 @@
       "healthchecks/hc/integrations/webhook/transport.py:96",
       "by-design",
       "the Webhook integration exists to call the URL the user configured; healthchecks documents this as the integration's purpose"
+    ],
+    [
+      "fenceline",
+      "CWE-208",
+      "healthchecks/hc/integrations/email/views.py:77",
+      "true",
+      "the email-verification token is compared with ==; a real if low-impact timing channel"
+    ],
+    [
+      "fenceline",
+      "CWE-208",
+      "healthchecks/hc/integrations/email/views.py:108",
+      "true",
+      "same token compared with != in the unsubscribe view"
+    ],
+    [
+      "fenceline",
+      "CWE-208",
+      "mealie/mealie/core/security/hasher.py:20",
+      "by-design",
+      "FakeHasher.verify(): the plaintext hasher used in tests and development"
+    ],
+    [
+      "fenceline",
+      "CWE-208",
+      "mealie/mealie/schema/user/registration.py:34",
+      "false",
+      "password confirmation in a registration form; both values come from the same client"
+    ],
+    [
+      "fenceline",
+      "CWE-208",
+      "recipes/cookbook/helper/cooklang_parser.py:136",
+      "false",
+      "lexer token in the Cooklang parser, not a secret"
+    ],
+    [
+      "fenceline",
+      "CWE-208",
+      "recipes/cookbook/helper/cooklang_parser.py:148",
+      "false",
+      "lexer token in the Cooklang parser, not a secret"
     ]
   ]
 }

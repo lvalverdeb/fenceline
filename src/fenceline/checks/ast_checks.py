@@ -3098,8 +3098,10 @@ def _is_secret_name(name: str) -> bool:
 def check_timing_attack(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     """CWE-208. ``==``/``!=`` between a value named like a secret
     (``password``, ``auth_header``, ``request.args.get("token")``) and a
-    non-empty string literal. ``auth_type == "bearer"`` compares a
-    descriptor, ``token == ""`` tests emptiness; neither is reported."""
+    non-empty string literal, or between such a value and another non-literal
+    value (``app.auth[username] == password``). ``auth_type == "bearer"``
+    compares a descriptor, ``token == ""`` tests emptiness, ``password !=
+    password_confirm`` compares two secrets; none is reported."""
     pk = _rel(path)
     results: list[Finding] = []
     seen: set[int] = set()
@@ -3109,6 +3111,38 @@ def check_timing_attack(path: Path, lines: list[str], tree: ast.Module | None) -
         operands = [node.left, *node.comparators]
         for op, left, right in zip(node.ops, operands, operands[1:]):
             if not isinstance(op, (ast.Eq, ast.NotEq)):
+                continue
+            if _str_value(left) is None and _str_value(right) is None:
+                # ``app.auth[username] == password``: a secret against a
+                # looked-up value, the shape of a login check. Not when both
+                # sides are secrets (``password != password_confirm`` is a
+                # form check), nor when either side is an ALL_CAPS name: a
+                # constant or sentinel (``op != Actions.RESET_PASSWORD``,
+                # ``password == ENCRYPTED_PASSWORD_PLACEHOLDER``).
+                names = [_compared_name(left), _compared_name(right)]
+                secret = [_is_secret_name(n) for n in names]
+                if (
+                    sum(secret) == 1
+                    and not any(n.isupper() for n in names)
+                    and not any(isinstance(x, ast.Constant) for x in (left, right))
+                ):
+                    line = _node_line(node)
+                    if line in seen:
+                        break
+                    seen.add(line)
+                    results.append(
+                        Finding(
+                            cwe_id="CWE-208",
+                            cwe_name="Timing Attack",
+                            severity="LOW",
+                            confidence="LOW",
+                            package="",
+                            file=pk,
+                            line=line,
+                            code_snippet=_code_at(lines, line),
+                            description="Secret compared with == may leak timing information. Use secrets.compare_digest().",
+                        )
+                    )
                 continue
             for literal, other in ((left, right), (right, left)):
                 text = _str_value(literal)

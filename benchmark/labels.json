@@ -284,6 +284,12 @@
       "CWE-601",
       "django.nV/taskManager/views.py:225",
       "stored upload path under /static/, not a request value"
+    ],
+    [
+      "fenceline",
+      "CWE-208",
+      "vulpy/good/libuser.py:131",
+      "compares the new password against a leaked-password list; neither side is a secret the attacker is guessing"
     ]
   ],
   "same_instance": [

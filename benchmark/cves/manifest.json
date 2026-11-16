@@ -63,7 +63,7 @@
       "class": "covered",
       "summary": "Arbitrary file write: `HttpArtifactRepository.list_artifacts()` trusts the paths a remote server returns and writes files anywhere.",
       "sink": "mlflow/store/artifact/http_artifact_repo.py:104",
-      "root_cause": "The write is `open(local_path, \"wb\")` with a parameter path; the traversal is in the file listing a remote server returned, two calls up and in another file. fenceline has no write-`open()` sink; its CWE-73 covers copy and move only.",
+      "root_cause": "The write is `open(local_path, \"wb\")` with a parameter path; the traversal is in the file listing a remote server returned, two calls up and in another file. fenceline has no write-`open()` sink; its CWE-73 covers copy and move only. A write-`open()` sink was prototyped and declined: it finds this line at MEDIUM and adds eleven MEDIUM findings to the eight-app corpus (CLI, backup and settings writers at operator-chosen paths), lenient precision 34% to 33%.",
       "also": [
         "mlflow/store/artifact/artifact_repo.py:117"
       ],
@@ -115,7 +115,7 @@
       "class": "covered",
       "summary": "OS command injection: the example bash DAG renders `run_id` into `bash_command`; `run_id` is set by whoever triggers the DAG.",
       "sink": "airflow/example_dags/example_bash_operator.py:61",
-      "root_cause": "The sink is a `BashOperator(bash_command=...)` Jinja template the scheduler renders; the file has no subprocess call.",
+      "root_cause": "The sink is a `BashOperator(bash_command=...)` Jinja template the scheduler renders; the file has no subprocess call. A declarative `pattern` rule for `bash_command=` templates that reference `run_id`/`dag_run`/`params` is the C4 shape for this; not a built-in.",
       "also": [],
       "accept_cwes": []
     },
@@ -152,7 +152,7 @@
       "class": "covered",
       "summary": "Stored XSS: user names are formatted into HTML/RST report markup without escaping.",
       "sink": "weblate/trans/views/reports.py:291",
-      "root_cause": "HTML is built with `str.format()` and returned in an `HttpResponse`; the XSS check reports `Markup()`/`mark_safe()` only.",
+      "root_cause": "HTML is built with `str.format()` and returned in an `HttpResponse`; the XSS check reports `Markup()`/`mark_safe()` only. A response sink (`HttpResponse(text)`) would see the content arrive through a list and a `join()`, INTERNAL, and would report every Django view that returns built text; declined without a prototype.",
       "also": [
         "weblate/trans/views/reports.py:112",
         "weblate/trans/views/reports.py:115"
@@ -259,9 +259,9 @@
       "framework": "FastAPI",
       "cwe": "CWE-208",
       "class": "covered",
-      "summary": "Timing attack: the login compares the password with `==`.",
+      "summary": "Timing attack: the login compares the password with `==`. Found since the two-value timing compare follow-on.",
       "sink": "gradio/routes.py:274",
-      "root_cause": "The timing check reports a secret compared with a string literal; `app.auth[username] == password` compares two values.",
+      "root_cause": null,
       "also": [],
       "accept_cwes": []
     },
