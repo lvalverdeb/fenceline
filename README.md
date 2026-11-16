@@ -57,6 +57,8 @@ Exit codes: `0` (no findings at or above `--fail-on`), `1` (one or more).
 | `--confidence-min` | `low` | Drop findings below this confidence (`high`\|`medium`\|`low`) |
 | `--baseline PATH` | — | Only report/fail on findings not already present in this baseline |
 | `--write-baseline PATH` | — | Snapshot current findings to PATH and exit 0 |
+| `--rules PATH` | — | TOML file of `[[rule]]` tables run after the built-in checks (repeatable; see "Declarative rules" below) |
+| `--disable CHECK` | — | Do not run this built-in check, by function name (repeatable), e.g. `--disable check_pandas_pickle` |
 | `--include-tests` | off | Include CWE-798/617/918/770/295 findings inside test code (see "Test code" below) |
 | `--test-paths DIRNAME [DIRNAME ...]` | — | Extra directory names to treat as non-production, alongside the built-in `tests`/`test`/`conftest.py` conventions (see "Test code" below) |
 | `--version` | — | Print the installed fenceline version and exit |
@@ -236,8 +238,11 @@ from a full replacement, in the order we intend to close it:
 - Calls are resolved by name (`import`, `from .mod import f`,
   `Class.method`, `self.method`). A method on an object whose type fenceline
   cannot see ends the trace at MEDIUM. There is no type inference.
-- The 58 checks are fixed. There is a Python plugin API for your own
-  checks, but no declarative rule format like Semgrep's.
+- The 58 checks are fixed. A TOML rule format (`docs/rules.md`) adds
+  sinks, calls, keyword tests and line patterns without code, and
+  `docs/semgrep-coverage.md` says which of Semgrep's `p/python` rules it
+  and the built-ins cover (121 of 151) and which need the Python plugin
+  API.
 - `check_dependency_cve` is a curated watchlist, not an advisory database;
   keep `pip-audit` for that.
 
@@ -367,10 +372,37 @@ too: `# nosec B608` and `# noqa: S608` suppress the fenceline checks that
 cover the same rule (`CWE-89` here). A bare `# noqa` or a non-security
 code such as `E501` suppresses nothing.
 
+### Declarative rules
+
+A TOML file of `[[rule]]` tables, loaded with `--rules PATH` or from the
+`--config` file, adds your own sinks, dangerous calls, keyword tests and
+line patterns; both ports read the same file and produce the same findings:
+
+```toml
+[[rule]]
+id = "acme/mako-render"
+cwe = "CWE-94"
+name = "Mako template from data"
+severity = "HIGH"
+description = "A Mako Template built from a non-literal string renders attacker-controlled code."
+kind = "sink"                        # sink | call | keyword | pattern
+callee = ["mako.template.Template"]  # import-alias-resolved, tail-matched
+data = "first"                       # which arguments the taint engine checks
+```
+
+A `sink` rule's confidence comes from the same taint engine the built-ins
+use; `call`, `keyword` (`value = false`, `unless = true`, `required = true`)
+and `pattern` (a regex over comment-masked lines) are fixed. `--disable
+CHECK` switches a built-in off so a rule can stand in for it. The format,
+its limits and the ten-built-in proof are in `docs/rules.md`; the Semgrep
+`p/python` coverage matrix in `docs/semgrep-coverage.md`.
+
 ### Extending fenceline with your own checks
 
-Built-in checks aren't dynamically discovered — they're a fixed list. Your
-own checks are, via a `fenceline.checks` entry point in *your own*
+Built-in checks aren't dynamically discovered — they're a fixed list. For
+what a rule cannot say (a condition on the surrounding statement, a
+comparison on a value, a sequence of statements), write a check: your own
+are discovered via a `fenceline.checks` entry point in *your own*
 `pyproject.toml`:
 
 ```toml

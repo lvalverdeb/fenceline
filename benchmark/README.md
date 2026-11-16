@@ -1436,3 +1436,37 @@ causes are fixed with their cost measured and labelled. 18 of 22 claimed
 CVEs found, 12 at HIGH; the set is part of the parity check and grows as
 CVEs are added.
 
+## Declarative rules: the ten-check proof
+
+### Commit `51125ec` (2026-11-16): C4
+
+`fixtures/rules/builtins/rules.toml` re-expresses ten built-in checks
+(`check_pandas_pickle`, `check_pandas_xml_xxe`, `check_torch_load`,
+`check_numpy_load`, `check_request_timeout`, `check_pickle`,
+`check_unsafe_markup`, `check_symlink`, `check_ldap`, `check_ssh_host_key`)
+as fourteen rules. Each corpus was scanned twice per port: plain, and with
+`--disable` for the ten checks plus `--rules` for the file. Findings are
+compared on (file, line, CWE, severity, confidence); descriptions differ
+by the rules' wording.
+
+| Corpus | Plain (Python / Rust) | With rules (Python / Rust) | Difference |
+|---|---|---|---|
+| Vulnerable benchmark, 4 apps | 209 / 209 | 209 / 209 | none |
+| Eight-app clean corpus | 353 / 351 | 353 / 351 | none |
+| 28 CVE trees | 3,254 / 3,254 | 3,257 / 3,257 | +3 on one tree |
+
+The Rust and Python counts on the eight-app corpus differ by the two
+files rustpython-parser cannot parse (PEP 695 / PEP 701), as everywhere
+else in this file. The three extra findings are Weblate's
+(`CVE-2022-24710`): `weblate/addons/tasks.py:50`,
+`weblate/utils/checks.py:522`, `weblate/wladmin/models.py:145`, each a
+call of the project's `weblate.utils.requests.request()` wrapper without
+`timeout=`. The wrapper itself sets none, so the findings are defensible;
+they appear because a rule's `callee` tail-matches (`requests.request`
+matches `weblate.utils.requests.request`) where `check_request_timeout`
+matches exactly two segments. The other nine checks reproduce exactly.
+Both ports' rule runs agree on every tree.
+
+Scanned with the scratchpad clones named in the sections above; the
+command pair is in `fixtures/rules/builtins/rules.toml`'s header.
+

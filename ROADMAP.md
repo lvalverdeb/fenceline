@@ -43,7 +43,11 @@ compares between two values) done at `006ce07`: 18/22 found, 12 at HIGH;
 eight-app corpus 265 findings, 11% / 34%, 0.95 per 1,000, HIGH unchanged;
 vulnerable benchmark 95%, 190/204. Write-`open()` sink prototyped and
 declined (+11 corpus findings for one CVE). **C3 closed 2026-11-16.** C4
-started 2026-11-16.
+done 2026-11-16 at `51125ec` (D12): both ports load `[[rule]]` TOML, four
+kinds, `--disable`; ten built-ins re-expressed with identical findings on
+all three corpora (one documented tail-match difference); Semgrep
+`p/python` matrix 69 built-in / 52 rule / 30 not expressible of 151.
+**All four phases are done.**
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 **Release policy (D11, 2026-11-16)**: a release is cut when something is
@@ -506,6 +510,25 @@ build next.
 **Done when** both ports load the same rule file and agree on the fixtures
 and corpora, the ten-check proof passes, and the matrix is published.
 
+**Started and done 2026-11-16, at `51125ec` (Python) / `86727fc` (Rust).**
+`docs/rules.md` is the format; `fenceline/rules.py` and `src/rules.rs`
+load and run it; `fixtures/rules/kinds/` covers each kind and keyword test,
+`fixtures/rules/builtins/` holds the fourteen rules that re-express ten
+built-ins. Proof: with those ten checks disabled and the rules loaded, both
+ports produce the same findings as the plain run on the vulnerable
+benchmark (209), the eight-app corpus (353 / 351) and 27 of the 28 CVE
+trees; on Weblate's tree the rules add three `CWE-1088` findings, call
+sites of the project's own `weblate.utils.requests.request()` wrapper
+(which sets no timeout), reached through the tail match
+`requests.request` that `check_request_timeout`'s exact match does not
+make. The Rust and Python rule runs agree everywhere (the two known parser
+skips aside). Built-ins the format cannot express are listed in
+`docs/rules.md` with the reason. The matrix (`docs/semgrep-coverage.md`,
+`p/python` as served 2026-11-16, 151 rules): 69 built-in, 52 expressible
+as a rule, 30 not expressible; the 30 fall into five shapes, of which a
+positional-literal test and a value regex would be the cheapest additions.
+Deviations from the sketch above are D12.
+
 ## 3. Order and size
 
 ```
@@ -560,6 +583,21 @@ Semgrep replacement.
   with a fourth blind app on a third framework (recommended), close C2 as
   measured, or restore fallback-value handlers at lower confidence.
   Accepted 2026-11-16 as the first.
+- **D12** (accepted 2026-11-16, with C4) Rule format details settled in
+  implementation, where they differ from the sketch in the C4 section:
+  rules in the config file are `[[rule]]` tables (a rule is a table, several
+  are an array of tables), not a `[rules]` table; `--rules PATH` is
+  repeatable; `--disable CHECK` exists so a rule can stand in for a
+  built-in (and it is what the proof runs on); the `keyword` kind has three
+  tests (`value`, `unless`, `required = true`), since the three Semgrep
+  shapes (`verify=False`, `torch.load` without `weights_only=True`, a
+  missing `timeout=`) need all three; `data` selectors are 0-based
+  positions and keyword names (`[1, "text"]`); keyword literals are
+  booleans, integers and strings, compared by type; a `pattern` regex is
+  the dialect both ports share (lookaround and backreferences refused at
+  load); `sink` rules cannot set `confidence`. Callees tail-match like most
+  built-ins, so a rule standing in for an exact-match built-in can be
+  wider; the proof records the one case.
 - **D10** After the fourth held-out measurement (all gates failed again,
   blind density 1.6): release 1.13.0, a Mealie round limited to the two
   check defects, then close C2 with the corpus as the regression gate and
