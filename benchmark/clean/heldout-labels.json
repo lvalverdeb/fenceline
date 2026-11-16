@@ -1,11 +1,11 @@
 {
   "apps": {
-    "pretalx": {
-      "repo": "pretalx/pretalx",
-      "commit": "1510dea",
+    "recipes": {
+      "repo": "TandoorRecipes/recipes",
+      "commit": "4fdc854",
       "framework": "Django",
-      "scanned": "src/pretalx",
-      "lines": 64074
+      "scanned": "cookbook + recipes",
+      "lines": 20170
     }
   },
   "labels": [
@@ -16,2467 +16,1305 @@
   "verdicts": [
     [
       "fenceline",
-      "CWE-22",
-      "pretalx/src/pretalx/agenda/html_export.py:152",
-      "false",
-      "path resolved and checked against the destination's parents"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/agenda/views/ascii.py:22",
-      "false",
-      "ANSI colour escapes in the terminal-rendered schedule"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/agenda/views/ascii.py:24",
-      "false",
-      "ANSI colour escapes in the terminal-rendered schedule"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/agenda/views/ascii.py:78",
-      "false",
-      "ANSI colour escapes in the terminal-rendered schedule"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/agenda/views/ascii.py:86",
-      "false",
-      "ANSI colour escapes in the terminal-rendered schedule"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/agenda/views/ascii.py:87",
-      "false",
-      "ANSI colour escapes in the terminal-rendered schedule"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/agenda/views/ascii.py:91",
-      "false",
-      "ANSI colour escapes in the terminal-rendered schedule"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/agenda/views/ascii.py:98",
-      "false",
-      "ANSI colour escapes in the terminal-rendered schedule"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/agenda/views/ascii.py:104",
-      "false",
-      "ANSI colour escapes in the terminal-rendered schedule"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/agenda/views/ascii.py:240",
-      "false",
-      "ANSI colour escapes in the terminal-rendered schedule"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/agenda/views/featured.py:15",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/agenda/views/featured.py:36",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/agenda/views/schedule.py:116",
-      "false",
-      "ANSI colour escapes in the terminal-rendered schedule"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/agenda/views/schedule.py:140",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/agenda/views/schedule.py:168",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/agenda/views/speaker.py:112",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/agenda/views/talk.py:329",
-      "false",
-      "login URL built from reverse()/urlman with the current path as ?next="
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/agenda/views/talk.py:339",
-      "false",
-      "login URL built from reverse()/urlman with the current path as ?next="
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/agenda/views/talk.py:346",
-      "false",
-      "login URL built from reverse()/urlman with the current path as ?next="
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/agenda/views/talk.py:321",
-      "false",
-      "login URL built from reverse()/urlman with the current path as ?next="
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/agenda/views/talk.py:338",
-      "false",
-      "login URL built from reverse()/urlman with the current path as ?next="
-    ],
-    [
-      "fenceline",
-      "CWE-770",
-      "pretalx/src/pretalx/agenda/views/widget.py:176",
-      "false",
-      "organiser-uploaded custom CSS read whole; the upload is size-bounded"
-    ],
-    [
-      "fenceline",
       "CWE-328",
-      "pretalx/src/pretalx/agenda/views/widget.py:45",
+      "recipes/cookbook/helper/CustomStorageClass.py:10",
       "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/api/urls.py:37",
-      "false",
-      "same-site: the request's own path, or settings.SITE_URL joined with it"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/flow/base.py:228",
-      "false",
-      "reverse('cfp:event.submit') with step kwargs and the request's own query string"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/auth.py:181",
-      "false",
-      "urlman URL chosen by a match on a POST value, or reverse() with a query string"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/locale.py:19",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/user.py:615",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/user.py:627",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/user.py:685",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/user.py:872",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/user.py:209",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/user.py:548",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/user.py:625",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/user.py:723",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/user.py:613",
-      "false",
-      "urlman URL chosen by a match on a POST value, or reverse() with a query string"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/wizard.py:36",
-      "false",
-      "reverse('cfp:event.submit') with step kwargs and the request's own query string"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/wizard.py:151",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/wizard.py:122",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/wizard.py:138",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/cfp/views/wizard.py:131",
-      "false",
-      "reverse('cfp:event.submit') with step kwargs and the request's own query string"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/exporter.py:191",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-328",
-      "pretalx/src/pretalx/common/exporter.py:270",
-      "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/forms/widgets.py:57",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-770",
-      "pretalx/src/pretalx/common/image.py:51",
-      "false",
-      "image validator reads an upload Django has already received in full"
-    ],
-    [
-      "fenceline",
-      "CWE-798",
-      "pretalx/src/pretalx/common/log.py:320",
-      "false",
-      "log action name mapping"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:219",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:280",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:285",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:101",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:227",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:228",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:183",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:325",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:250",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:254",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/middleware/event.py:210",
-      "false",
-      "same-site: the request's own path, or settings.SITE_URL joined with it"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/middleware/event.py:235",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/middleware/event.py:253",
-      "false",
-      "same-site: the request's own path, or settings.SITE_URL joined with it"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/middleware/event.py:219",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/common/middleware/security.py:33",
-      "false",
-      "validation that rejects NUL bytes"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/common/middleware/security.py:34",
-      "false",
-      "validation that rejects NUL bytes"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/common/middleware/security.py:47",
-      "false",
-      "validation that rejects NUL bytes"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/middleware/security.py:115",
-      "false",
-      "same-site: the request's own path, or settings.SITE_URL joined with it"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/signals.py:175",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/tables/columns.py:47",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/tables/columns.py:164",
-      "false",
-      "mark_safe() of a string literal at class level"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/tables/columns.py:422",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/tables/columns.py:423",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/tables/columns.py:424",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/tables/columns.py:444",
-      "false",
-      "mark_safe() of a string literal at class level"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/tables/columns.py:484",
-      "false",
-      "mark_safe() of a string literal at class level"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/tables/columns.py:562",
-      "false",
-      "mark_safe() of a string literal at class level"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/tables/columns.py:418",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/tables/columns.py:368",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/tables/columns.py:412",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/templatetags/copyable.py:33",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/templatetags/phrases.py:23",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/templatetags/rich_text.py:349",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/templatetags/xmlescape.py:17",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/common/text/console.py:18",
-      "false",
-      "ANSI colour escapes in the terminal-rendered schedule"
-    ],
-    [
-      "fenceline",
-      "CWE-611",
-      "pretalx/src/pretalx/common/text/css.py:173",
-      "false",
-      "reference to the DOMException class, not a parser"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/text/diff.py:84",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/text/diff.py:116",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/common/text/diff.py:118",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/text/phrases.py:28",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/ui.py:189",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "pretalx/src/pretalx/common/ui.py:198",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "fenceline",
-      "CWE-328",
-      "pretalx/src/pretalx/common/views/cache.py:24",
-      "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/generic.py:132",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/generic.py:295",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/generic.py:414",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/generic.py:245",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/generic.py:282",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/generic.py:216",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/generic.py:247",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/generic.py:218",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-22",
-      "pretalx/src/pretalx/common/views/helpers.py:17",
-      "false",
-      "staticfiles path chosen by the caller"
-    ],
-    [
-      "fenceline",
-      "CWE-22",
-      "pretalx/src/pretalx/common/views/mixins.py:315",
-      "false",
-      "FieldFile of a model, not a request path"
-    ],
-    [
-      "fenceline",
-      "CWE-22",
-      "pretalx/src/pretalx/common/views/mixins.py:634",
-      "false",
-      "cached export file created by the app"
-    ],
-    [
-      "fenceline",
-      "CWE-22",
-      "pretalx/src/pretalx/common/views/mixins.py:324",
-      "false",
-      "FieldFile of a model, not a request path"
+      "MD5 of a cache key, not a credential"
     ],
     [
       "fenceline",
       "CWE-778",
-      "pretalx/src/pretalx/common/views/mixins.py:145",
+      "recipes/cookbook/helper/drf_spectacular_hooks.py:95",
       "by-design",
-      "session recovery deliberately treats any failure as 'no user' (BLE001 note)"
+      "schema generation falls back to no serializer"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/mixins.py:582",
-      "false",
-      "same-site: the request's own path, or settings.SITE_URL joined with it"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/mixins.py:714",
-      "false",
-      "same-site: the request's own path, or settings.SITE_URL joined with it"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/mixins.py:562",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/mixins.py:628",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/mixins.py:712",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/mixins.py:733",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/mixins.py:641",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/mixins.py:705",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/mixins.py:710",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/redirect.py:51",
+      "CWE-778",
+      "recipes/cookbook/helper/image_processing.py:59",
       "by-design",
-      "the signed safe-redirect endpoint: URL signed by the app, scheme-checked, interstitial shown unless the Referer is same-site"
+      "file-type fallback to .jpeg"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/redirect.py:113",
-      "false",
-      "login URL built from reverse()/urlman with the current path as ?next="
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/shortlink.py:22",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/shortlink.py:24",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/shortlink.py:34",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/shortlink.py:36",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/shortlink.py:38",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/shortlink.py:41",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/shortlink.py:45",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/verification.py:168",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/common/views/verification.py:43",
-      "false",
-      "session value set by the app from the request's own path"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/event/domain/team.py:41",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/event/domain/team.py:42",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/event/domain/team.py:43",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-328",
-      "pretalx/src/pretalx/event/models/event.py:579",
-      "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/mail/domain/context.py:94",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/mail/domain/placeholders.py:259",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "CWE-778",
+      "recipes/cookbook/helper/image_processing.py:106",
+      "by-design",
+      "the handler is the validation result: an unreadable image returns None"
     ],
     [
       "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/mail/domain/placeholders.py:284",
+      "CWE-611",
+      "recipes/cookbook/helper/mdx_urlize.py:38",
       "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "import of the Element class, not a parser"
     ],
     [
       "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/mail/domain/render.py:162",
+      "CWE-200",
+      "recipes/cookbook/helper/open_data_importer.py:389",
       "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "traceback printed to the server's stderr, not returned to a user"
     ],
     [
       "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/mail/domain/render.py:113",
+      "CWE-200",
+      "recipes/cookbook/helper/open_data_importer.py:400",
       "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "traceback printed to the server's stderr, not returned to a user"
     ],
     [
       "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/mail/domain/render.py:114",
+      "CWE-200",
+      "recipes/cookbook/helper/open_data_importer.py:513",
       "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "traceback printed to the server's stderr, not returned to a user"
     ],
     [
       "fenceline",
-      "CWE-158",
-      "pretalx/src/pretalx/mail/domain/smtp.py:176",
-      "false",
-      "sanitiser stripping control characters from a mail subject"
-    ],
-    [
-      "fenceline",
-      "CWE-798",
-      "pretalx/src/pretalx/mail/interfaces/forms/config.py:161",
-      "false",
-      "settings form field mapping"
+      "CWE-778",
+      "recipes/cookbook/helper/permission_helper.py:84",
+      "by-design",
+      "permission check fails closed on any error"
     ],
     [
       "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/orga/tables/submission.py:679",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "CWE-778",
+      "recipes/cookbook/helper/permission_helper.py:99",
+      "by-design",
+      "permission check fails closed on any error"
     ],
     [
       "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/orga/templatetags/orga_edit_link.py:16",
+      "CWE-338",
+      "recipes/cookbook/helper/permission_helper.py:568",
       "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "random suffix for a display name"
     ],
     [
       "fenceline",
       "CWE-601",
-      "pretalx/src/pretalx/orga/views/admin.py:191",
+      "recipes/cookbook/helper/permission_helper.py:226",
       "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "the login URL (reverse() or a fixed path) with the request's own path or the next parameter as query string; allauth validates next"
     ],
     [
       "fenceline",
       "CWE-601",
-      "pretalx/src/pretalx/orga/views/admin.py:117",
+      "recipes/cookbook/helper/permission_helper.py:205",
       "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "the login URL (reverse() or a fixed path) with the request's own path or the next parameter as query string; allauth validates next"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/auth.py:67",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:26",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/cards.py:33",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:44",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/orga/views/cfp.py:606",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:61",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/cfp.py:527",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:78",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/cfp.py:701",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:85",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/cfp.py:1379",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:103",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/cfp.py:564",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:115",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/dashboard.py:52",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:120",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/dashboard.py:51",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:129",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/orga/views/event.py:242",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:139",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/event.py:226",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:157",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/event.py:253",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:198",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/event.py:465",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:37",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/event.py:800",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:49",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/event.py:572",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:66",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/exports.py:190",
-      "false",
-      "table_class.get_list_url(): a reverse() URL, with the export's own filters as query string"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:94",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/exports.py:250",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:108",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/exports.py:344",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:288",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/exports.py:120",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:403",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/exports.py:189",
-      "false",
-      "table_class.get_list_url(): a reverse() URL, with the export's own filters as query string"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:408",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/exports.py:265",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:29",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/exports.py:271",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:81",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/exports.py:294",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:88",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:189",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:124",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:276",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:133",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:307",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:97",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:401",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/recipe_url_import.py:188",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:607",
+      "CWE-200",
+      "recipes/cookbook/helper/recipe_url_import.py:206",
       "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "traceback printed to the server's stderr, not returned to a user"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:697",
+      "CWE-200",
+      "recipes/cookbook/helper/recipe_url_import.py:279",
       "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "traceback printed to the server's stderr, not returned to a user"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:196",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/helper/recipe_url_import.py:115",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:201",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/helper/recipe_url_import.py:139",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:260",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-391",
+      "recipes/cookbook/helper/recipe_url_import.py:157",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:399",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/helper/recipe_url_import.py:198",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:594",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/helper/recipe_url_import.py:408",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:174",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/helper/recipe_url_import.py:29",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:182",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/helper/recipe_url_import.py:124",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/mails.py:338",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-391",
+      "recipes/cookbook/helper/recipe_url_import.py:133",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/organiser.py:196",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-391",
+      "recipes/cookbook/helper/recipe_url_import.py:97",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/organiser.py:238",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/helper/scope_middleware.py:134",
+      "by-design",
+      "token authentication attempts fall through to a 403 (comment says so)"
     ],
     [
       "fenceline",
       "CWE-601",
-      "pretalx/src/pretalx/orga/views/organiser.py:257",
+      "recipes/cookbook/helper/scope_middleware.py:141",
       "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "the login URL (reverse() or a fixed path) with the request's own path or the next parameter as query string; allauth validates next"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/organiser.py:304",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-391",
+      "recipes/cookbook/helper/scope_middleware.py:134",
+      "by-design",
+      "token authentication attempts fall through to a 403 (comment says so)"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/organiser.py:319",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/helper/shopping_helper.py:182",
+      "by-design",
+      "delete reports success or failure as a boolean"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/organiser.py:300",
+      "CWE-778",
+      "recipes/cookbook/helper/template_helper.py:164",
       "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "the handler returns an error message to the user"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/person.py:128",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/helper/unit_conversion_helper.py:105",
+      "by-design",
+      "unit conversion is best-effort"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/person.py:178",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-391",
+      "recipes/cookbook/helper/unit_conversion_helper.py:105",
+      "by-design",
+      "unit conversion is best-effort"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/plugins.py:80",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/integration/cookbookapp.py:117",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/review.py:768",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/integration/cookbookapp.py:117",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/review.py:815",
+      "CWE-200",
+      "recipes/cookbook/integration/default.py:26",
       "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "traceback printed to the server's stderr, not returned to a user"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/review.py:922",
+      "CWE-611",
+      "recipes/cookbook/integration/integration.py:210",
       "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "lxml parser with resolve_entities=False, no_network=True, load_dtd=False"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/review.py:957",
+      "CWE-611",
+      "recipes/cookbook/integration/integration.py:211",
       "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "lxml parser with resolve_entities=False, no_network=True, load_dtd=False"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/review.py:449",
+      "CWE-200",
+      "recipes/cookbook/integration/integration.py:244",
       "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "traceback printed to the server's stderr, not returned to a user"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/review.py:699",
+      "CWE-200",
+      "recipes/cookbook/integration/integration.py:366",
       "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "traceback printed to the server's stderr, not returned to a user"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/review.py:705",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/integration/mealie.py:56",
+      "true",
+      "a failed ingredient is dropped from the imported recipe with no entry in the import log"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/schedule.py:196",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/integration/mealie.py:93",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/schedule.py:207",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/integration/mealie.py:56",
+      "true",
+      "a failed ingredient is dropped from the imported recipe with no entry in the import log"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/schedule.py:226",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/integration/mealie.py:93",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/schedule.py:539",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/integration/mealie1.py:304",
+      "by-design",
+      "cleanup of temporary property types"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/speaker.py:91",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/integration/mealie1.py:304",
+      "by-design",
+      "cleanup of temporary property types"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/speaker.py:268",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/integration/mealmaster.py:72",
+      "by-design",
+      "decoding fallback to a marker string"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/speaker.py:303",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/integration/melarecipes.py:43",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/speaker.py:334",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/integration/melarecipes.py:77",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/speaker.py:362",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/integration/melarecipes.py:43",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/speaker.py:380",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/integration/melarecipes.py:77",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/speaker.py:83",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:33",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/speaker.py:379",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:42",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:305",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:50",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:356",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:94",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:414",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:33",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:467",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:42",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:519",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:50",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:872",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:94",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:897",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/integration/paprika.py:38",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:1263",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/integration/paprika.py:94",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:1298",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-391",
+      "recipes/cookbook/integration/paprika.py:38",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:1332",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-391",
+      "recipes/cookbook/integration/paprika.py:94",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:276",
+      "CWE-611",
+      "recipes/cookbook/integration/rezeptsuitede.py:14",
       "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "lxml parser with resolve_entities=False, no_network=True, load_dtd=False"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:518",
+      "CWE-611",
+      "recipes/cookbook/integration/rezeptsuitede.py:15",
       "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "lxml parser with resolve_entities=False, no_network=True, load_dtd=False"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:710",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-778",
+      "recipes/cookbook/integration/rezeptsuitede.py:66",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:896",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/integration/rezeptsuitede.py:73",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:974",
-      "false",
-      "destination is a urlman URL property built from event and object slugs"
+      "CWE-778",
+      "recipes/cookbook/integration/rezeptsuitede.py:42",
+      "true",
+      "a failed step is dropped from the imported recipe with no entry in the import log"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:264",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-391",
+      "recipes/cookbook/integration/rezeptsuitede.py:66",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:266",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-391",
+      "recipes/cookbook/integration/rezeptsuitede.py:73",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
     ],
     [
       "fenceline",
-      "CWE-601",
-      "pretalx/src/pretalx/orga/views/submission.py:273",
-      "false",
-      "destination is a reverse() or urlman URL; any ?next= goes through get_next_url(), which validates with url_has_allowed_host_and_scheme()"
+      "CWE-391",
+      "recipes/cookbook/integration/rezeptsuitede.py:42",
+      "true",
+      "a failed step is dropped from the imported recipe with no entry in the import log"
     ],
     [
       "fenceline",
-      "CWE-79",
-      "pretalx/src/pretalx/person/interfaces/forms/auth.py:322",
+      "CWE-778",
+      "recipes/cookbook/management/commands/rebuildindex.py:30",
       "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "the handler writes the error to the command output"
     ],
     [
       "fenceline",
-      "CWE-798",
-      "pretalx/src/pretalx/person/models/profile.py:154",
-      "false",
-      "URL pattern, not a password"
+      "CWE-778",
+      "recipes/cookbook/models.py:1654",
+      "by-design",
+      "the handler is the validation result: an unreadable image returns False"
     ],
     [
       "fenceline",
       "CWE-73",
-      "pretalx/src/pretalx/submission/domain/question.py:247",
+      "recipes/cookbook/provider/local.py:70",
       "false",
-      "copies an answer file into a zip the app builds"
+      "rename guarded by is_path_allowed() against the configured storage roots"
     ],
     [
-      "bandit",
-      "B404",
-      "pretalx/src/pretalx/_build.py:20",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
+      "fenceline",
+      "CWE-778",
+      "recipes/cookbook/serializer.py:301",
+      "by-design",
+      "missing image falls back to an empty URL"
     ],
     [
-      "bandit",
-      "B607",
-      "pretalx/src/pretalx/_build.py:74",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
+      "fenceline",
+      "CWE-778",
+      "recipes/cookbook/serializer.py:362",
+      "by-design",
+      "missing image falls back to an empty URL"
     ],
     [
-      "bandit",
-      "B603",
-      "pretalx/src/pretalx/_build.py:74",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
+      "fenceline",
+      "CWE-778",
+      "recipes/cookbook/serializer.py:63",
+      "by-design",
+      "active-space lookup falls back to None"
     ],
     [
-      "bandit",
-      "B607",
-      "pretalx/src/pretalx/_build.py:75",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
+      "fenceline",
+      "CWE-778",
+      "recipes/cookbook/serializer.py:648",
+      "by-design",
+      "active-space lookup falls back to None"
     ],
     [
-      "bandit",
-      "B603",
-      "pretalx/src/pretalx/_build.py:75",
+      "fenceline",
+      "CWE-778",
+      "recipes/cookbook/serializer.py:1470",
+      "by-design",
+      "active-space lookup falls back to None"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/serializer.py:219",
       "false",
-      "build and development tooling (npm, gettext) with constant argv"
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "recipes/cookbook/signals.py:142",
+      "by-design",
+      "previous value falls back to None"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "recipes/cookbook/views/api.py:3463",
+      "false",
+      "file path comes from the recipe's storage provider after an object permission check"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "recipes/cookbook/views/api.py:174",
+      "by-design",
+      "request-count metrics are best-effort"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/api.py:422",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/api.py:1213",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/api.py:1300",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/api.py:2136",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/api.py:2390",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/api.py:2953",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/api.py:2960",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/api.py:3055",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/api.py:3187",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/api.py:3207",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/api.py:3232",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "recipes/cookbook/views/api.py:2825",
+      "false",
+      "reads an upload Django has already received in full"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "recipes/cookbook/views/api.py:3255",
+      "false",
+      "reads an upload Django has already received in full"
+    ],
+    [
+      "fenceline",
+      "CWE-770",
+      "recipes/cookbook/views/api.py:3083",
+      "false",
+      "reads an upload Django has already received in full"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "recipes/cookbook/views/api.py:174",
+      "by-design",
+      "request-count metrics are best-effort"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/cookbook/views/telegram.py:68",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "recipes/cookbook/views/views.py:61",
+      "false",
+      "allauth's build_absolute_uri() of a reverse() URL: the site's own host"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "recipes/cookbook/views/views.py:66",
+      "false",
+      "allauth's build_absolute_uri() of a reverse() URL: the site's own host"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "recipes/cookbook/views/views.py:97",
+      "false",
+      "the login URL (reverse() or a fixed path) with the request's own path or the next parameter as query string; allauth validates next"
+    ],
+    [
+      "fenceline",
+      "CWE-601",
+      "recipes/cookbook/views/views.py:80",
+      "false",
+      "the login URL (reverse() or a fixed path) with the request's own path or the next parameter as query string; allauth validates next"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "recipes/recipes/middleware.py:33",
+      "by-design",
+      "terminal width fallback"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "recipes/recipes/middleware.py:38",
+      "by-design",
+      "terminal width fallback"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "recipes/recipes/middleware.py:33",
+      "by-design",
+      "terminal width fallback"
+    ],
+    [
+      "fenceline",
+      "CWE-391",
+      "recipes/recipes/middleware.py:38",
+      "by-design",
+      "terminal width fallback"
+    ],
+    [
+      "fenceline",
+      "CWE-94",
+      "recipes/recipes/settings.py:212",
+      "false",
+      "plugin module names enumerated from the plugins directory on disk"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "recipes/recipes/settings.py:317",
+      "false",
+      "rate-limit specification or URL path keyed by a name containing 'password'"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "recipes/recipes/settings.py:318",
+      "false",
+      "rate-limit specification or URL path keyed by a name containing 'password'"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "recipes/recipes/settings.py:319",
+      "false",
+      "rate-limit specification or URL path keyed by a name containing 'password'"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "recipes/recipes/settings.py:327",
+      "false",
+      "rate-limit specification or URL path keyed by a name containing 'password'"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "recipes/recipes/settings.py:328",
+      "false",
+      "rate-limit specification or URL path keyed by a name containing 'password'"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "recipes/recipes/settings.py:238",
+      "by-design",
+      "plugin initialisation failures are reported when DEBUG and tolerated otherwise"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "recipes/recipes/settings.py:636",
+      "false",
+      "the handler prints the mode it falls back to"
+    ],
+    [
+      "fenceline",
+      "CWE-200",
+      "recipes/recipes/settings.py:236",
+      "false",
+      "traceback printed to the server's stderr, not returned to a user"
     ],
     [
       "bandit",
       "B324",
-      "pretalx/src/pretalx/agenda/views/widget.py:45",
+      "recipes/cookbook/helper/CustomStorageClass.py:10",
       "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
+      "MD5 of a cache key, not a credential"
     ],
     [
       "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/exporter.py:191",
+      "B405",
+      "recipes/cookbook/helper/mdx_urlize.py:38",
       "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/exporter.py:191",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B324",
-      "pretalx/src/pretalx/common/exporter.py:270",
-      "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/forms/widgets.py:57",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/forms/widgets.py:57",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "import of the Element class, not a parser"
     ],
     [
       "bandit",
       "B311",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:101",
+      "recipes/cookbook/helper/permission_helper.py:568",
       "false",
-      "random for test fixtures or cosmetic variation, not a secret"
+      "random suffix for a display name"
     ],
     [
       "bandit",
-      "B311",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:183",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
+      "B110",
+      "recipes/cookbook/helper/recipe_url_import.py:29",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "bandit",
-      "B311",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:227",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
+      "B110",
+      "recipes/cookbook/helper/recipe_url_import.py:97",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "bandit",
-      "B311",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:228",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
+      "B110",
+      "recipes/cookbook/helper/recipe_url_import.py:115",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "bandit",
-      "B311",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:250",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
+      "B110",
+      "recipes/cookbook/helper/recipe_url_import.py:124",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "bandit",
-      "B311",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:254",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
+      "B110",
+      "recipes/cookbook/helper/recipe_url_import.py:133",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
     ],
     [
       "bandit",
-      "B311",
-      "pretalx/src/pretalx/common/management/commands/create_test_event.py:325",
+      "B110",
+      "recipes/cookbook/helper/recipe_url_import.py:139",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/helper/recipe_url_import.py:157",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/helper/recipe_url_import.py:198",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/helper/recipe_url_import.py:408",
+      "by-design",
+      "the scraper raises for a missing field; the handler substitutes a default"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/helper/scope_middleware.py:134",
+      "by-design",
+      "token authentication attempts fall through to a 403 (comment says so)"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/helper/unit_conversion_helper.py:105",
+      "by-design",
+      "unit conversion is best-effort"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/cookbookapp.py:117",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/mealie.py:56",
+      "true",
+      "a failed ingredient is dropped from the imported recipe with no entry in the import log"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/mealie.py:93",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/mealie1.py:304",
+      "by-design",
+      "cleanup of temporary property types"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/melarecipes.py:43",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/melarecipes.py:77",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:33",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:42",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:50",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/nextcloud_cookbook.py:94",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/paprika.py:38",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/paprika.py:94",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/rezeptsuitede.py:42",
+      "true",
+      "a failed step is dropped from the imported recipe with no entry in the import log"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/integration/rezeptsuitede.py:66",
+      "by-design",
+      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/cookbook/views/api.py:174",
+      "by-design",
+      "request-count metrics are best-effort"
+    ],
+    [
+      "bandit",
+      "B101",
+      "recipes/cookbook/views/api.py:539",
       "false",
-      "random for test fixtures or cosmetic variation, not a secret"
+      "type assertion on a queryset in a view, not an access check"
     ],
     [
       "bandit",
       "B404",
-      "pretalx/src/pretalx/common/management/commands/devserver.py:18",
+      "recipes/cookbook/views/views.py:3",
       "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B607",
-      "pretalx/src/pretalx/common/management/commands/devserver.py:39",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B603",
-      "pretalx/src/pretalx/common/management/commands/devserver.py:39",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B404",
-      "pretalx/src/pretalx/common/management/commands/makemessages.py:21",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B607",
-      "pretalx/src/pretalx/common/management/commands/makemessages.py:49",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B603",
-      "pretalx/src/pretalx/common/management/commands/makemessages.py:49",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B607",
-      "pretalx/src/pretalx/common/management/commands/makemessages.py:63",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B603",
-      "pretalx/src/pretalx/common/management/commands/makemessages.py:63",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B607",
-      "pretalx/src/pretalx/common/management/commands/makemessages.py:70",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B603",
-      "pretalx/src/pretalx/common/management/commands/makemessages.py:70",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B404",
-      "pretalx/src/pretalx/common/management/commands/rebuild.py:6",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B607",
-      "pretalx/src/pretalx/common/management/commands/rebuild.py:110",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B603",
-      "pretalx/src/pretalx/common/management/commands/rebuild.py:110",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B607",
-      "pretalx/src/pretalx/common/management/commands/rebuild.py:111",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B603",
-      "pretalx/src/pretalx/common/management/commands/rebuild.py:111",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/signals.py:175",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/signals.py:175",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/tables/columns.py:47",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:47",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:164",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/tables/columns.py:368",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:368",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:409",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/tables/columns.py:412",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:412",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/tables/columns.py:418",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:418",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:422",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:423",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:424",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:444",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:484",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/tables/columns.py:562",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/templatetags/copyable.py:33",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/templatetags/copyable.py:33",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/templatetags/phrases.py:23",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/templatetags/phrases.py:23",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/templatetags/rich_text.py:349",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/templatetags/rich_text.py:349",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/templatetags/xmlescape.py:17",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/templatetags/xmlescape.py:17",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/text/diff.py:84",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/text/diff.py:84",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/text/diff.py:116",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/text/diff.py:116",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/text/diff.py:118",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/text/diff.py:118",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/text/diff.py:153",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/text/diff.py:153",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/common/text/diff.py:154",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/text/diff.py:154",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B311",
-      "pretalx/src/pretalx/common/text/phrases.py:28",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "bandit",
-      "B406",
-      "pretalx/src/pretalx/common/text/xml.py:4",
-      "false",
-      "import of the stdlib XML module for a CSS/XML helper"
-    ],
-    [
-      "bandit",
-      "B311",
-      "pretalx/src/pretalx/common/ui.py:189",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "bandit",
-      "B311",
-      "pretalx/src/pretalx/common/ui.py:198",
-      "false",
-      "random for test fixtures or cosmetic variation, not a secret"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/common/ui.py:215",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B324",
-      "pretalx/src/pretalx/common/views/cache.py:24",
-      "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/event/domain/team.py:41",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/event/domain/team.py:41",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/event/domain/team.py:42",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/event/domain/team.py:42",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/event/domain/team.py:43",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/event/domain/team.py:43",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B105",
-      "pretalx/src/pretalx/event/models/event.py:159",
-      "false",
-      "empty default, settings field name or URL pattern, not a password"
-    ],
-    [
-      "bandit",
-      "B324",
-      "pretalx/src/pretalx/event/models/event.py:579",
-      "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/mail/domain/context.py:94",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/mail/domain/context.py:94",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/mail/domain/placeholders.py:259",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/mail/domain/placeholders.py:259",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/mail/domain/placeholders.py:284",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/mail/domain/placeholders.py:284",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/mail/domain/render.py:113",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/mail/domain/render.py:113",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/mail/domain/render.py:114",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/mail/domain/render.py:114",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/mail/domain/render.py:162",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/mail/domain/render.py:162",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B105",
-      "pretalx/src/pretalx/mail/interfaces/forms/config.py:161",
-      "false",
-      "empty default, settings field name or URL pattern, not a password"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/orga/tables/speaker.py:82",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
+      "subprocess import for a fixed git pull in the update view"
     ],
     [
       "bandit",
       "B106",
-      "pretalx/src/pretalx/orga/tables/speaker.py:197",
+      "recipes/cookbook/views/views.py:177",
       "false",
-      "ORM lookup argument, not a credential"
+      "empty Redis password: no credential configured"
     ],
     [
       "bandit",
-      "B703",
-      "pretalx/src/pretalx/orga/tables/submission.py:679",
+      "B607",
+      "recipes/cookbook/views/views.py:289",
       "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/orga/tables/submission.py:679",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/orga/templatetags/orga_edit_link.py:16",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/orga/templatetags/orga_edit_link.py:16",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/orga/templatetags/platform_icons.py:15",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/orga/templatetags/platform_icons.py:15",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/orga/views/cfp.py:606",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/orga/views/cfp.py:606",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/orga/views/event.py:242",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/orga/views/event.py:242",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/person/interfaces/forms/auth.py:322",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/person/interfaces/forms/auth.py:322",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B703",
-      "pretalx/src/pretalx/person/interfaces/forms/auth_token.py:24",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B308",
-      "pretalx/src/pretalx/person/interfaces/forms/auth_token.py:24",
-      "false",
-      "mark_safe() of static markup, escaped or bleach-sanitised content, or an internally built URL (the maintainers' S308 notes say the same)"
-    ],
-    [
-      "bandit",
-      "B105",
-      "pretalx/src/pretalx/person/models/profile.py:154",
-      "false",
-      "empty default, settings field name or URL pattern, not a password"
-    ],
-    [
-      "bandit",
-      "B104",
-      "pretalx/src/pretalx/settings.py:611",
-      "false",
-      "debug-toolbar INTERNAL_IPS entry, not a bind address"
-    ],
-    [
-      "bandit",
-      "B404",
-      "pretalx/src/pretalx/settings.py:694",
-      "false",
-      "build and development tooling (npm, gettext) with constant argv"
+      "fixed argv ['git', 'pull'] with a configured working directory"
     ],
     [
       "bandit",
       "B603",
-      "pretalx/src/pretalx/settings.py:697",
+      "recipes/cookbook/views/views.py:289",
       "false",
-      "build and development tooling (npm, gettext) with constant argv"
+      "fixed argv ['git', 'pull'] with a configured working directory"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/recipes/middleware.py:33",
+      "by-design",
+      "terminal width fallback"
+    ],
+    [
+      "bandit",
+      "B110",
+      "recipes/recipes/middleware.py:38",
+      "by-design",
+      "terminal width fallback"
+    ],
+    [
+      "bandit",
+      "B105",
+      "recipes/recipes/settings.py:317",
+      "false",
+      "rate-limit specification or URL path keyed by a name containing 'password'"
+    ],
+    [
+      "bandit",
+      "B105",
+      "recipes/recipes/settings.py:318",
+      "false",
+      "rate-limit specification or URL path keyed by a name containing 'password'"
+    ],
+    [
+      "bandit",
+      "B105",
+      "recipes/recipes/settings.py:319",
+      "false",
+      "rate-limit specification or URL path keyed by a name containing 'password'"
+    ],
+    [
+      "bandit",
+      "B105",
+      "recipes/recipes/settings.py:327",
+      "false",
+      "rate-limit specification or URL path keyed by a name containing 'password'"
+    ],
+    [
+      "bandit",
+      "B105",
+      "recipes/recipes/settings.py:328",
+      "false",
+      "rate-limit specification or URL path keyed by a name containing 'password'"
     ],
     [
       "semgrep",
       "insecure-hash-algorithm-md5",
-      "pretalx/src/pretalx/agenda/views/widget.py:45",
+      "recipes/cookbook/helper/CustomStorageClass.py:10",
       "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
+      "MD5 of a cache key, not a credential"
     ],
     [
       "semgrep",
-      "reflected-data-httpresponse",
-      "pretalx/src/pretalx/api/views/schedule.py:155",
+      "raw-html-format",
+      "recipes/cookbook/templatetags/custom_tags.py:182",
       "false",
-      "plain-text response carrying a reverse() URL"
+      "bookmarklet HTML built from the site's own host and the current user's own token"
     ],
     [
       "semgrep",
-      "open-redirect",
-      "pretalx/src/pretalx/cfp/views/user.py:858",
+      "raw-html-format",
+      "recipes/cookbook/views/api.py:2743",
       "false",
-      "redirect(request.path): the request's own path"
+      "JSON-LD markup fed to the recipe scraper, never returned to a browser"
     ],
     [
       "semgrep",
-      "insecure-hash-algorithm-sha1",
-      "pretalx/src/pretalx/common/exporter.py:270",
+      "raw-html-format",
+      "recipes/cookbook/views/api.py:2939",
       "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
-    ],
-    [
-      "semgrep",
-      "insecure-hash-algorithm-md5",
-      "pretalx/src/pretalx/common/views/cache.py:24",
-      "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
-    ],
-    [
-      "semgrep",
-      "nan-injection",
-      "pretalx/src/pretalx/common/views/helpers.py:28",
-      "false",
-      "no float conversion of request data at this line"
-    ],
-    [
-      "semgrep",
-      "open-redirect",
-      "pretalx/src/pretalx/common/views/mixins.py:582",
-      "false",
-      "redirect(request.path): the request's own path"
-    ],
-    [
-      "semgrep",
-      "open-redirect",
-      "pretalx/src/pretalx/common/views/mixins.py:714",
-      "false",
-      "redirect(request.path): the request's own path"
-    ],
-    [
-      "semgrep",
-      "insecure-hash-algorithm-md5",
-      "pretalx/src/pretalx/event/models/event.py:579",
-      "false",
-      "MD5/SHA-1 for cache busting or an ETag, not a credential"
-    ],
-    [
-      "semgrep",
-      "open-redirect",
-      "pretalx/src/pretalx/orga/views/review.py:349",
-      "false",
-      "redirect(request.path): the request's own path"
-    ],
-    [
-      "semgrep",
-      "open-redirect",
-      "pretalx/src/pretalx/orga/views/review.py:363",
-      "false",
-      "redirect(request.path): the request's own path"
-    ],
-    [
-      "semgrep",
-      "open-redirect",
-      "pretalx/src/pretalx/orga/views/review.py:368",
-      "false",
-      "redirect(request.path): the request's own path"
+      "JSON-LD markup fed to the recipe scraper, never returned to a browser"
     ]
   ]
 }

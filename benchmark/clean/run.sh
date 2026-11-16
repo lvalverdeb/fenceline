@@ -29,9 +29,10 @@ clone healthchecks/healthchecks healthchecks cb5c9764ee483dd30864c0869cc0cbe12d3
 clone Netflix/dispatch dispatch dd2837e82a0bf5565b1b4b4b91ea30b7262d4061
 clone flaskbb/flaskbb flaskbb 1028f176840be67a239be3763720c8e249eb70de
 clone home-assistant/core hacore e68768b8549fc7d6d06235858e9ebbc8bd1472b7 homeassistant/auth homeassistant/components/http
+clone pretalx/pretalx pretalx 1510dea9aafd580d1b2d7b8466736a09cd0298ec
 
-roots="healthchecks/hc dispatch/src/dispatch flaskbb/flaskbb hacore/homeassistant"
-$fenceline --package healthchecks=healthchecks/hc --package dispatch=dispatch/src/dispatch --package flaskbb=flaskbb/flaskbb --package hacore=hacore/homeassistant --json >"$work/fenceline.json" || true
+roots="healthchecks/hc dispatch/src/dispatch flaskbb/flaskbb hacore/homeassistant pretalx/src/pretalx"
+$fenceline --package healthchecks=healthchecks/hc --package dispatch=dispatch/src/dispatch --package flaskbb=flaskbb/flaskbb --package hacore=hacore/homeassistant --package pretalx=pretalx/src/pretalx --json >"$work/fenceline.json" || true
 uvx --quiet bandit==1.9.4 -q -r $roots -f json -o "$work/bandit.json" || true
 uvx --quiet semgrep==1.185.0 --config p/python --metrics=off --json -o "$work/semgrep.json" -q $roots || true
 

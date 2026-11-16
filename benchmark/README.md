@@ -339,9 +339,11 @@ B403 2, B105 2, B406 2, B608 2, one each of B409/B104/B108; Semgrep one
 ## Clean-code corpus
 
 `clean/` holds the measurement the vulnerable apps cannot give: precision on
-ordinary code. Four maintained applications, one per framework, pinned and
-scanned at their application package; every finding of all three tools in
-scope adjudicated by hand.
+ordinary code. Five maintained applications, pinned and scanned at their
+application package; every finding of all three tools in scope adjudicated
+by hand. The first four were chosen one per framework; the fifth, pretalx,
+was the held-out application of the first tuning round and joined the
+corpus once the checks had been tuned against it (D7 in `ROADMAP.md`).
 
 | App | Framework | Commit | Scanned | Lines in scope |
 |---|---|---|---|---|
@@ -349,6 +351,7 @@ scope adjudicated by hand.
 | [dispatch](https://github.com/Netflix/dispatch) | FastAPI | `dd2837e` | `src/dispatch/` | 62177 |
 | [flaskbb](https://github.com/flaskbb/flaskbb) | Flask | `1028f17` | `flaskbb/` | 23731 |
 | [home-assistant/core](https://github.com/home-assistant/core) | aiohttp | `e68768b` | `homeassistant/auth/`, `homeassistant/components/http/` (sparse checkout) | 25967 |
+| [pretalx](https://github.com/pretalx/pretalx) | Django | `1510dea` | `src/pretalx/` | 64074 |
 
 Tools: fenceline 1.9.0, Bandit 1.9.4, Semgrep 1.185.0 `p/python`, as in the
 main benchmark. The universe is the same too: findings on `.py` files outside
@@ -376,7 +379,140 @@ design*. Recall is not measured: nobody knows how many weaknesses these
 applications hold. `clean/score.py` refuses to run if any in-scope finding
 has no verdict, so the labels are complete by construction.
 
-### Held-out application: pretalx (2026-11-14, at 1.10.0)
+### Held-out application: Tandoor Recipes (2026-11-16, unreleased main)
+
+The second blind measurement, taken after the pretalx shapes below were
+fixed and pretalx had joined the corpus. The application was chosen before
+any check was touched: [Tandoor Recipes](https://github.com/TandoorRecipes/recipes)
+(Django, `4fdc854`, `cookbook/` + `recipes/`, 20170 lines in scope), a
+maintained recipe manager by different authors in a different style. Labels
+are in `heldout-labels.json`, the runner is `heldout.sh`.
+
+| Tool | Findings | True | By design | False | Precision (strict) | Precision (lenient) | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| fenceline | 141 | 4 | 87 | 50 | 3% | 65% | 7.0 |
+| fenceline (--confidence-min high) | 110 | 4 | 87 | 19 | 4% | 83% | 5.5 |
+| Bandit | 41 | 2 | 26 | 13 | 5% | 68% | 2.0 |
+| Semgrep | 4 | 0 | 0 | 4 | 0% | 0% | 0.2 |
+
+**What it says.** The precision gates transfer this time and the density
+gate does not. Lenient precision is 65% at default and 83% at HIGH, against
+the 35% and 70% bars; density is 7.0 findings per 1,000 lines against a
+bar of 1.0. Both facts have one cause: Tandoor is written in a
+try/`except Exception:`-fallback style, and 94 of the 141 findings are the
+two exception-handler checks, `CWE-778` (65) and `CWE-391` (29), firing on
+those handlers. 87 of them are deliberate fallbacks (a scraper field that
+is missing, a permission check that fails closed, an optional image), so
+they count towards lenient precision and against density at the same time.
+The four true findings are two sites reported by both checks: importers
+that drop an ingredient or a step from the imported recipe with no entry
+in the import log. Bandit's two true findings are the same two sites.
+
+**The false positives, 50.** `CWE-200` 22: `traceback.print_exc()` in views
+and helpers, where the trace goes to the server's stderr and never to a
+user; a text check cannot tell. `CWE-601` 7: the login URL built as
+`reverse('account_login') + '?next=' + request.path`, where the leading
+operand is a route builder rather than a literal. `CWE-611` 5: lxml parsers
+constructed with `resolve_entities=False, no_network=True, load_dtd=False`,
+and an `Element` import. `CWE-798` 5: rate-limit specifications and URL
+paths under keys like `reset_password`. The rest are the known tails.
+
+**Observations, recorded and not fixed** (the blind rule): `CWE-391` and
+`CWE-778` report the same `except: pass` line twice, so a team sees two
+findings per handler; a handler that returns or assigns a fallback value
+is rated the same as one that passes; `CWE-200` cannot see whether a
+traceback reaches a response; `_is_same_site_path` wants a literal where a
+`reverse()` call leads the concatenation; defused lxml parser options are
+not recognised; `*_password` keys whose values are paths or specifications
+are still reported. `ROADMAP.md`, D8.
+
+**Port divergence.** Seven findings: `cookbook/serializer.py` and
+`cookbook/integration/mealie1.py` use PEP 701 f-strings (the same quote
+nested inside the expression), which rustpython-parser does not accept;
+the Rust port reports both files as unparsable and skips their AST checks.
+Same class as the PEP 695 file in Home Assistant.
+
+### Unreleased main (2026-11-16): the pretalx shapes, five apps
+
+The D7 round: the three shapes pretalx exposed, plus two found behind them
+while fixing (ORM chains with an intermediate call, and concatenations led
+by a URL property or the request's own path), in both ports with parity.
+Then pretalx joined the corpus and the next blind application was measured
+(above).
+
+The corpus is now five apps and 192,833 lines; the numbers are not
+comparable line for line with the four-app tables below, so both views are
+given.
+
+Five apps:
+
+| Tool | Findings | True | By design | False | Precision (strict) | Precision (lenient) | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| fenceline | 195 | 23 | 23 | 149 | 12% | 24% | 1.0 |
+| fenceline (--confidence-min high) | 81 | 19 | 15 | 47 | 23% | 42% | 0.4 |
+| Bandit | 338 | 12 | 11 | 315 | 4% | 7% | 1.8 |
+| Semgrep | 35 | 0 | 1 | 34 | 0% | 3% | 0.2 |
+
+fenceline confidence calibration:
+
+| Confidence | Findings | True | By design | False | Share true |
+|---|---|---|---|---|---|
+| HIGH | 81 | 19 | 15 | 47 | 23% |
+| MEDIUM | 112 | 4 | 8 | 100 | 4% |
+| LOW | 2 | 0 | 0 | 2 | 0% |
+
+fenceline per app:
+
+| App | Findings | True | By design | False | Per 1000 lines |
+|---|---|---|---|---|---|
+| healthchecks | 15 | 0 | 3 | 12 | 0.9 |
+| dispatch | 58 | 19 | 8 | 31 | 0.9 |
+| flaskbb | 22 | 4 | 8 | 10 | 0.9 |
+| hacore | 13 | 0 | 2 | 11 | 0.5 |
+| pretalx | 87 | 0 | 2 | 85 | 1.4 |
+
+The original four apps, for comparison with the 1.10.0 table: 108 findings,
+23 true, 21 by design, 64 false, 21% strict and 41% lenient at 0.8 per
+1,000 lines (1.10.0: 116, 20%, 38%, 0.9); at HIGH 45 findings, 19 / 13 /
+13, 42% and 71% at 0.3, unchanged. pretalx itself went from 224 findings
+to 87 (0 true, 2 by design, 85 false; 3.5 to 1.4 per 1,000 lines; at HIGH
+86 to 36).
+
+**What changed.** Attribute chains under `request` whose first attribute
+is not a data attribute of a recognised framework (`request.user.email`,
+`request.session.get(...)`, `request.event.urls.base`) are server-side
+state and classify INTERNAL. Class bodies are scopes, so a literal there
+is CLEAN and `placeholder = mark_safe("&mdash;")` no longer reports.
+Redirects to a named URL in an urlman-style namespace (`event.urls.base`,
+`obj.orga_urls.x.full()`) are dropped whatever the object's origin; a URL
+property or getter (`topic.url`, `self.get_success_url()`) is dropped when
+the destination is INTERNAL, which also removes the seven flaskbb model-URL
+redirects the 1.10.0 notes called type-shaped. Both rules and the
+request's-own-path rule see through a concatenation.
+`url_has_allowed_host_and_scheme(x, ...)` is a guard on `x`. The NUL-byte
+regex matched any octal escape starting with `\0`, so every `\033[33m`
+colour code reported; it matches NUL only now, and a NUL in a membership
+test or at the start of a regex character class is skipped (27 findings
+gone from the library corpus too, all of that shape). ORM lookups through
+an intermediate call (`Model.objects.select_related("e").get(code=code)`)
+are recognised. The vulnerable benchmark is unchanged: 210 findings, 96%
+precision, recall 190/204, 98% at HIGH.
+
+**Where the remaining noise is.** 149 false positives on five apps, by
+check: `CWE-601` 37 (26 at HIGH; in pretalx these are now `get_next_url(request)`
+results the check cannot see are validated inside the helper, `reverse()`
+URLs with a query string appended, and middleware redirects through
+`urljoin(settings.SITE_URL, ...)`), `CWE-79` 31 (28 in pretalx, each with
+the maintainers' `S308` note: bleach-sanitised markdown, escaped fragments,
+rendered templates; the engine would need to know the renderer sanitises),
+`CWE-117` 23 (dispatch, unchanged), `CWE-338` 15, `CWE-328` 10, `CWE-918`
+8, `CWE-22` 8, `CWE-73` 5, `CWE-798` 3, `CWE-770` 2, and one each of seven
+others.
+
+**Port divergence.** The PEP 695 file in Home Assistant, as before: 178
+against 177. Vulnerable benchmark and library corpus identical.
+
+### Held-out application: pretalx (2026-11-14, at 1.10.0; in the corpus since 2026-11-16)
 
 The check this corpus exists to pass. After the C2 work was frozen and
 released, one more application of a framework already in the corpus was

@@ -9,7 +9,12 @@ precision at 1.9.0 (4% at HIGH), Bandit 5%, Semgrep 0%. C2 two rounds done
 change. D6 accepted 2026-11-14: the C2 gates are the lenient ones stated
 there, and they are met on the tuning set. Held-out application (pretalx)
 measured 2026-11-14: 0% precise, 224 findings, three shapes the tuning
-set did not contain. C2 is not closed; D7 below asks how to proceed.
+set did not contain. D7 accepted 2026-11-16 as (a): shapes fixed in both
+ports, pretalx in the corpus (five apps: 12% strict, 24% lenient, 1.0 per
+1,000 lines; 23% / 42% at HIGH), second held-out application (Tandoor
+Recipes) measured blind: 3% strict, 65% lenient, 7.0 per 1,000 lines. The
+precision gates transfer; the density gate does not. Unreleased on main;
+D8 below asks how to close C2.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 
@@ -181,6 +186,38 @@ the pretalx re-measurement alone, accepting that it is no longer blind;
 (c) leave the checks, close C2 as measured, and let C3 proceed. (a) is the
 honest one and costs one more adjudication; it is the recommendation.
 
+**D7 accepted 2026-11-16, as (a). Outcome.** The three shapes were fixed
+in both ports with parity, and two more surfaced while fixing: ORM chains
+with an intermediate call (`Model.objects.select_related("e").get(...)`
+was not a lookup), and concatenations led by a URL property or the
+request's own path. pretalx went from 224 findings to 87 and joined the
+corpus; the four original apps moved from 20% / 38% to 21% / 41% (the
+flaskbb model-URL redirects, called type-shaped above, fell to the URL
+property rule); the vulnerable benchmark did not move. Five-app corpus:
+195 findings, 23 true, 23 by design, 149 false, 12% strict and 24% lenient
+at 1.0 per 1,000 lines; at HIGH 81 findings, 23% and 42% at 0.4. The next
+held-out application, Tandoor Recipes (Django, 20,170 lines, chosen before
+any check was touched), read 141 findings, 4 true, 87 by design, 50 false:
+3% strict, 65% lenient, 7.0 per 1,000 lines; at HIGH 110 findings, 4% and
+83% at 5.5. The two precision gates are met on the blind app for the first
+time; the density gate fails by a factor of seven, and the cause is one
+shape: 94 of the 141 findings are the exception-handler checks `CWE-778`
+and `CWE-391` on an application written in try/`except Exception:`
+fallback style, both checks firing on the same line. Details and the
+recorded observations are in `benchmark/README.md`.
+
+**D8, open.** How to close C2. (a) One more round on the Tandoor shapes
+(one finding per handler instead of two, a fallback that returns or
+assigns a value rated below a bare `pass`, `traceback.print_exc()` in
+server code, `reverse()` leading a concatenation, defused lxml options),
+Tandoor into the corpus, a third blind application of a framework other
+than Django, then release. (b) Release now as 1.11.0 (every corpus is
+better than 1.10.0 and the blind numbers describe this exact tree), record
+the density caveat in the README, and do (a) as the first item after. (c)
+Close C2 as measured and start C3. (b) is the recommendation: the
+improvement is real and should ship, and the handler shape is cheap enough
+that it need not hold the release.
+
 ### Phase C3: a CVE regression set
 
 The instrument with headroom for recall. Instead of a fifth intentionally
@@ -314,4 +351,8 @@ Semgrep replacement.
   default with density ≤ 1 per 1,000 lines (see Phase C2); accepted.
 - **D7** After the held-out failure: fix the three pretalx shapes and
   re-measure on a further held-out app (recommended), re-measure on pretalx
-  alone, or close C2 as measured.
+  alone, or close C2 as measured. Accepted 2026-11-16 as the first.
+- **D8** After the second held-out measurement (precision gates met,
+  density gate not): another round on the handler shape plus a third blind
+  app before release, release 1.11.0 now and do that round after
+  (recommended), or close C2 as measured.
