@@ -51,6 +51,31 @@ false-positive rate on ordinary code.
 
 ## Results
 
+### Unreleased (2026-11-16): the Tandoor round
+
+The handler round (under the clean corpus below) changed six check shapes.
+On the vulnerable apps:
+
+| Tool | Findings | True | False | Precision | Recall |
+|---|---|---|---|---|---|
+| fenceline | 201 | 192 | 9 | 96% | 187/201 (93%) |
+| fenceline (--confidence-min high) | 143 | 140 | 3 | 98% | 136/201 (68%) |
+| Bandit | 179 | 159 | 20 | 89% | 156/201 (78%) |
+| Semgrep | 91 | 90 | 1 | 99% | 68/201 (34%) |
+
+Nine `CWE-778` findings are gone, all labelled true. Six were handlers of
+nothing but `pass` or `continue`, which `CWE-391` still reports on the same
+line, so each of those handlers is now reported once instead of twice.
+Three are gone from the benchmark altogether: two `except: error =
+"Invalid input"` in pygoat's insecure-design lab and `except Exception as
+e: return False` in vulpy's user lookup. The round treats a handler that
+only substitutes a value as the author's explicit handling of the failure,
+because on the ordinary applications that shape was by design nearly every
+time; these three are the price on the vulnerable side. They were found by
+no other tool, so the ground truth shrinks with them (204 to 201) and the
+recall percentage does not move; the honest statement is three true
+positives fewer at the same precision.
+
 ### 1.10.0 (2026-11-14)
 
 The clean-corpus work (below) changed twenty-odd check shapes. On the
@@ -339,11 +364,12 @@ B403 2, B105 2, B406 2, B608 2, one each of B409/B104/B108; Semgrep one
 ## Clean-code corpus
 
 `clean/` holds the measurement the vulnerable apps cannot give: precision on
-ordinary code. Five maintained applications, pinned and scanned at their
+ordinary code. Six maintained applications, pinned and scanned at their
 application package; every finding of all three tools in scope adjudicated
-by hand. The first four were chosen one per framework; the fifth, pretalx,
-was the held-out application of the first tuning round and joined the
-corpus once the checks had been tuned against it (D7 in `ROADMAP.md`).
+by hand. The first four were chosen one per framework; the fifth and sixth,
+pretalx and Tandoor Recipes, were the held-out applications of the first
+two tuning rounds and joined the corpus once the checks had been tuned
+against them (D7 and D8 in `ROADMAP.md`).
 
 | App | Framework | Commit | Scanned | Lines in scope |
 |---|---|---|---|---|
@@ -352,6 +378,7 @@ corpus once the checks had been tuned against it (D7 in `ROADMAP.md`).
 | [flaskbb](https://github.com/flaskbb/flaskbb) | Flask | `1028f17` | `flaskbb/` | 23731 |
 | [home-assistant/core](https://github.com/home-assistant/core) | aiohttp | `e68768b` | `homeassistant/auth/`, `homeassistant/components/http/` (sparse checkout) | 25967 |
 | [pretalx](https://github.com/pretalx/pretalx) | Django | `1510dea` | `src/pretalx/` | 64074 |
+| [Tandoor Recipes](https://github.com/TandoorRecipes/recipes) | Django | `4fdc854` | `cookbook/`, `recipes/` | 20170 |
 
 Tools: fenceline 1.9.0, Bandit 1.9.4, Semgrep 1.185.0 `p/python`, as in the
 main benchmark. The universe is the same too: findings on `.py` files outside
@@ -379,7 +406,147 @@ design*. Recall is not measured: nobody knows how many weaknesses these
 applications hold. `clean/score.py` refuses to run if any in-scope finding
 has no verdict, so the labels are complete by construction.
 
-### Held-out application: Tandoor Recipes (2026-11-16, at 1.11.0)
+### Held-out application: CTFd (2026-11-16, unreleased tree after the Tandoor round)
+
+The third blind measurement and the first on an application that is not
+Django: [CTFd](https://github.com/CTFd/CTFd) (Flask, `485d59e`, `CTFd/`,
+23824 lines in scope), the capture-the-flag platform, chosen before any
+check of the Tandoor round was touched. Labels are in `heldout-labels.json`,
+the runner is `heldout.sh`.
+
+| Tool | Findings | True | By design | False | Precision (strict) | Precision (lenient) | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| fenceline | 33 | 0 | 5 | 28 | 0% | 15% | 1.4 |
+| fenceline (--confidence-min high) | 11 | 0 | 1 | 10 | 0% | 9% | 0.5 |
+| Bandit | 12 | 0 | 2 | 10 | 0% | 17% | 0.5 |
+| Semgrep | 13 | 0 | 2 | 11 | 0% | 15% | 0.5 |
+
+fenceline also reports one `CWE-1104` on the repository's `uv.lock`
+(werkzeug 2.2.3, CVE-2024-49766), which is correct and outside the
+application-code universe the three tools share.
+
+**What it says.** All three gates fail: 15% lenient at default against
+35%, 9% at HIGH against 70%, 1.4 findings per 1,000 lines against 1.0. Two
+things qualify that. No tool found anything true in CTFd, so strict
+precision could not have been above zero, and lenient precision on an app
+with five by-design findings is a count of false positives, not of
+judgement. And density on a blind application has read 3.5 (pretalx at
+1.10.0), 7.0 (Tandoor at 1.11.0) and now 1.4: the first blind number near
+the bar, on a framework the two previous rounds did not tune on. Bandit
+and Semgrep read 0.5 each at 17% and 15% lenient.
+
+**The false positives, 28.** `CWE-22` 10: `send_file()` of an in-memory CSV
+export (a `BytesIO`, not a path), of `safe_join()` results that are checked
+for `None` first, and of a plugin asset path captured in a closure at
+startup; template paths declared by the challenge plugin class with
+`.lstrip("/")`. `CWE-601` 4: `redirect(request.args.get("next"))` guarded
+by `validators.is_safe_url(request.args.get("next"))` in the enclosing
+`if`, where the guard's argument is a call rather than a name so the
+URL-validator rule does not bind; `application_root + request.script_root
++ request.full_path`, a configured prefix leading the concatenation; a
+boto3 presigned URL re-hosted on a configured domain. `CWE-798` 4:
+`DEFAULT_PASSWORD_RESET_SUBJECT` and three siblings, e-mail text under
+password-action names in the other word order (`password_reset`,
+`password_change`); Bandit's B105 reports the same four. `CWE-778` 3:
+handlers that `print()` the failure (a print without the exception bound
+is not a diagnostic, by rule) or `abort(401, ...)` to the client. `CWE-328`
+2 and `CWE-79` 1: MD5 of a cache key, SHA-1 of an upload's content and a
+`Markup()` helper, each with a `# noqa` for the equivalent Bandit code.
+`CWE-918` 2: `requests.request(method, url, ...)` in an API client wrapper
+whose URL comes from the administrator's integration settings. `CWE-89` 1:
+`f"KILL {proc_id}"` with an id read from the database's process list.
+`CWE-73` 1: `copyfileobj()` to a `safe_join()` destination.
+
+**Observations, recorded and not fixed** (the blind rule): a URL validator
+applied to a call expression rather than a bound name; `send_file()` of a
+non-path object; `safe_join()` as a sanitiser for `send_file()`; `abort()`
+and `print()` as explicit handling of a caught exception; the
+`password_reset` word order of the password-action rule; a configured
+prefix leading a redirect concatenation; and `# noqa: Sxxx` on a line,
+which says the authors have already adjudicated the equivalent Bandit
+finding. `ROADMAP.md`, D9.
+
+**Port divergence.** None: 34 findings in both ports.
+
+### Unreleased (2026-11-16): the Tandoor round, six apps
+
+The round the D8 text asked for, in both ports with parity: `CWE-778` no
+longer reports a catch-all handler that only substitutes an outcome
+(`pass`, `continue`, `break`, a `return` or assignment whose value makes no
+call, or a nested `try` of the same shape), so a `pass` handler is
+`CWE-391`'s finding alone and a chosen fallback value is the author's
+handling; a handler that returns a built response or does other work
+without recording the error still reports. `CWE-200` reports
+`traceback.format_exc()` on a line that returns or builds a response, not
+`traceback.print_exc()`, which goes to stderr. A redirect concatenation
+led by a route builder (`reverse('login') + '?next=' + request.path`) is
+same-site. An lxml parser built with `resolve_entities=False`, a parse
+call passing such a parser, and an import of XML builders and serialisers
+only are not XXE. `reset_password`/`change_password` keys are actions on
+the password, and a value that is a URL or filesystem path is not a
+secret. Then Tandoor joined the corpus and CTFd was measured blind (above).
+
+The corpus is now six apps and 213,003 lines:
+
+| Tool | Findings | True | By design | False | Precision (strict) | Precision (lenient) | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| fenceline | 233 | 25 | 46 | 162 | 11% | 30% | 1.1 |
+| fenceline (--confidence-min high) | 117 | 21 | 38 | 58 | 18% | 50% | 0.5 |
+| Bandit | 379 | 14 | 37 | 328 | 4% | 13% | 1.8 |
+| Semgrep | 39 | 0 | 1 | 38 | 0% | 3% | 0.2 |
+
+| Confidence | Findings | True | By design | False | Share true |
+|---|---|---|---|---|---|
+| HIGH | 117 | 21 | 38 | 58 | 18% |
+| MEDIUM | 114 | 4 | 8 | 102 | 4% |
+| LOW | 2 | 0 | 0 | 2 | 0% |
+
+| App | Framework | Lines | Findings | True | By design | False | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| healthchecks | Django | 16884 | 15 | 0 | 3 | 12 | 0.9 |
+| dispatch | FastAPI | 62177 | 53 | 19 | 4 | 30 | 0.9 |
+| flaskbb | Flask | 23731 | 21 | 4 | 7 | 10 | 0.9 |
+| hacore | aiohttp | 25967 | 13 | 0 | 2 | 11 | 0.5 |
+| pretalx | Django | 64074 | 86 | 0 | 1 | 85 | 1.3 |
+| recipes | Django | 20170 | 45 | 2 | 29 | 14 | 2.2 |
+
+False positives by check: `CWE-601` 40 (29 at HIGH), `CWE-79` 31,
+`CWE-117` 23, `CWE-338` 16, `CWE-328` 11, `CWE-22` 9, `CWE-918` 8,
+`CWE-73` 6, `CWE-770` 5, `CWE-798` 3, `CWE-778` 3, seven others once each.
+
+**Tandoor, before and after.** 141 findings at 1.11.0, 45 now: 2 true, 29
+by design, 14 false, 4% strict and 69% lenient at 2.2 per 1,000 lines
+(HIGH: 42 findings, 5% and 74% at 2.1). The two true sites, importers that
+drop content with no log entry, are reported once each now, by `CWE-391`.
+The 65 `CWE-778` fell to 4, the 22 `CWE-200` to none, the 7 `CWE-601` to 3,
+the 5 `CWE-611` and the 5 `CWE-798` to none. What remains: three redirects
+where the leading operand is a configured prefix or allauth's
+`build_absolute_uri()` of a `reverse()` URL; two handlers that `print()`
+or write the failure to a command's output (not a diagnostic, by rule) and
+one that returns an error message to the user; three `.read()` of uploads
+Django has already received; one each of `CWE-328`, `CWE-338`, `CWE-73`,
+`CWE-22`, `CWE-94`. Density 7.0 to 2.2 is the round's result; 2.2 is still
+above the bar, and the remaining 29 by-design findings are the `CWE-391`
+`pass` handlers, which are reported once each and are what the check is
+for.
+
+**The five apps, before and after.** 195 findings at 1.11.0, 188 now: 23
+true, 17 by design, 148 false, 12% strict and 21% lenient at 1.0 (HIGH: 75
+findings, 25% and 37% at 0.4; was 81, 23% and 42%). Lenient precision fell
+three points because the seven findings removed were by-design handlers
+(dispatch's version and git lookups, flaskbb's celery probe, pretalx's
+session recovery) and one `print_exc()` at import time; strict precision
+and density did not move.
+
+**Elsewhere.** Library corpus 235 to 220: fourteen `CWE-778` fallback
+handlers in aiohttp, botocore and tornado, and one `CWE-200` `print_exc()`
+in a tornado test. pretalx 88 to 87. Vulnerable benchmark: see the top of
+this file (three true `CWE-778` instances fewer).
+
+**Port divergence.** Unchanged: the PEP 695 file in Home Assistant and the
+two PEP 701 files in Tandoor.
+
+### Held-out application: Tandoor Recipes (2026-11-16, at 1.11.0; in the corpus since 2026-11-16)
 
 The second blind measurement, taken after the pretalx shapes below were
 fixed and pretalx had joined the corpus. The application was chosen before

@@ -14,8 +14,14 @@ ports, pretalx in the corpus (five apps: 12% strict, 24% lenient, 1.0 per
 1,000 lines; 23% / 42% at HIGH), second held-out application (Tandoor
 Recipes) measured blind: 3% strict, 65% lenient, 7.0 per 1,000 lines. The
 precision gates transfer; the density gate does not. D8 accepted 2026-11-16
-as (b): released as 1.11.0 from that tree; the Tandoor round (handler
-shape, then a third blind application) is the current work.
+as (b): released as 1.11.0 from that tree. Tandoor round done 2026-11-16,
+unreleased: six-app corpus 11% strict / 30% lenient at 1.1 per 1,000 lines
+(18% / 50% at HIGH, 0.5); Tandoor 7.0 to 2.2 per 1,000; vulnerable
+benchmark 96% precision with three true fallback-value handlers fewer.
+Third held-out application (CTFd, Flask, 23,824 lines) measured blind: 0%
+strict, 15% lenient, 1.4 per 1,000 lines, nothing true found by any tool;
+all three gates fail, and blind density has read 3.5, 7.0, 1.4 across the
+three rounds. D9 open.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 
@@ -222,6 +228,50 @@ that it need not hold the release.
 **D8 accepted 2026-11-16, as (b).** 1.11.0 released from the measured
 tree. The Tandoor round follows, as the first item.
 
+**Tandoor round done 2026-11-16, unreleased. Outcome.** Six shapes in both
+ports: a handler is reported once (`pass`/`continue` are `CWE-391`'s), a
+handler that only substitutes a value is not reported as unlogged,
+`CWE-200` reports `format_exc()` in a response rather than `print_exc()`,
+a route builder may lead a redirect concatenation, defused lxml parsers
+and builder-only XML imports are not XXE, and password-action keys and
+path values are not secrets. Tandoor went from 141 findings to 45 (7.0 to
+2.2 per 1,000 lines, 65% to 69% lenient) and joined the corpus. Six apps,
+213,003 lines: 233 findings, 25 true, 46 by design, 162 false, 11% strict
+and 30% lenient at 1.1 per 1,000; at HIGH 117 findings, 18% and 50% at
+0.5. The five previous apps lost three points of lenient precision (seven
+by-design handlers no longer reported) and nothing else. The vulnerable
+benchmark keeps 96% precision and loses three true instances, all
+fallback-value handlers in lab code (`except: error = "Invalid input"`,
+`return False`). The third held-out application, CTFd (Flask, `485d59e`,
+23,824 lines, chosen before any check was touched), read 33 findings, 0
+true, 5 by design, 28 false: 0% strict, 15% lenient, 1.4 per 1,000; at
+HIGH 11 findings, 9% lenient at 0.5. Bandit and Semgrep found nothing true
+either, at 0.5 per 1,000 each. The 28 false findings are seven shapes
+(`send_file()` of a non-path or a `safe_join()` result, a URL validator
+applied to a call expression, the `password_reset` word order, `abort()`
+and `print()` as handling, a configured prefix leading a redirect, API
+client wrappers, `# noqa` lines), recorded in `benchmark/README.md` and
+not fixed.
+
+**D9, open.** How to proceed with C2 after a third blind failure. (a)
+Release 1.12.0 from this tree (every corpus is better than 1.11.0, with
+the three benchmark instances stated in the notes), then a CTFd round: the
+seven shapes, CTFd into the corpus, a fourth blind application of a
+framework neither Django nor Flask (FastAPI or Starlette), re-measure. (b)
+Close C2 as measured and not met: keep the six-app corpus as the
+regression gate (no check change may lower its lenient precision or raise
+its density), state the blind numbers in the README as what a team should
+expect, and start C3. (c) Reverse the fallback-value rule to a lower
+confidence instead of a skip, recovering the three benchmark instances at
+the cost of Tandoor's density returning towards 5 per 1,000. (a) is the
+recommendation: blind density has gone 3.5, 7.0, 1.4 and the CTFd shapes
+are small and specific, so one more round on a third framework is the
+cheapest way to learn whether 1.0 is reachable without a recall cost;
+releasing first keeps the measured tree and the published tree the same,
+as D8 did. (c) is not recommended: the three instances are lab-code
+fallbacks of exactly the shape that was by design 29 times in Tandoor and
+seven times in the other five apps.
+
 ### Phase C3: a CVE regression set
 
 The instrument with headroom for recall. Instead of a fifth intentionally
@@ -360,3 +410,7 @@ Semgrep replacement.
   density gate not): another round on the handler shape plus a third blind
   app before release, release 1.11.0 now and do that round after
   (recommended), or close C2 as measured. Accepted 2026-11-16 as the second.
+- **D9** After the third held-out measurement (all gates failed, nothing
+  true to find, blind density 1.4): release 1.12.0 and run a CTFd round
+  with a fourth blind app on a third framework (recommended), close C2 as
+  measured, or restore fallback-value handlers at lower confidence.

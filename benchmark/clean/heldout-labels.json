@@ -1,11 +1,11 @@
 {
   "apps": {
-    "recipes": {
-      "repo": "TandoorRecipes/recipes",
-      "commit": "4fdc854",
-      "framework": "Django",
-      "scanned": "cookbook + recipes",
-      "lines": 20170
+    "CTFd": {
+      "repo": "CTFd/CTFd",
+      "commit": "485d59e",
+      "framework": "Flask",
+      "scanned": "CTFd",
+      "lines": 23824
     }
   },
   "labels": [
@@ -16,1305 +16,409 @@
   "verdicts": [
     [
       "fenceline",
-      "CWE-328",
-      "recipes/cookbook/helper/CustomStorageClass.py:10",
+      "CWE-22",
+      "CTFd/CTFd/admin/__init__.py:181",
       "false",
-      "MD5 of a cache key, not a credential"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/drf_spectacular_hooks.py:95",
-      "by-design",
-      "schema generation falls back to no serializer"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/image_processing.py:59",
-      "by-design",
-      "file-type fallback to .jpeg"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/image_processing.py:106",
-      "by-design",
-      "the handler is the validation result: an unreadable image returns None"
-    ],
-    [
-      "fenceline",
-      "CWE-611",
-      "recipes/cookbook/helper/mdx_urlize.py:38",
-      "false",
-      "import of the Element class, not a parser"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/helper/open_data_importer.py:389",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/helper/open_data_importer.py:400",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/helper/open_data_importer.py:513",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/permission_helper.py:84",
-      "by-design",
-      "permission check fails closed on any error"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/permission_helper.py:99",
-      "by-design",
-      "permission check fails closed on any error"
-    ],
-    [
-      "fenceline",
-      "CWE-338",
-      "recipes/cookbook/helper/permission_helper.py:568",
-      "false",
-      "random suffix for a display name"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "recipes/cookbook/helper/permission_helper.py:226",
-      "false",
-      "the login URL (reverse() or a fixed path) with the request's own path or the next parameter as query string; allauth validates next"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "recipes/cookbook/helper/permission_helper.py:205",
-      "false",
-      "the login URL (reverse() or a fixed path) with the request's own path or the next parameter as query string; allauth validates next"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:26",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:44",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:61",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:78",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:85",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:103",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:115",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:120",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:129",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:139",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:157",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:198",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:37",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:49",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:66",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:94",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:108",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:288",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:403",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:408",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:29",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:81",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:88",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:124",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:133",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:97",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/recipe_url_import.py:188",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/helper/recipe_url_import.py:206",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/helper/recipe_url_import.py:279",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/helper/recipe_url_import.py:115",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/helper/recipe_url_import.py:139",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/helper/recipe_url_import.py:157",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/helper/recipe_url_import.py:198",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/helper/recipe_url_import.py:408",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/helper/recipe_url_import.py:29",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/helper/recipe_url_import.py:124",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/helper/recipe_url_import.py:133",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/helper/recipe_url_import.py:97",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/scope_middleware.py:134",
-      "by-design",
-      "token authentication attempts fall through to a 403 (comment says so)"
-    ],
-    [
-      "fenceline",
-      "CWE-601",
-      "recipes/cookbook/helper/scope_middleware.py:141",
-      "false",
-      "the login URL (reverse() or a fixed path) with the request's own path or the next parameter as query string; allauth validates next"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/helper/scope_middleware.py:134",
-      "by-design",
-      "token authentication attempts fall through to a 403 (comment says so)"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/shopping_helper.py:182",
-      "by-design",
-      "delete reports success or failure as a boolean"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/template_helper.py:164",
-      "false",
-      "the handler returns an error message to the user"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/helper/unit_conversion_helper.py:105",
-      "by-design",
-      "unit conversion is best-effort"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/helper/unit_conversion_helper.py:105",
-      "by-design",
-      "unit conversion is best-effort"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/cookbookapp.py:117",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/cookbookapp.py:117",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/integration/default.py:26",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-611",
-      "recipes/cookbook/integration/integration.py:210",
-      "false",
-      "lxml parser with resolve_entities=False, no_network=True, load_dtd=False"
-    ],
-    [
-      "fenceline",
-      "CWE-611",
-      "recipes/cookbook/integration/integration.py:211",
-      "false",
-      "lxml parser with resolve_entities=False, no_network=True, load_dtd=False"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/integration/integration.py:244",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/integration/integration.py:366",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/mealie.py:56",
-      "true",
-      "a failed ingredient is dropped from the imported recipe with no entry in the import log"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/mealie.py:93",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/mealie.py:56",
-      "true",
-      "a failed ingredient is dropped from the imported recipe with no entry in the import log"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/mealie.py:93",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/mealie1.py:304",
-      "by-design",
-      "cleanup of temporary property types"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/mealie1.py:304",
-      "by-design",
-      "cleanup of temporary property types"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/mealmaster.py:72",
-      "by-design",
-      "decoding fallback to a marker string"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/melarecipes.py:43",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/melarecipes.py:77",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/melarecipes.py:43",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/melarecipes.py:77",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:33",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:42",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:50",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:94",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:33",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:42",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:50",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:94",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/paprika.py:38",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/paprika.py:94",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/paprika.py:38",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/paprika.py:94",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-611",
-      "recipes/cookbook/integration/rezeptsuitede.py:14",
-      "false",
-      "lxml parser with resolve_entities=False, no_network=True, load_dtd=False"
-    ],
-    [
-      "fenceline",
-      "CWE-611",
-      "recipes/cookbook/integration/rezeptsuitede.py:15",
-      "false",
-      "lxml parser with resolve_entities=False, no_network=True, load_dtd=False"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/rezeptsuitede.py:66",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/rezeptsuitede.py:73",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/integration/rezeptsuitede.py:42",
-      "true",
-      "a failed step is dropped from the imported recipe with no entry in the import log"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/rezeptsuitede.py:66",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/rezeptsuitede.py:73",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/integration/rezeptsuitede.py:42",
-      "true",
-      "a failed step is dropped from the imported recipe with no entry in the import log"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/management/commands/rebuildindex.py:30",
-      "false",
-      "the handler writes the error to the command output"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/models.py:1654",
-      "by-design",
-      "the handler is the validation result: an unreadable image returns False"
-    ],
-    [
-      "fenceline",
-      "CWE-73",
-      "recipes/cookbook/provider/local.py:70",
-      "false",
-      "rename guarded by is_path_allowed() against the configured storage roots"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/serializer.py:301",
-      "by-design",
-      "missing image falls back to an empty URL"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/serializer.py:362",
-      "by-design",
-      "missing image falls back to an empty URL"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/serializer.py:63",
-      "by-design",
-      "active-space lookup falls back to None"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/serializer.py:648",
-      "by-design",
-      "active-space lookup falls back to None"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/serializer.py:1470",
-      "by-design",
-      "active-space lookup falls back to None"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/serializer.py:219",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/cookbook/signals.py:142",
-      "by-design",
-      "previous value falls back to None"
+      "send_file() of an in-memory CSV export, not a path"
     ],
     [
       "fenceline",
       "CWE-22",
-      "recipes/cookbook/views/api.py:3463",
+      "CTFd/CTFd/admin/challenges.py:60",
       "false",
-      "file path comes from the recipe's storage provider after an object permission check"
+      "template paths declared by the challenge plugin class, not request data"
     ],
     [
       "fenceline",
-      "CWE-778",
-      "recipes/cookbook/views/api.py:174",
-      "by-design",
-      "request-count metrics are best-effort"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/api.py:422",
+      "CWE-22",
+      "CTFd/CTFd/admin/challenges.py:99",
       "false",
-      "traceback printed to the server's stderr, not returned to a user"
+      "template paths declared by the challenge plugin class, not request data"
     ],
     [
       "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/api.py:1213",
+      "CWE-22",
+      "CTFd/CTFd/admin/challenges.py:64",
       "false",
-      "traceback printed to the server's stderr, not returned to a user"
+      "template paths declared by the challenge plugin class, not request data"
     ],
     [
       "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/api.py:1300",
+      "CWE-22",
+      "CTFd/CTFd/api/v1/challenges.py:575",
       "false",
-      "traceback printed to the server's stderr, not returned to a user"
+      "template paths declared by the challenge plugin class, not request data"
     ],
     [
       "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/api.py:2136",
+      "CWE-22",
+      "CTFd/CTFd/api/v1/exports.py:32",
       "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/api.py:2390",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/api.py:2953",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/api.py:2960",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/api.py:3055",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/api.py:3187",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/api.py:3207",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/api.py:3232",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
-    ],
-    [
-      "fenceline",
-      "CWE-770",
-      "recipes/cookbook/views/api.py:2825",
-      "false",
-      "reads an upload Django has already received in full"
-    ],
-    [
-      "fenceline",
-      "CWE-770",
-      "recipes/cookbook/views/api.py:3255",
-      "false",
-      "reads an upload Django has already received in full"
-    ],
-    [
-      "fenceline",
-      "CWE-770",
-      "recipes/cookbook/views/api.py:3083",
-      "false",
-      "reads an upload Django has already received in full"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/cookbook/views/api.py:174",
-      "by-design",
-      "request-count metrics are best-effort"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/cookbook/views/telegram.py:68",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
+      "send_file() of an in-memory CSV export, not a path"
     ],
     [
       "fenceline",
       "CWE-601",
-      "recipes/cookbook/views/views.py:61",
+      "CTFd/CTFd/auth.py:404",
       "false",
-      "allauth's build_absolute_uri() of a reverse() URL: the site's own host"
+      "the next parameter is checked with validators.is_safe_url() on the line before"
     ],
     [
       "fenceline",
       "CWE-601",
-      "recipes/cookbook/views/views.py:66",
+      "CTFd/CTFd/auth.py:492",
       "false",
-      "allauth's build_absolute_uri() of a reverse() URL: the site's own host"
+      "the next parameter is checked with validators.is_safe_url() on the line before"
+    ],
+    [
+      "fenceline",
+      "CWE-328",
+      "CTFd/CTFd/cache/__init__.py:122",
+      "false",
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "CTFd/CTFd/cli/__init__.py:61",
+      "by-design",
+      "the export command writes the backup where the operator asked"
+    ],
+    [
+      "fenceline",
+      "CWE-73",
+      "CTFd/CTFd/cli/__init__.py:68",
+      "by-design",
+      "the export command writes the backup where the operator asked"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "CTFd/CTFd/config.py:344",
+      "by-design",
+      "SECRET_KEY of the TestingConfig class, used by the test suite only"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "CTFd/CTFd/constants/email.py:20",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "CTFd/CTFd/constants/email.py:21",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "CTFd/CTFd/constants/email.py:27",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "fenceline",
+      "CWE-798",
+      "CTFd/CTFd/constants/email.py:28",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/plugins/__init__.py:59",
+      "false",
+      "plugin-registered asset path captured in a closure at startup"
+    ],
+    [
+      "fenceline",
+      "CWE-89",
+      "CTFd/CTFd/utils/exports/__init__.py:247",
+      "false",
+      "KILL of a process id read from the database's own process list"
+    ],
+    [
+      "fenceline",
+      "CWE-89",
+      "CTFd/CTFd/utils/exports/__init__.py:416",
+      "by-design",
+      "Postgres sequence reset with a quote-checked table name from the database's own metadata (S608 note)"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "CTFd/CTFd/utils/exports/__init__.py:264",
+      "false",
+      "the handler prints the failure"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "CTFd/CTFd/utils/exports/__init__.py:487",
+      "false",
+      "the handler prints the failure"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "CTFd/CTFd/utils/git/github.py:52",
+      "false",
+      "GitHub/GitLab API client whose URL comes from the administrator's integration settings"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "CTFd/CTFd/utils/git/gitlab.py:36",
+      "false",
+      "GitHub/GitLab API client whose URL comes from the administrator's integration settings"
+    ],
+    [
+      "fenceline",
+      "CWE-79",
+      "CTFd/CTFd/utils/helpers/__init__.py:11",
+      "false",
+      "Markup() helper for template use; callers pass administrator-authored content (S704 note)"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "CTFd/CTFd/utils/initialization/__init__.py:383",
+      "false",
+      "the handler aborts with 401 to the client"
     ],
     [
       "fenceline",
       "CWE-601",
-      "recipes/cookbook/views/views.py:97",
+      "CTFd/CTFd/utils/initialization/__init__.py:215",
       "false",
-      "the login URL (reverse() or a fixed path) with the request's own path or the next parameter as query string; allauth validates next"
+      "the configured application root joined with the request's own path"
+    ],
+    [
+      "fenceline",
+      "CWE-778",
+      "CTFd/CTFd/utils/sessions/__init__.py:87",
+      "by-design",
+      "an undeserialisable session is replaced by a fresh one"
+    ],
+    [
+      "fenceline",
+      "CWE-328",
+      "CTFd/CTFd/utils/uploads/__init__.py:76",
+      "false",
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+    ],
+    [
+      "fenceline",
+      "CWE-22",
+      "CTFd/CTFd/utils/uploads/uploaders.py:103",
+      "false",
+      "safe_join() with a None check for traversal"
     ],
     [
       "fenceline",
       "CWE-601",
-      "recipes/cookbook/views/views.py:80",
+      "CTFd/CTFd/utils/uploads/uploaders.py:223",
       "false",
-      "the login URL (reverse() or a fixed path) with the request's own path or the next parameter as query string; allauth validates next"
+      "a presigned S3 URL generated by boto3, rehosted on the configured custom domain"
     ],
     [
       "fenceline",
-      "CWE-778",
-      "recipes/recipes/middleware.py:33",
-      "by-design",
-      "terminal width fallback"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/recipes/middleware.py:38",
-      "by-design",
-      "terminal width fallback"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/recipes/middleware.py:33",
-      "by-design",
-      "terminal width fallback"
-    ],
-    [
-      "fenceline",
-      "CWE-391",
-      "recipes/recipes/middleware.py:38",
-      "by-design",
-      "terminal width fallback"
-    ],
-    [
-      "fenceline",
-      "CWE-94",
-      "recipes/recipes/settings.py:212",
+      "CWE-73",
+      "CTFd/CTFd/utils/uploads/uploaders.py:81",
       "false",
-      "plugin module names enumerated from the plugins directory on disk"
+      "destination from safe_join() after an invalid-filename check"
     ],
     [
       "fenceline",
-      "CWE-798",
-      "recipes/recipes/settings.py:317",
+      "CWE-22",
+      "CTFd/CTFd/views.py:543",
       "false",
-      "rate-limit specification or URL path keyed by a name containing 'password'"
+      "safe_join() with a None check for traversal"
     ],
     [
       "fenceline",
-      "CWE-798",
-      "recipes/recipes/settings.py:318",
+      "CWE-22",
+      "CTFd/CTFd/views.py:566",
       "false",
-      "rate-limit specification or URL path keyed by a name containing 'password'"
+      "safe_join() with a None check for traversal"
     ],
     [
       "fenceline",
-      "CWE-798",
-      "recipes/recipes/settings.py:319",
+      "CWE-1104",
+      "CTFd/uv.lock:1541",
       "false",
-      "rate-limit specification or URL path keyed by a name containing 'password'"
-    ],
-    [
-      "fenceline",
-      "CWE-798",
-      "recipes/recipes/settings.py:327",
-      "false",
-      "rate-limit specification or URL path keyed by a name containing 'password'"
-    ],
-    [
-      "fenceline",
-      "CWE-798",
-      "recipes/recipes/settings.py:328",
-      "false",
-      "rate-limit specification or URL path keyed by a name containing 'password'"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/recipes/settings.py:238",
-      "by-design",
-      "plugin initialisation failures are reported when DEBUG and tolerated otherwise"
-    ],
-    [
-      "fenceline",
-      "CWE-778",
-      "recipes/recipes/settings.py:636",
-      "false",
-      "the handler prints the mode it falls back to"
-    ],
-    [
-      "fenceline",
-      "CWE-200",
-      "recipes/recipes/settings.py:236",
-      "false",
-      "traceback printed to the server's stderr, not returned to a user"
+      "lockfile outside the scanned package; not part of the universe (werkzeug 2.2.3 is genuinely below the fixed version)"
     ],
     [
       "bandit",
       "B324",
-      "recipes/cookbook/helper/CustomStorageClass.py:10",
+      "CTFd/CTFd/cache/__init__.py:122",
       "false",
-      "MD5 of a cache key, not a credential"
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
     ],
     [
       "bandit",
-      "B405",
-      "recipes/cookbook/helper/mdx_urlize.py:38",
+      "B105",
+      "CTFd/CTFd/config.py:344",
+      "by-design",
+      "SECRET_KEY of the TestingConfig class, used by the test suite only"
+    ],
+    [
+      "bandit",
+      "B105",
+      "CTFd/CTFd/constants/email.py:20",
       "false",
-      "import of the Element class, not a parser"
+      "default e-mail subject and body templates named after the password-reset feature"
     ],
     [
       "bandit",
-      "B311",
-      "recipes/cookbook/helper/permission_helper.py:568",
+      "B105",
+      "CTFd/CTFd/constants/email.py:22",
       "false",
-      "random suffix for a display name"
+      "default e-mail subject and body templates named after the password-reset feature"
     ],
     [
       "bandit",
-      "B110",
-      "recipes/cookbook/helper/recipe_url_import.py:29",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/helper/recipe_url_import.py:97",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/helper/recipe_url_import.py:115",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/helper/recipe_url_import.py:124",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/helper/recipe_url_import.py:133",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/helper/recipe_url_import.py:139",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/helper/recipe_url_import.py:157",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/helper/recipe_url_import.py:198",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/helper/recipe_url_import.py:408",
-      "by-design",
-      "the scraper raises for a missing field; the handler substitutes a default"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/helper/scope_middleware.py:134",
-      "by-design",
-      "token authentication attempts fall through to a 403 (comment says so)"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/helper/unit_conversion_helper.py:105",
-      "by-design",
-      "unit conversion is best-effort"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/cookbookapp.py:117",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/mealie.py:56",
-      "true",
-      "a failed ingredient is dropped from the imported recipe with no entry in the import log"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/mealie.py:93",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/mealie1.py:304",
-      "by-design",
-      "cleanup of temporary property types"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/melarecipes.py:43",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/melarecipes.py:77",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:33",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:42",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:50",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/nextcloud_cookbook.py:94",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/paprika.py:38",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/paprika.py:94",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/rezeptsuitede.py:42",
-      "true",
-      "a failed step is dropped from the imported recipe with no entry in the import log"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/integration/rezeptsuitede.py:66",
-      "by-design",
-      "best-effort fallback: the handler substitutes a default or the field is optional enrichment"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/cookbook/views/api.py:174",
-      "by-design",
-      "request-count metrics are best-effort"
-    ],
-    [
-      "bandit",
-      "B101",
-      "recipes/cookbook/views/api.py:539",
+      "B105",
+      "CTFd/CTFd/constants/email.py:27",
       "false",
-      "type assertion on a queryset in a view, not an access check"
+      "default e-mail subject and body templates named after the password-reset feature"
+    ],
+    [
+      "bandit",
+      "B105",
+      "CTFd/CTFd/constants/email.py:29",
+      "false",
+      "default e-mail subject and body templates named after the password-reset feature"
     ],
     [
       "bandit",
       "B404",
-      "recipes/cookbook/views/views.py:3",
+      "CTFd/CTFd/utils/exports/__init__.py:5",
       "false",
-      "subprocess import for a fixed git pull in the update view"
+      "subprocess for the database dump tool with fixed argv (S603 note)"
     ],
     [
       "bandit",
-      "B106",
-      "recipes/cookbook/views/views.py:177",
+      "B608",
+      "CTFd/CTFd/utils/exports/__init__.py:400",
       "false",
-      "empty Redis password: no credential configured"
+      "DELETE by an integer id read from the database"
     ],
     [
       "bandit",
-      "B607",
-      "recipes/cookbook/views/views.py:289",
-      "false",
-      "fixed argv ['git', 'pull'] with a configured working directory"
+      "B608",
+      "CTFd/CTFd/utils/exports/__init__.py:413",
+      "by-design",
+      "Postgres sequence reset with a quote-checked table name from the database's own metadata (S608 note)"
     ],
     [
       "bandit",
       "B603",
-      "recipes/cookbook/views/views.py:289",
+      "CTFd/CTFd/utils/exports/__init__.py:522",
       "false",
-      "fixed argv ['git', 'pull'] with a configured working directory"
+      "subprocess for the database dump tool with fixed argv (S603 note)"
     ],
     [
       "bandit",
-      "B110",
-      "recipes/recipes/middleware.py:33",
-      "by-design",
-      "terminal width fallback"
-    ],
-    [
-      "bandit",
-      "B110",
-      "recipes/recipes/middleware.py:38",
-      "by-design",
-      "terminal width fallback"
-    ],
-    [
-      "bandit",
-      "B105",
-      "recipes/recipes/settings.py:317",
+      "B704",
+      "CTFd/CTFd/utils/helpers/__init__.py:11",
       "false",
-      "rate-limit specification or URL path keyed by a name containing 'password'"
+      "Markup() helper for template use; callers pass administrator-authored content (S704 note)"
     ],
     [
       "bandit",
-      "B105",
-      "recipes/recipes/settings.py:318",
+      "B324",
+      "CTFd/CTFd/utils/uploads/__init__.py:76",
       "false",
-      "rate-limit specification or URL path keyed by a name containing 'password'"
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
     ],
     [
-      "bandit",
-      "B105",
-      "recipes/recipes/settings.py:319",
+      "semgrep",
+      "path-traversal-open",
+      "CTFd/CTFd/admin/__init__.py:95",
       "false",
-      "rate-limit specification or URL path keyed by a name containing 'password'"
-    ],
-    [
-      "bandit",
-      "B105",
-      "recipes/recipes/settings.py:327",
-      "false",
-      "rate-limit specification or URL path keyed by a name containing 'password'"
-    ],
-    [
-      "bandit",
-      "B105",
-      "recipes/recipes/settings.py:328",
-      "false",
-      "rate-limit specification or URL path keyed by a name containing 'password'"
+      "plugin name checked against the plugins directory listing first"
     ],
     [
       "semgrep",
       "insecure-hash-algorithm-md5",
-      "recipes/cookbook/helper/CustomStorageClass.py:10",
+      "CTFd/CTFd/cache/__init__.py:122",
       "false",
-      "MD5 of a cache key, not a credential"
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/email/__init__.py:43",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/email/__init__.py:59",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/email/__init__.py:78",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/email/__init__.py:99",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/email/__init__.py:115",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/social/__init__.py:57",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/social/__init__.py:95",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "flask-url-for-external-true",
+      "CTFd/CTFd/utils/social/__init__.py:113",
+      "false",
+      "absolute URLs for e-mails and OAuth, built from the configured server name"
+    ],
+    [
+      "semgrep",
+      "insecure-hash-algorithm-sha1",
+      "CTFd/CTFd/utils/uploads/__init__.py:76",
+      "false",
+      "MD5 of a cache key and SHA-1 of an uploaded file's content, not credentials (S324 notes)"
     ],
     [
       "semgrep",
       "raw-html-format",
-      "recipes/cookbook/templatetags/custom_tags.py:182",
-      "false",
-      "bookmarklet HTML built from the site's own host and the current user's own token"
-    ],
-    [
-      "semgrep",
-      "raw-html-format",
-      "recipes/cookbook/views/api.py:2743",
-      "false",
-      "JSON-LD markup fed to the recipe scraper, never returned to a browser"
-    ],
-    [
-      "semgrep",
-      "raw-html-format",
-      "recipes/cookbook/views/api.py:2939",
-      "false",
-      "JSON-LD markup fed to the recipe scraper, never returned to a browser"
+      "CTFd/CTFd/views.py:136",
+      "by-design",
+      "theme colour set by an administrator into the site's own style tag"
     ]
   ]
 }
