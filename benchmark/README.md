@@ -59,6 +59,20 @@ on: a release version where one was cut from that tree, otherwise the
 commit hash. Releases are not cut to label measurements (`ROADMAP.md`,
 release policy).
 
+### Commit `006ce07` (2026-11-16): timing compares between two values
+
+| Tool | Findings | True | False | Precision | Recall |
+|---|---|---|---|---|---|
+| fenceline | 205 | 195 | 10 | 95% | 190/204 (93%) |
+| fenceline (--confidence-min high) | 142 | 139 | 3 | 98% | 135/204 (66%) |
+
+The timing check (`CWE-208`) now reports a secret compared with another
+non-literal value, not only with a string literal. Four true instances
+join the ground truth (pygoat's OTP and password-hash compares, dvpwa's
+`pwd_hash == md5(...)`), found by no other tool; one false positive
+(vulpy compares a new password against a leaked-password list). Precision
+96% to 95%.
+
 ### Commit `de44224` (2026-11-16): the Mealie round
 
 | Tool | Findings | True | False | Precision | Recall |
@@ -1348,4 +1362,77 @@ more CWE-918 findings at MEDIUM in total, all `.request(method, url)` on
 client wrappers (Weblate's Git API wrappers, label-studio's ML backend
 connector, BentoML's client), which is the same shape the clean corpus
 labels by design or false.
+
+### Commit `006ce07` (2026-11-16): follow-on 2, timing compares; C3 closed
+
+`app.auth[username] == password` compares a secret with a looked-up value;
+the timing check reported only secret-against-literal. It now reports a
+secret-named value compared with another non-literal value too, LOW/LOW,
+unless both sides are secrets (a password confirmation), either side is an
+ALL_CAPS constant or sentinel, or either side is a constant.
+
+### Classes fenceline claims: fenceline, 18/22 found, 12 at HIGH
+
+| CVE | App | Framework | CWE | Result | Same CWE elsewhere in file | Other findings in file | Root cause of the miss |
+|---|---|---|---|---|---|---|---|
+| CVE-2023-1177 | mlflow | Flask | CWE-22 | found (HIGH) | 2 | 2 |  |
+| CVE-2023-2780 | mlflow | Flask | CWE-22 | found (HIGH) | 2 | 2 |  |
+| CVE-2023-6977 | mlflow | Flask | CWE-22 | found (HIGH) | 2 | 4 |  |
+| CVE-2023-6018 | mlflow | Flask | CWE-22 | missed | 1 | 3 | The write is `open(local_path, "wb")` with a parameter path; the traversal is in the file listing a remote server returned, two calls up and in another file. fenceline has no write-`open()` sink; its CWE-73 covers copy and move only. A write-`open()` sink was prototyped and declined: it finds this line at MEDIUM and adds eleven MEDIUM findings to the eight-app corpus (CLI, backup and settings writers at operator-chosen paths), lenient precision 34% to 33%. |
+| CVE-2023-6909 | mlflow | Flask | CWE-22 | found (HIGH) | 2 | 4 |  |
+| CVE-2023-6974 | mlflow | Flask | CWE-918 | found (MEDIUM) | 0 | 1 |  |
+| CVE-2022-40127 | airflow | Flask | CWE-78 | missed | 0 | 0 | The sink is a `BashOperator(bash_command=...)` Jinja template the scheduler renders; the file has no subprocess call. A declarative `pattern` rule for `bash_command=` templates that reference `run_id`/`dag_run`/`params` is the C4 shape for this; not a built-in. |
+| CVE-2022-40754 | airflow | Flask | CWE-601 | found (HIGH) | 28 | 41 |  |
+| CVE-2022-24710 | weblate | Django | CWE-79 | missed | 0 | 0 | HTML is built with `str.format()` and returned in an `HttpResponse`; the XSS check reports `Markup()`/`mark_safe()` only. A response sink (`HttpResponse(text)`) would see the content arrive through a list and a `join()`, INTERNAL, and would report every Django view that returns built text; declined without a prototype. |
+| CVE-2023-51449 | gradio | FastAPI | CWE-22 | found (HIGH) | 1 | 7 |  |
+| CVE-2023-34239 | gradio | FastAPI | CWE-918 | found (MEDIUM) | 0 | 5 |  |
+| CVE-2024-1728 | gradio | FastAPI | CWE-22 | found (HIGH) | 0 | 4 |  |
+| CVE-2024-4941 | gradio | FastAPI | CWE-22 | found (MEDIUM) | 0 | 5 |  |
+| CVE-2024-47164 | gradio | FastAPI | CWE-22 | found (HIGH) | 2 | 9 |  |
+| CVE-2024-1729 | gradio | FastAPI | CWE-208 | found (LOW) | 0 | 6 |  |
+| CVE-2023-39968 | jupyter_server | Tornado | CWE-601 | found (HIGH) | 0 | 2 |  |
+| CVE-2024-45846 | mindsdb | Flask | CWE-95 | found (MEDIUM) | 1 | 1 |  |
+| CVE-2023-30620 | mindsdb | Flask | CWE-22 | found (HIGH) | 0 | 5 |  |
+| CVE-2024-2912 | bentoml | Starlette | CWE-502 | found (HIGH) | 0 | 1 |  |
+| CVE-2025-29783 | vllm | none | CWE-502 | found (HIGH) | 0 | 0 |  |
+| CVE-2023-43791 | label-studio | Django | CWE-798 | found (MEDIUM) | 0 | 1 |  |
+| CVE-2023-47116 | label-studio | Django | CWE-918 | missed | 0 | 0 | The sink line carries the developer's bare `# nosec`, which fenceline honours; with the comment removed the line is reported as CWE-918, HIGH severity at MEDIUM confidence. |
+
+### Classes fenceline does not claim: fenceline, 0/6 found, 0 at HIGH
+
+| CVE | App | Framework | CWE | Result | Same CWE elsewhere in file | Other findings in file | Root cause of the miss |
+|---|---|---|---|---|---|---|---|
+| CVE-2021-38540 | airflow | Flask | CWE-306 | missed | 0 | 48 | No check: a view absent from a permission map is an authorization fact fenceline does not model. |
+| CVE-2023-40273 | airflow | Flask | CWE-384 | missed | 0 | 0 | No check for session lifecycle. |
+| CVE-2024-1561 | gradio | FastAPI | CWE-470 | missed | 0 | 8 | No check for `getattr()` with a request-controlled attribute name (unsafe reflection). |
+| CVE-2024-1727 | gradio | FastAPI | CWE-942 | missed | 0 | 6 | No check for `CORSMiddleware(allow_origins=["*"])`; a candidate for the declarative rules of C4. |
+| CVE-2023-47117 | label-studio | Django | CWE-200 | missed | 0 | 0 | No check for request-controlled ORM field names. |
+| CVE-2025-3248 | langflow | FastAPI | CWE-306 | missed | 0 | 16 | No check for an unauthenticated route. fenceline reports the `exec()`/`compile()` sinks themselves, sixteen CWE-94 findings in the file at MEDIUM, which is the by-design code sink, not the missing authentication. |
+
+Findings over all 28 trees: 3254.
+
+**Covered classes: 18 of 22 found, 12 at HIGH.** Gradio's login compare is
+found at LOW. **Cost on the eight-app corpus:** six findings more (265; 30
+true, 61 by design, 174 false): two true, healthchecks' e-mail
+verification token compared with `==`; one by design, Mealie's test-only
+`FakeHasher`; three false, a password confirmation and two lexer tokens
+named `token`. Lenient 34%, strict 11%, density 0.92 to 0.95 per 1,000
+(0.9 reported), HIGH unchanged. Vulnerable benchmark: top of this file.
+
+**The four remaining misses, and why they stay.** A write-`open()` sink
+for mlflow's `open(local_path, "wb")` was prototyped: it finds the line at
+MEDIUM and adds eleven MEDIUM findings to the eight-app corpus, CLI and
+backup and settings writers at operator-chosen paths, taking lenient
+precision from 34% to 33%; declined, numbers in the manifest. A response
+sink for Weblate's `str.format()` HTML would see the content arrive
+through a list and a `join()` at INTERNAL and report every Django view
+that returns built text; declined without a prototype. Airflow's
+`BashOperator(bash_command=...)` template is a `pattern` rule for C4, not a
+built-in. label-studio's `# nosec` is honoured by design.
+
+**C3 closes here.** The instrument exists (manifest, runner, scorer), the
+table is published, every miss has a cause, and the two shared or cheap
+causes are fixed with their cost measured and labelled. 18 of 22 claimed
+CVEs found, 12 at HIGH; the set is part of the parity check and grows as
+CVEs are added.
 

@@ -38,10 +38,12 @@ the eight-app corpus is the regression gate from here. C3 started
 2026-11-16: 28 CVEs pinned (22 in claimed classes, 6 not), runner and
 scorer in `benchmark/cves/`, first table: 15/22 found, 12 at HIGH; every
 miss has a root cause, two share one (SSRF sinks `Session.request()`,
-`httpx` `build_request()`/`send()`). C3's first milestone is done. Follow-on 1 (SSRF sinks
-`.request(method, url)`/`.build_request()`) done 2026-11-16 at `eaf0b47`:
-17/22 found, eight-app corpus +7 (lenient 34%, density 0.92, HIGH
-unchanged). Next: the single-cause misses, or C4.
+`httpx` `build_request()`/`send()`). C3's first milestone is done. Follow-on 1 (SSRF sinks) done at `eaf0b47`, follow-on 2 (timing
+compares between two values) done at `006ce07`: 18/22 found, 12 at HIGH;
+eight-app corpus 265 findings, 11% / 34%, 0.95 per 1,000, HIGH unchanged;
+vulnerable benchmark 95%, 190/204. Write-`open()` sink prototyped and
+declined (+11 corpus findings for one CVE). **C3 closed 2026-11-16.** C4
+started 2026-11-16.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 **Release policy (D11, 2026-11-16)**: a release is cut when something is
@@ -440,7 +442,19 @@ recorded here because the gate says "raise", and the trade (two shipped
 CVEs found, three false positives of a shape already labelled) is the
 kind the gate exists to make visible, not to forbid. Remaining misses are
 single-cause: write-`open()`, operator template, `str.format()` HTML,
-timing compare of two values, developer `# nosec` (by design).
+\1
+**Follow-on 2 done 2026-11-16, at `006ce07`; C3 closed.** The timing check
+reports a secret compared with another non-literal value (not both secrets,
+no ALL_CAPS side, no constant side). CVE set 18/22, 12 HIGH. Eight-app
+corpus +6 (2 true, 1 by design, 3 false): 265, 11% / 34%, 0.95 per 1,000,
+HIGH unchanged. Vulnerable benchmark +4 true, +1 false: 95%, 190/204. The
+write-`open()` sink was prototyped and declined on the gate: it finds
+mlflow's line at MEDIUM and costs eleven MEDIUM corpus findings (lenient
+34% to 33%). The `str.format()` HTML miss is declined without a prototype
+(a response sink reports INTERNAL content from every Django view); the
+`BashOperator` template is a C4 `pattern` rule; the `# nosec` miss is by
+design. C3 is done: instrument, table, causes, and the fixes the gate
+allowed.
 
 ### Phase C4: declarative rules in both ports
 
