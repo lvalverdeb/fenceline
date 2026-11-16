@@ -13,8 +13,9 @@ set did not contain. D7 accepted 2026-11-16 as (a): shapes fixed in both
 ports, pretalx in the corpus (five apps: 12% strict, 24% lenient, 1.0 per
 1,000 lines; 23% / 42% at HIGH), second held-out application (Tandoor
 Recipes) measured blind: 3% strict, 65% lenient, 7.0 per 1,000 lines. The
-precision gates transfer; the density gate does not. Unreleased on main;
-D8 below asks how to close C2.
+precision gates transfer; the density gate does not. D8 accepted 2026-11-16
+as (b): released as 1.11.0 from that tree; the Tandoor round (handler
+shape, then a third blind application) is the current work.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 
@@ -218,6 +219,9 @@ Close C2 as measured and start C3. (b) is the recommendation: the
 improvement is real and should ship, and the handler shape is cheap enough
 that it need not hold the release.
 
+**D8 accepted 2026-11-16, as (b).** 1.11.0 released from the measured
+tree. The Tandoor round follows, as the first item.
+
 ### Phase C3: a CVE regression set
 
 The instrument with headroom for recall. Instead of a fifth intentionally
@@ -355,4 +359,4 @@ Semgrep replacement.
 - **D8** After the second held-out measurement (precision gates met,
   density gate not): another round on the handler shape plus a third blind
   app before release, release 1.11.0 now and do that round after
-  (recommended), or close C2 as measured.
+  (recommended), or close C2 as measured. Accepted 2026-11-16 as the second.

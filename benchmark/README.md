@@ -379,7 +379,7 @@ design*. Recall is not measured: nobody knows how many weaknesses these
 applications hold. `clean/score.py` refuses to run if any in-scope finding
 has no verdict, so the labels are complete by construction.
 
-### Held-out application: Tandoor Recipes (2026-11-16, unreleased main)
+### Held-out application: Tandoor Recipes (2026-11-16, at 1.11.0)
 
 The second blind measurement, taken after the pretalx shapes below were
 fixed and pretalx had joined the corpus. The application was chosen before
@@ -432,7 +432,7 @@ nested inside the expression), which rustpython-parser does not accept;
 the Rust port reports both files as unparsable and skips their AST checks.
 Same class as the PEP 695 file in Home Assistant.
 
-### Unreleased main (2026-11-16): the pretalx shapes, five apps
+### 1.11.0 (2026-11-16): the pretalx shapes, five apps
 
 The D7 round: the three shapes pretalx exposed, plus two found behind them
 while fixing (ORM chains with an intermediate call, and concatenations led
@@ -496,7 +496,8 @@ test or at the start of a regex character class is skipped (27 findings
 gone from the library corpus too, all of that shape). ORM lookups through
 an intermediate call (`Model.objects.select_related("e").get(code=code)`)
 are recognised. The vulnerable benchmark is unchanged: 210 findings, 96%
-precision, recall 190/204, 98% at HIGH.
+precision, recall 190/204, 98% at HIGH. Released as 1.11.0 from the tree
+these numbers were measured on.
 
 **Where the remaining noise is.** 149 false positives on five apps, by
 check: `CWE-601` 37 (26 at HIGH; in pretalx these are now `get_next_url(request)`
