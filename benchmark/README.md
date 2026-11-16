@@ -51,7 +51,7 @@ false-positive rate on ordinary code.
 
 ## Results
 
-### Unreleased (2026-11-16): the CTFd round
+### 1.13.0 (2026-11-16): the CTFd round
 
 No change on the vulnerable apps: 207 raw findings in both ports, the same
 201 scored, 96% precision, recall 187/201. The round's seven shapes (under
@@ -413,7 +413,7 @@ design*. Recall is not measured: nobody knows how many weaknesses these
 applications hold. `clean/score.py` refuses to run if any in-scope finding
 has no verdict, so the labels are complete by construction.
 
-### Held-out application: Mealie (2026-11-16, unreleased tree after the CTFd round)
+### Held-out application: Mealie (2026-11-16, at 1.13.0)
 
 The fourth blind measurement, the second on a framework other than Django:
 [Mealie](https://github.com/mealie-recipes/mealie) (FastAPI, `3d639dd`,
@@ -469,7 +469,7 @@ as a timing leak. `ROADMAP.md`, D10.
 skips ten files for PEP 701 f-strings, none of which carries a finding in
 the Python port.
 
-### Unreleased (2026-11-16): the CTFd round, seven apps
+### 1.13.0 (2026-11-16): the CTFd round, seven apps
 
 The round the D9 text asked for, in both ports with parity. A guard may
 vouch for a stable expression and not only a name, so `if
@@ -547,7 +547,8 @@ destination (the copied content is rated), and the by-design findings.
 unchanged (top of this file).
 
 **Port divergence.** Unchanged: the PEP 695 file in Home Assistant and the
-two PEP 701 files in Tandoor.
+two PEP 701 files in Tandoor. Released as 1.13.0 from the tree these
+numbers were measured on.
 
 ### Held-out application: CTFd (2026-11-16, at 1.12.0; in the corpus since 2026-11-16)
 

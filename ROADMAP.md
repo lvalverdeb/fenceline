@@ -28,7 +28,10 @@ first time the tuning set meets the density and default gates; vulnerable
 benchmark unchanged. Fourth held-out application (Mealie, FastAPI, 43,417
 lines) measured blind: 4% strict, 13% lenient, 1.6 per 1,000, three true
 log-injection findings; all three gates fail, blind density 3.5, 7.0, 1.4,
-1.6. D10 open.
+1.6. D10 accepted 2026-11-16 as (a): released as 1.13.0 from that tree;
+the Mealie round (the two check defects and two shapes, Mealie into the
+corpus), then C2 closes with the corpus as the regression gate and C3
+starts.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 
@@ -282,7 +285,7 @@ seven times in the other five apps.
 **D9 accepted 2026-11-16, as (a).** 1.12.0 released from the measured
 tree. The CTFd round follows, as the first item.
 
-**CTFd round done 2026-11-16, unreleased. Outcome.** Seven shapes in both
+**CTFd round done 2026-11-16, released as 1.13.0. Outcome.** Seven shapes in both
 ports: guards on stable expressions (`is_safe_url(request.args.get("next"))`),
 `safe_join()` as a sanitiser with clean-element comprehensions, `lstrip()`
 on the application's own fields, `print()`/`abort()`/stdout writes as
@@ -323,6 +326,9 @@ gap is per-application idiom rather than a shape a next round would
 generalise; the two Mealie defects are worth fixing regardless; and C3 is
 the instrument with headroom for the number that matters next, recall on
 real vulnerabilities.
+
+**D10 accepted 2026-11-16, as (a).** 1.13.0 released from the measured
+tree. The Mealie round follows, limited as stated; then C2 closes.
 
 ### Phase C3: a CVE regression set
 
@@ -471,3 +477,4 @@ Semgrep replacement.
   blind density 1.6): release 1.13.0, a Mealie round limited to the two
   check defects, then close C2 with the corpus as the regression gate and
   start C3 (recommended); the same plus a fifth blind app; or close C2 now.
+  Accepted 2026-11-16 as the first.
