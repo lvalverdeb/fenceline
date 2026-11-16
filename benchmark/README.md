@@ -51,7 +51,7 @@ false-positive rate on ordinary code.
 
 ## Results
 
-### Unreleased (2026-11-16): the Tandoor round
+### 1.12.0 (2026-11-16): the Tandoor round
 
 The handler round (under the clean corpus below) changed six check shapes.
 On the vulnerable apps:
@@ -406,7 +406,7 @@ design*. Recall is not measured: nobody knows how many weaknesses these
 applications hold. `clean/score.py` refuses to run if any in-scope finding
 has no verdict, so the labels are complete by construction.
 
-### Held-out application: CTFd (2026-11-16, unreleased tree after the Tandoor round)
+### Held-out application: CTFd (2026-11-16, at 1.12.0)
 
 The third blind measurement and the first on an application that is not
 Django: [CTFd](https://github.com/CTFd/CTFd) (Flask, `485d59e`, `CTFd/`,
@@ -468,7 +468,7 @@ finding. `ROADMAP.md`, D9.
 
 **Port divergence.** None: 34 findings in both ports.
 
-### Unreleased (2026-11-16): the Tandoor round, six apps
+### 1.12.0 (2026-11-16): the Tandoor round, six apps
 
 The round the D8 text asked for, in both ports with parity: `CWE-778` no
 longer reports a catch-all handler that only substitutes an outcome
@@ -544,7 +544,8 @@ in a tornado test. pretalx 88 to 87. Vulnerable benchmark: see the top of
 this file (three true `CWE-778` instances fewer).
 
 **Port divergence.** Unchanged: the PEP 695 file in Home Assistant and the
-two PEP 701 files in Tandoor.
+two PEP 701 files in Tandoor. Released as 1.12.0 from the tree these
+numbers were measured on.
 
 ### Held-out application: Tandoor Recipes (2026-11-16, at 1.11.0; in the corpus since 2026-11-16)
 

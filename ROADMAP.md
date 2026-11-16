@@ -21,7 +21,9 @@ benchmark 96% precision with three true fallback-value handlers fewer.
 Third held-out application (CTFd, Flask, 23,824 lines) measured blind: 0%
 strict, 15% lenient, 1.4 per 1,000 lines, nothing true found by any tool;
 all three gates fail, and blind density has read 3.5, 7.0, 1.4 across the
-three rounds. D9 open.
+three rounds. D9 accepted 2026-11-16 as (a): released as 1.12.0 from
+that tree; the CTFd round (seven shapes, CTFd into the corpus, a fourth
+blind application on a third framework) is the current work.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 
@@ -228,7 +230,7 @@ that it need not hold the release.
 **D8 accepted 2026-11-16, as (b).** 1.11.0 released from the measured
 tree. The Tandoor round follows, as the first item.
 
-**Tandoor round done 2026-11-16, unreleased. Outcome.** Six shapes in both
+**Tandoor round done 2026-11-16, released as 1.12.0. Outcome.** Six shapes in both
 ports: a handler is reported once (`pass`/`continue` are `CWE-391`'s), a
 handler that only substitutes a value is not reported as unlogged,
 `CWE-200` reports `format_exc()` in a response rather than `print_exc()`,
@@ -271,6 +273,9 @@ releasing first keeps the measured tree and the published tree the same,
 as D8 did. (c) is not recommended: the three instances are lab-code
 fallbacks of exactly the shape that was by design 29 times in Tandoor and
 seven times in the other five apps.
+
+**D9 accepted 2026-11-16, as (a).** 1.12.0 released from the measured
+tree. The CTFd round follows, as the first item.
 
 ### Phase C3: a CVE regression set
 
@@ -414,3 +419,4 @@ Semgrep replacement.
   true to find, blind density 1.4): release 1.12.0 and run a CTFd round
   with a fourth blind app on a third framework (recommended), close C2 as
   measured, or restore fallback-value handlers at lower confidence.
+  Accepted 2026-11-16 as the first.
