@@ -21,6 +21,7 @@ from fenceline.ast_helpers import (
     _dotted_name,
     _full_attr,
     _handler_has_diagnostic,
+    _is_fallback_handler,
     _has_dynamic_arg,
     _import_aliases,
     _is_re_compile,
@@ -148,6 +149,14 @@ def check_insufficient_logging(
     and the block is not flagged. A file that failed to parse is not
     scanned: a line scan cannot see the handler body, and every handler it
     reported on real code turned out to log.
+
+    A handler that only substitutes an outcome (``pass``, ``continue``,
+    ``return default``, ``name = ""``, or a nested ``try`` of the same
+    shape) is not reported here either: ``pass``/``continue`` is
+    ``check_except_pass``'s finding, so each handler is reported once, and
+    a chosen fallback value is the author's explicit handling of the
+    failure, not a swallowed error. What remains is a catch-all that does
+    other work and records nothing.
     """
     pk = _rel(path)
     results: list[Finding] = []
@@ -159,7 +168,7 @@ def check_insufficient_logging(
             continue
         if not _is_catch_all(node.type):
             continue
-        if _handler_has_diagnostic(node):
+        if _handler_has_diagnostic(node) or _is_fallback_handler(node):
             continue
         line = _node_line(node)
         code = lines[line - 1].strip() if 1 <= line <= len(lines) else ""
@@ -1538,6 +1547,28 @@ def _is_request_own_path(target: ast.expr) -> bool:
     return len(parts) >= 2 and parts[-2] == "request" and parts[-1] in _REQUEST_OWN_PATH_ATTRS
 
 
+#: Route builders: a same-site URL from a route name. A concatenation they
+#: lead (``reverse("login") + "?next=" + request.path``) stays same-site
+#: whatever is appended, like one led by a literal path.
+_ROUTE_BUILDERS = frozenset(
+    {
+        "url_for",
+        "flask.url_for",
+        "reverse",
+        "reverse_lazy",
+        "django.urls.reverse",
+        "django.urls.reverse_lazy",
+        "resolve_url",
+        "django.shortcuts.resolve_url",
+    }
+)
+
+
+def _is_route_builder_led(target: ast.expr) -> bool:
+    lead = _leading_operand(target)
+    return isinstance(lead, ast.Call) and _dotted_name(lead.func) in _ROUTE_BUILDERS
+
+
 #: A URL property or URL getter: ``topic.url``, ``self.next_url``,
 #: ``self.get_success_url()``.
 _URL_PROPERTY_RE = re.compile(r"(?:^|_)urls?$")
@@ -1599,7 +1630,11 @@ def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -
         ):
             continue
         data = _call_data(node)
-        if data and (_is_same_site_path(data[0]) or _is_request_own_path(data[0])):
+        if data and (
+            _is_same_site_path(data[0])
+            or _is_request_own_path(data[0])
+            or _is_route_builder_led(data[0])
+        ):
             continue
         taint = classify(tree, node, data)
         kind = _url_property_kind(data[0]) if len(data) == 1 else None
@@ -2667,7 +2702,10 @@ _NOT_A_SECRET_NAME_RE = re.compile(
     r"|regex|pattern|length|len|path|file|algorithm|salt|provider|status|id)(?:_|$)"
     r"|header$"
     # A configuration-key constant: CONF_PASSWORD = "password", DATA_SIGN_SECRET = "...".
-    r"|^(?:conf|key|data|storage|attr|setting|option)_",
+    r"|^(?:conf|key|data|storage|attr|setting|option)_"
+    # An action on the password, not the password: reset_password = "1/m/ip"
+    # (a rate limit), account_reset_password = "/account/password-reset".
+    r"|(?:^|_)(?:reset|change|forgot|confirm|validate|verify)_password(?:_|$)",
     re.I,
 )
 
@@ -2788,6 +2826,9 @@ def _classify_secret(name: str, value: str) -> tuple[str, str, str] | None:
         or _CONSTANT_NAME_RE.match(value)
         # aliases = {"secretsmanager": "secrets-manager"}: a name, not a credential.
         or (_normalised(value) == _normalised(name) and " " not in value)
+        # A URL or filesystem path: password_url = "/account/password-reset",
+        # password_file = "/run/secrets/db" -- where the secret is, not the secret.
+        or (value.startswith("/") and " " not in value)
     ):
         return None
     if _PRIVATE_KEY_NAME_RE.search(name):

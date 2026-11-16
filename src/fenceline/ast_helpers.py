@@ -229,6 +229,38 @@ def _handler_has_diagnostic(handler: ast.ExceptHandler) -> bool:
     return False
 
 
+def _is_fallback_handler(handler: ast.ExceptHandler) -> bool:
+    """The handler does nothing but substitute an outcome: every statement
+    is ``pass``, ``continue``, ``break``, a ``return`` or an assignment
+    whose value makes no call, or a nested ``try`` whose own handlers are
+    such. ``except Exception: return None`` and ``except Exception: name =
+    ""`` are the fallback idiom -- the author chose a value for the failure
+    case. ``return render(...)`` is not one: it builds a response that
+    carries on as if nothing happened, which is what the logging check is
+    for."""
+    return all(_is_fallback_stmt(stmt) for stmt in handler.body)
+
+
+def _is_fallback_stmt(stmt: ast.stmt) -> bool:
+    if isinstance(stmt, (ast.Pass, ast.Continue, ast.Break)):
+        return True
+    if isinstance(stmt, ast.Return):
+        return stmt.value is None or not any(
+            isinstance(n, ast.Call) for n in ast.walk(stmt.value)
+        )
+    if isinstance(stmt, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+        return stmt.value is not None and not any(
+            isinstance(n, ast.Call) for n in ast.walk(stmt.value)
+        )
+    if isinstance(stmt, ast.Try):
+        return (
+            not stmt.orelse
+            and not stmt.finalbody
+            and all(_is_fallback_handler(h) for h in stmt.handlers)
+        )
+    return False
+
+
 def _skip(line: str) -> bool:
     return line.strip().startswith("#")
 

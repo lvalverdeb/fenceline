@@ -62,14 +62,85 @@ def _lxml_etree_alias(tree: ast.Module | None) -> str | None:
     return None
 
 
+#: ``from xml.etree.ElementTree import Element, SubElement``: the names a
+#: module imports from the stdlib XML packages.
+_XML_IMPORT_RE = re.compile(r"^\s*from\s+xml\.[\w.]+\s+import\s+([\w\s,]+?)\s*$")
+#: Builders and serialisers, not parsers: importing only these cannot parse
+#: untrusted XML.
+_XML_NON_PARSERS = frozenset(
+    {
+        "Element",
+        "SubElement",
+        "tostring",
+        "tostringlist",
+        "indent",
+        "register_namespace",
+        "QName",
+        "Comment",
+        "ProcessingInstruction",
+        "dump",
+        "Document",
+        "escape",
+        "quoteattr",
+        "unescape",
+    }
+)
+
+
+def _imports_only_non_parsers(line: str) -> bool:
+    m = _XML_IMPORT_RE.match(line)
+    if not m:
+        return False
+    names = {part.strip().split(" ")[0] for part in m.group(1).split(",") if part.strip()}
+    return bool(names) and names <= _XML_NON_PARSERS
+
+
+def _defused_parser_names(tree: ast.Module | None) -> list[str]:
+    """Names bound to an lxml ``XMLParser(...)`` constructed with
+    ``resolve_entities=False``: a parse call that passes one as ``parser=``
+    is protected."""
+    if tree is None:
+        return []
+    names: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
+            continue
+        func = node.value.func
+        if not (isinstance(func, ast.Attribute) and func.attr == "XMLParser"):
+            continue
+        if not any(
+            kw.arg == "resolve_entities"
+            and isinstance(kw.value, ast.Constant)
+            and kw.value.value is False
+            for kw in node.value.keywords
+        ):
+            continue
+        names.extend(t.id for t in node.targets if isinstance(t, ast.Name))
+    return names
+
+
 def check_xxe(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
+    """CWE-611. A stdlib or lxml XML parser call. Not reported: an lxml
+    parser constructed with ``resolve_entities=False``, a parse call that
+    passes such a parser as ``parser=``, an import of builders and
+    serialisers only (``Element``, ``tostring``), and ``xml.sax.saxutils``."""
     pk = _rel(path)
     results: list[Finding] = []
     lxml_alias = _lxml_etree_alias(tree)
     lxml_pattern = re.compile(rf"\b{re.escape(lxml_alias)}\.") if lxml_alias else None
+    defused = _defused_parser_names(tree)
+    defused_pattern = (
+        re.compile(rf"\bparser\s*=\s*(?:{'|'.join(map(re.escape, defused))})\b") if defused else None
+    )
     for lineno, line in enumerate(lines, 1):
         if _skip(line) or "xml.sax.saxutils" in line:
             continue  # saxutils is the escaping helper, not a parser
+        if (
+            "resolve_entities=False" in line
+            or _imports_only_non_parsers(line)
+            or (defused_pattern and defused_pattern.search(line))
+        ):
+            continue
         if re.search(r"(?:xml\.etree|xml\.dom|xml\.sax)\.", line) or (
             lxml_pattern and lxml_pattern.search(line)
         ):
@@ -162,15 +233,28 @@ def check_supply_chain(path: Path, lines: list[str], tree: ast.Module | None) ->
     return results
 
 
+#: Traceback text produced on a line that hands something back to the
+#: client: ``return Response(traceback.format_exc(), 500)``.
+_TRACEBACK_TEXT_RE = re.compile(r"traceback\.format_exc(?:eption)?\(")
+_RESPONSE_LINE_RE = re.compile(
+    r"\breturn\b|Response\(|render|jsonify\(|make_response\(|\.write\(|abort\(|HTTPException\("
+)
+
+
 def check_sensitive_exposure(
     path: Path, lines: list[str], tree: ast.Module | None
 ) -> list[Finding]:
+    """CWE-200. ``traceback.format_exc()`` on a line that returns or builds
+    a response: the stack trace, with its file paths and frames, reaches the
+    client. ``traceback.print_exc()`` is not reported: it writes to the
+    process's stderr, which is a log, and the logging check counts it as a
+    diagnostic."""
     pk = _rel(path)
     results: list[Finding] = []
     for lineno, line in enumerate(lines, 1):
         if _skip(line):
             continue
-        if "traceback.print_exc" in line or "traceback.print_exception" in line:
+        if _TRACEBACK_TEXT_RE.search(line) and _RESPONSE_LINE_RE.search(line):
             results.append(
                 Finding(
                     cwe_id="CWE-200",
@@ -180,7 +264,7 @@ def check_sensitive_exposure(
                     file=pk,
                     line=lineno,
                     code_snippet=line.strip(),
-                    description="traceback.print_exc() may leak internal paths / stack traces to users.",
+                    description="Traceback text returned to the client — leaks internal paths and stack frames; log it and return a generic error.",
                 )
             )
     return results
