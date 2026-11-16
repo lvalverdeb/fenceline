@@ -252,6 +252,40 @@ def _handler_has_diagnostic(handler: ast.ExceptHandler) -> bool:
     return False
 
 
+#: The last segment of a call that builds an error response:
+#: ``response_404()``, ``not_found()``, ``error_response()``, ``HTTPException``.
+_ERROR_RESPONSE_RE = re.compile(
+    r"(?i)(?:^|_)(?:error|errors|not_found|notfound|forbidden|bad_request|badrequest"
+    r"|unauthori[sz]ed|abort|fail|failure|failed|4\d\d|5\d\d)(?:_|$)"
+    r"|^HTTPException$|^HttpResponse(?:NotFound|Forbidden|BadRequest|ServerError|Gone)$"
+)
+
+
+def _is_error_response(expr: ast.expr | None) -> bool:
+    if not isinstance(expr, ast.Call):
+        return False
+    if _ERROR_RESPONSE_RE.search(_dotted_name(expr.func).rsplit(".", 1)[-1]):
+        return True
+    return any(
+        kw.arg in ("status", "status_code")
+        and isinstance(kw.value, ast.Constant)
+        and isinstance(kw.value.value, int)
+        and kw.value.value >= 400
+        for kw in expr.keywords
+    )
+
+
+def _handler_returns_error_response(handler: ast.ExceptHandler) -> bool:
+    """The handler answers the request with an error: ``return
+    response_404()``, ``return JSONResponse(..., status_code=500)``. The
+    failure reaches the client, so it is handled, not swallowed."""
+    return any(
+        isinstance(node, ast.Return) and _is_error_response(node.value)
+        for stmt in handler.body
+        for node in _walk_skip_nested_scopes(stmt)
+    )
+
+
 def _is_fallback_handler(handler: ast.ExceptHandler) -> bool:
     """The handler does nothing but substitute an outcome: every statement
     is ``pass``, ``continue``, ``break``, a ``return`` or an assignment

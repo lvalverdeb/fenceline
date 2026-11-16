@@ -21,6 +21,7 @@ from fenceline.ast_helpers import (
     _dotted_name,
     _full_attr,
     _handler_has_diagnostic,
+    _handler_returns_error_response,
     _has_dynamic_arg,
     _import_aliases,
     _is_fallback_handler,
@@ -155,8 +156,10 @@ def check_insufficient_logging(
     shape) is not reported here either: ``pass``/``continue`` is
     ``check_except_pass``'s finding, so each handler is reported once, and
     a chosen fallback value is the author's explicit handling of the
-    failure, not a swallowed error. What remains is a catch-all that does
-    other work and records nothing.
+    failure, not a swallowed error. Nor is one that answers the request
+    with an error response (``return response_404()``, a ``status_code``
+    of 400 or more): the failure reaches the client. What remains is a
+    catch-all that does other work and records nothing.
     """
     pk = _rel(path)
     results: list[Finding] = []
@@ -168,7 +171,11 @@ def check_insufficient_logging(
             continue
         if not _is_catch_all(node.type):
             continue
-        if _handler_has_diagnostic(node) or _is_fallback_handler(node):
+        if (
+            _handler_has_diagnostic(node)
+            or _is_fallback_handler(node)
+            or _handler_returns_error_response(node)
+        ):
             continue
         line = _node_line(node)
         code = lines[line - 1].strip() if 1 <= line <= len(lines) else ""
@@ -927,6 +934,17 @@ def _looks_like_request_model(class_name: str) -> bool:
     return class_name.endswith(_REQUEST_MODEL_SUFFIXES)
 
 
+#: Field names that carry bulk content -- a document, an image, a body --
+#: where an unbounded value costs real decode and validation work. A
+#: ``username`` or ``code`` with no bound is a validation choice, not a
+#: resource risk.
+_BULK_FIELD_RE = re.compile(
+    r"(?i)(?:^|_)(?:contents?|body|data|payload|html|text|images?|img|files?|blob|base64"
+    r"|markdown|description|notes?|csv|json|xml|document|attachments?|avatar|picture"
+    r"|photo|message|comment)(?:_|$)"
+)
+
+
 def _str_or_bytes_base_type(annotation: ast.expr) -> str | None:
     """``"str"``/``"bytes"`` if *annotation* is a bare, ``Optional``-wrapped,
     ``| None``-wrapped, or ``Annotated``-wrapped ``str``/``bytes`` type;
@@ -1001,7 +1019,10 @@ def check_unbounded_pydantic_field(
     ``*Input``, ``*Payload``, ``*Body``, ``*Params``) — see
     ``_looks_like_request_model`` for why: without this, every internal
     config/settings ``BaseModel`` in a codebase fires too, drowning out the
-    real signal.
+    real signal. And restricted to fields whose name says they carry bulk
+    content (``image``, ``content``, ``description``; see
+    ``_BULK_FIELD_RE``): a ``username: str`` with no bound is a validation
+    choice, not the resource risk this check is about.
     """
     pk = _rel(path)
     results: list[Finding] = []
@@ -1016,7 +1037,7 @@ def check_unbounded_pydantic_field(
             if not isinstance(stmt, ast.AnnAssign) or not isinstance(stmt.target, ast.Name):
                 continue
             base_type = _str_or_bytes_base_type(stmt.annotation)
-            if base_type is None:
+            if base_type is None or not _BULK_FIELD_RE.search(stmt.target.id):
                 continue
             if _has_length_constraint(stmt.annotation, stmt.value):
                 continue
@@ -2076,16 +2097,28 @@ def _is_file_move_or_copy(fn: str) -> bool:
     )
 
 
+def _write_destination(node: ast.Call) -> list[ast.expr]:
+    """The destination of a copy/move: the second positional argument or
+    ``dst=``. The source's taint says nothing about where the write lands --
+    ``copyfileobj(upload.file, buffer)`` into a path the application chose
+    is not an arbitrary write."""
+    if len(node.args) >= 2:
+        return [node.args[1]]
+    dst = [kw.value for kw in node.keywords if kw.arg in ("dst", "fdst", "dest")]
+    return dst or _call_data(node)
+
+
 def check_arbitrary_write(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
-    """CWE-73. ``shutil.copy*``/``shutil.move``/``os.rename`` fed a non-literal
-    path. Two literal paths can't be an arbitrary write."""
+    """CWE-73. ``shutil.copy*``/``shutil.move``/``os.rename`` whose
+    destination is a non-literal path. A literal destination can't be an
+    arbitrary write, whatever is copied there."""
     pk = _rel(path)
     results: list[Finding] = []
     aliases = _import_aliases(tree)
     for node in _calls(tree):
         if not _is_file_move_or_copy(_callee(node, aliases)):
             continue
-        taint = _tainted(tree, node, _call_data(node))
+        taint = _tainted(tree, node, _write_destination(node))
         if taint is None:
             continue
         confidence, note = taint

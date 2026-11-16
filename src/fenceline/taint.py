@@ -411,6 +411,9 @@ _TERMINATING_CALLS = frozenset({"abort", "exit", "quit", "sys.exit", "os._exit"}
 _PREDICATE_METHODS = frozenset(
     {"isdigit", "isalnum", "isalpha", "isidentifier", "isdecimal", "isnumeric"}
 )
+#: ``path.is_relative_to(base)``: the containment check a resolved path
+#: needs; it vouches for its receiver.
+_PATH_GUARD_METHODS = frozenset({"is_relative_to"})
 #: Framework URL validators: ``url_has_allowed_host_and_scheme(url, ...)``
 #: (Django) and its older name vouch for their first argument as a
 #: same-site destination.
@@ -467,6 +470,8 @@ def _anchored_match_target(call: ast.Call) -> str | None:
     args = call.args
     if isinstance(func, ast.Attribute) and func.attr in _PREDICATE_METHODS:
         return _canonical_expr(func.value) if not args else None
+    if isinstance(func, ast.Attribute) and func.attr in _PATH_GUARD_METHODS and len(args) == 1:
+        return _canonical_expr(func.value)
     dotted = _dotted_name(func) or ""
     if dotted.rsplit(".", 1)[-1] in _URL_VALIDATORS and args:
         return _canonical_expr(args[0])
