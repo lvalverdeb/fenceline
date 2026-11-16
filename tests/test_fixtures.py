@@ -23,9 +23,11 @@ from pathlib import Path
 import pytest
 
 from fenceline.checks import CHECKS, lines_for
+from fenceline.rules import load_rule_set, run_rules
 from fenceline.scanner import mask_non_code
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
+RULES_DIR_NAME = "rules"
 TEST_FENCELINE_PATH = Path(__file__).parent / "test_fenceline.py"
 
 _CHECK_BY_NAME = {fn.__name__: fn for _, fn in CHECKS}
@@ -36,7 +38,7 @@ def _discover_cases() -> list[tuple[str, Path, Path]]:
     if not FIXTURES_DIR.is_dir():
         return cases
     for check_dir in sorted(FIXTURES_DIR.iterdir()):
-        if not check_dir.is_dir():
+        if not check_dir.is_dir() or check_dir.name == RULES_DIR_NAME:
             continue
         for py_file in sorted(check_dir.glob("case_*.py")):
             expected_file = py_file.parent / f"{py_file.stem}.expected.json"
@@ -46,6 +48,28 @@ def _discover_cases() -> list[tuple[str, Path, Path]]:
 
 
 CASES = _discover_cases()
+
+
+def _discover_rule_cases() -> list[tuple[str, Path, Path, Path]]:
+    """``fixtures/rules/<set>/rules.toml`` with that directory's
+    ``case_*.py`` + ``case_*.expected.json`` pairs: the declarative-rule
+    conformance cases, shared with the Rust port like the check cases."""
+    cases = []
+    rules_root = FIXTURES_DIR / RULES_DIR_NAME
+    if not rules_root.is_dir():
+        return cases
+    for set_dir in sorted(rules_root.iterdir()):
+        rules_file = set_dir / "rules.toml"
+        if not rules_file.is_file():
+            continue
+        for py_file in sorted(set_dir.glob("case_*.py")):
+            expected_file = py_file.parent / f"{py_file.stem}.expected.json"
+            if expected_file.exists():
+                cases.append((set_dir.name, rules_file, py_file, expected_file))
+    return cases
+
+
+RULE_CASES = _discover_rule_cases()
 
 
 def _fingerprint(cwe_id: str, severity: str, confidence: str, line: int) -> tuple:
@@ -83,6 +107,33 @@ def test_fixture_case(check_name, py_file, expected_file, tmp_path, monkeypatch)
         for f in expected_data["findings"]
     )
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "set_name,rules_file,py_file,expected_file",
+    RULE_CASES,
+    ids=[f"rules/{c[0]}/{c[2].stem}" for c in RULE_CASES],
+)
+def test_rule_fixture_case(set_name, rules_file, py_file, expected_file, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    rules = load_rule_set(None, [rules_file])
+    source = py_file.read_text()
+    expected_data = json.loads(expected_file.read_text())
+    fake_path = Path(expected_data.get("path_name", py_file.name))
+    lines = source.splitlines()
+    tree = ast.parse(source) if fake_path.suffix == ".py" else None
+    code_lines = mask_non_code(fake_path, lines, tree)
+    findings = run_rules(rules, fake_path, lines, code_lines, tree)
+    actual = sorted(_fingerprint(f.cwe_id, f.severity, f.confidence, f.line) for f in findings)
+    expected = sorted(
+        _fingerprint(f["cwe_id"], f["severity"], f["confidence"], f["line"])
+        for f in expected_data["findings"]
+    )
+    assert actual == expected
+
+
+def test_rule_fixtures_exist():
+    assert RULE_CASES, "fixtures/rules/ must hold at least one rule set with a case"
 
 
 def test_every_check_without_a_dedicated_unit_test_has_a_fixture():

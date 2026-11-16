@@ -20,6 +20,7 @@ from fenceline.config import (
 )
 from fenceline.models import CONFIDENCE_ORDER, SEVERITY_ORDER, Finding, cap_severity
 from fenceline.reporting import print_report, print_sarif
+from fenceline.rules import RuleError, load_rule_set, run_rules
 from fenceline.scanner import _ast_parse, _is_test_path, _iter_py, _read, _rel, mask_non_code
 from fenceline.suppression import apply_suppressions
 
@@ -353,6 +354,28 @@ def main() -> int:
         help="Only report/fail on findings not already present in this baseline file",
     )
     parser.add_argument(
+        "--rules",
+        action="append",
+        default=[],
+        type=Path,
+        metavar="PATH",
+        help=(
+            "TOML file of [[rule]] tables, run after the built-in checks "
+            "(repeatable; see docs/rules.md). [[rule]] tables in the --config "
+            "file load too."
+        ),
+    )
+    parser.add_argument(
+        "--disable",
+        action="append",
+        default=[],
+        metavar="CHECK",
+        help=(
+            "Do not run this built-in check, by function name "
+            "(repeatable), e.g. --disable check_pandas_pickle"
+        ),
+    )
+    parser.add_argument(
         "--write-baseline",
         type=Path,
         default=None,
@@ -424,6 +447,14 @@ def main() -> int:
         severity_policy = _validated_severity_policy(load_severity_policy(cwd))
     except ValueError as exc:
         parser.error(str(exc))
+    try:
+        rules = load_rule_set(args.config, args.rules)
+    except RuleError as exc:
+        parser.error(str(exc))
+    disabled = frozenset(args.disable)
+    unknown_disabled = sorted(disabled - {fn.__name__ for _, fn in CHECKS})
+    if unknown_disabled:
+        parser.error(f"--disable: unknown check(s) {', '.join(unknown_disabled)}")
 
     nosec_suppressed = 0
     # Python files that failed to parse: the regex checks still ran on them,
@@ -450,6 +481,8 @@ def main() -> int:
 
         file_findings: list[Finding] = []
         for check_name, check_fn in CHECKS:
+            if check_fn.__name__ in disabled:
+                continue
             try:
                 findings = check_fn(path, lines_for(check_fn, lines, code_lines), tree)
                 cap = severity_policy.get(check_fn.__name__)
@@ -461,6 +494,11 @@ def main() -> int:
             except Exception as exc:
                 if not args.quiet:
                     print(f"  ⚠ {check_name} error on {_rel(path)}: {exc}", file=sys.stderr)
+        try:
+            file_findings.extend(run_rules(rules, path, lines, code_lines, tree))
+        except Exception as exc:
+            if not args.quiet:
+                print(f"  ⚠ rules error on {_rel(path)}: {exc}", file=sys.stderr)
 
         kept, suppressed_here = apply_suppressions(file_findings, lines)
         nosec_suppressed += suppressed_here
