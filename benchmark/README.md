@@ -51,6 +51,21 @@ false-positive rate on ordinary code.
 
 ## Results
 
+### Unreleased (2026-11-16): the Mealie round
+
+| Tool | Findings | True | False | Precision | Recall |
+|---|---|---|---|---|---|
+| fenceline | 200 | 191 | 9 | 96% | 186/200 (93%) |
+| fenceline (--confidence-min high) | 142 | 139 | 3 | 98% | 135/200 (68%) |
+
+One `CWE-778` finding is gone, labelled true: pygoat's container-quota
+check, `except Exception: return JsonResponse({"status": "error", ...},
+status=500)`. The round treats a handler that answers the request with an
+error response as having handled the failure, because on the ordinary
+applications that shape was never a swallowed error; the instance was
+found by no other tool, so the ground truth shrinks with it (201 to 200).
+Precision unchanged.
+
 ### 1.13.0 (2026-11-16): the CTFd round
 
 No change on the vulnerable apps: 207 raw findings in both ports, the same
@@ -370,12 +385,14 @@ B403 2, B105 2, B406 2, B608 2, one each of B409/B104/B108; Semgrep one
 ## Clean-code corpus
 
 `clean/` holds the measurement the vulnerable apps cannot give: precision on
-ordinary code. Seven maintained applications, pinned and scanned at their
+ordinary code. Eight maintained applications, pinned and scanned at their
 application package; every finding of all three tools in scope adjudicated
-by hand. The first four were chosen one per framework; the fifth, sixth and
-seventh, pretalx, Tandoor Recipes and CTFd, were the held-out applications
-of the first three tuning rounds and joined the corpus once the checks had
-been tuned against them (D7, D8 and D9 in `ROADMAP.md`).
+by hand. The first four were chosen one per framework; the other four,
+pretalx, Tandoor Recipes, CTFd and Mealie, were the held-out applications
+of the four tuning rounds and joined the corpus once the checks had been
+tuned against them (D7 to D10 in `ROADMAP.md`). Phase C2 closed with this
+corpus as its regression gate: no check change may lower its lenient
+precision or raise its density.
 
 | App | Framework | Commit | Scanned | Lines in scope |
 |---|---|---|---|---|
@@ -386,6 +403,7 @@ been tuned against them (D7, D8 and D9 in `ROADMAP.md`).
 | [pretalx](https://github.com/pretalx/pretalx) | Django | `1510dea` | `src/pretalx/` | 64074 |
 | [Tandoor Recipes](https://github.com/TandoorRecipes/recipes) | Django | `4fdc854` | `cookbook/`, `recipes/` | 20170 |
 | [CTFd](https://github.com/CTFd/CTFd) | Flask | `485d59e` | `CTFd/` | 23824 |
+| [Mealie](https://github.com/mealie-recipes/mealie) | FastAPI | `3d639dd` | `mealie/` | 43417 |
 
 Tools: fenceline 1.9.0, Bandit 1.9.4, Semgrep 1.185.0 `p/python`, as in the
 main benchmark. The universe is the same too: findings on `.py` files outside
@@ -413,7 +431,87 @@ design*. Recall is not measured: nobody knows how many weaknesses these
 applications hold. `clean/score.py` refuses to run if any in-scope finding
 has no verdict, so the labels are complete by construction.
 
-### Held-out application: Mealie (2026-11-16, at 1.13.0)
+### Unreleased (2026-11-16): the Mealie round, eight apps; C2 closed
+
+The round D10 limited to two check defects and two shapes, in both ports
+with parity. `CWE-73` rates a copy or move by its destination (the second
+positional argument or `dst=`), not by the content copied, so
+`copyfileobj(upload.file, buffer)` into a path the application chose is
+not an arbitrary write. `path.is_relative_to(base)` is a guard for its
+receiver, so a resolved path checked that way before `FileResponse()` or
+`send_file()` is clean. A catch-all handler that returns an error response
+(`return response_404()`, a `status_code` of 400 or more) has answered the
+request. The Pydantic field check reports only fields whose name says they
+carry bulk content (`image`, `content`, `description`); a `username: str`
+with no bound is a validation choice. Then Mealie joined the corpus and no
+further application was held out: C2 closes here.
+
+The corpus is now eight apps and 280,244 lines:
+
+| Tool | Findings | True | By design | False | Precision (strict) | Precision (lenient) | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| fenceline | 252 | 28 | 56 | 168 | 11% | 33% | 0.9 |
+| fenceline (--confidence-min high) | 128 | 24 | 42 | 62 | 19% | 52% | 0.5 |
+| Bandit | 412 | 14 | 43 | 355 | 3% | 14% | 1.5 |
+| Semgrep | 61 | 0 | 3 | 58 | 0% | 5% | 0.2 |
+
+| Confidence | Findings | True | By design | False | Share true |
+|---|---|---|---|---|---|
+| HIGH | 128 | 24 | 42 | 62 | 19% |
+| MEDIUM | 116 | 4 | 14 | 98 | 3% |
+| LOW | 8 | 0 | 0 | 8 | 0% |
+
+| App | Framework | Lines | Findings | True | By design | False | Per 1000 lines |
+|---|---|---|---|---|---|---|---|
+| healthchecks | Django | 16884 | 15 | 0 | 3 | 12 | 0.9 |
+| dispatch | FastAPI | 62177 | 53 | 19 | 4 | 30 | 0.9 |
+| flaskbb | Flask | 23731 | 21 | 4 | 7 | 10 | 0.9 |
+| hacore | aiohttp | 25967 | 13 | 0 | 2 | 11 | 0.5 |
+| pretalx | Django | 64074 | 43 | 0 | 1 | 42 | 0.7 |
+| recipes | Django | 20170 | 41 | 2 | 28 | 11 | 2.0 |
+| CTFd | Flask | 23824 | 13 | 0 | 5 | 8 | 0.5 |
+| mealie | FastAPI | 43417 | 53 | 3 | 6 | 44 | 1.2 |
+
+False positives by check: `CWE-601` 41 (28 at HIGH), `CWE-117` 25,
+`CWE-22` 18, `CWE-73` 17, `CWE-918` 12, `CWE-532` 9, `CWE-338` 8,
+`CWE-770` 7, `CWE-328` 7, `CWE-1333` 5, twelve others three times or
+fewer.
+
+**Mealie, before and after.** 68 findings at 1.13.0, 53 now: 3 true, 6 by
+design, 44 false, 6% strict and 17% lenient at 1.2 per 1,000 (HIGH: 20
+findings, 15% and 35% at 0.5; was 27, 11% and 26%). Gone: the two
+`is_relative_to()`-guarded file responses, three uploads copied into the
+application's temporary directory, the three SPA handlers that return a
+404, and seven short string fields of request models. What remains is the
+per-application idiom recorded with the blind measurement below: copies
+of the application's own files rated MEDIUM, log messages that name the
+password-reset feature, file responses of UUID-typed parameters, anchored
+regexes, config-mode compares.
+
+**The seven apps, before and after.** 200 findings at 1.13.0, 199 now:
+one CTFd `copyfileobj()` to a `safe_join()` destination. The eight-app
+lenient precision, 33%, is below the 35% default gate the seven apps met
+at 38%; Mealie brought it down and no round was run against it after it
+joined. Density, 0.9, stays under the bar.
+
+**Elsewhere.** Library corpus unchanged at 220; vulnerable benchmark: one
+true `CWE-778` instance fewer (top of this file).
+
+**Port divergence.** Unchanged: the PEP 695 file in Home Assistant, the two
+PEP 701 files in Tandoor, and ten PEP 701 files in Mealie that carry no
+finding.
+
+**C2, closed as measured.** Four blind applications read 1%, 65%, 15% and
+13% lenient at 3.5, 7.0, 1.4 and 1.6 findings per 1,000 lines; the tuning
+set reads 33% lenient (52% at HIGH) at 0.9. The density gate is met on the
+tuning set; the lenient gates (35% default, 70% HIGH) are not, and no blind
+application met any of the three. The honest number for a team turning
+fenceline on is the blind one: between one and two findings per 1,000 lines,
+most of them the application's own idiom, with the real ones among them
+(Mealie's log injection, Tandoor's silent importers) found by no other
+tool.
+
+### Held-out application: Mealie (2026-11-16, at 1.13.0; in the corpus since 2026-11-16)
 
 The fourth blind measurement, the second on a framework other than Django:
 [Mealie](https://github.com/mealie-recipes/mealie) (FastAPI, `3d639dd`,

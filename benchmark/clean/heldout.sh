@@ -2,9 +2,10 @@
 # The held-out application of ROADMAP phase C2: one fresh application,
 # scanned once at the pinned commit after the check work was frozen,
 # adjudicated blind, scored with the clean-corpus scorer against
-# heldout-labels.json. The first three held-out apps, pretalx, Tandoor
-# Recipes and CTFd, have since joined the tuning corpus (run.sh); the
-# current one is Mealie. Extra
+# heldout-labels.json. All four held-out apps (pretalx, Tandoor Recipes,
+# CTFd, Mealie) have since joined the tuning corpus (run.sh); this script
+# still runs the last of them, Mealie, as the recipe for the next blind
+# measurement when a new one is chosen. Extra
 # arguments go to score.py (--confidence-min high, --fps).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)

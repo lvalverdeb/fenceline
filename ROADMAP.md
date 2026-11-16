@@ -28,10 +28,13 @@ first time the tuning set meets the density and default gates; vulnerable
 benchmark unchanged. Fourth held-out application (Mealie, FastAPI, 43,417
 lines) measured blind: 4% strict, 13% lenient, 1.6 per 1,000, three true
 log-injection findings; all three gates fail, blind density 3.5, 7.0, 1.4,
-1.6. D10 accepted 2026-11-16 as (a): released as 1.13.0 from that tree;
-the Mealie round (the two check defects and two shapes, Mealie into the
-corpus), then C2 closes with the corpus as the regression gate and C3
-starts.
+1.6. D10 accepted 2026-11-16 as (a): released as 1.13.0 from that tree.
+Mealie round done 2026-11-16, unreleased: Mealie 68 to 53 findings (1.6 to
+1.2 per 1,000), eight-app corpus 11% strict / 33% lenient at 0.9 per 1,000
+(19% / 52% at HIGH, 0.5), vulnerable benchmark 96% with one true
+error-response handler fewer. **C2 closed as measured**: density gate met
+on the tuning set, lenient gates not, no blind application met any gate;
+the eight-app corpus is the regression gate from here. C3 is next.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 
@@ -330,6 +333,33 @@ real vulnerabilities.
 **D10 accepted 2026-11-16, as (a).** 1.13.0 released from the measured
 tree. The Mealie round follows, limited as stated; then C2 closes.
 
+**Mealie round done 2026-11-16, unreleased. Outcome, and C2 closed.** The
+two defects and two shapes in both ports: `CWE-73` rates the destination
+of a copy or move rather than the content copied; `is_relative_to()` is a
+path guard for its receiver; a handler that returns an error response has
+answered the request (`CWE-778`); the Pydantic field check reports only
+bulk-content field names. Mealie went from 68 findings to 53 (1.6 to 1.2
+per 1,000, 17% lenient, 35% at HIGH) and joined the corpus. Eight apps,
+280,244 lines: 252 findings, 28 true, 56 by design, 168 false, 11% strict
+and 33% lenient at 0.9 per 1,000; at HIGH 128 findings, 19% and 52% at
+0.5. The seven previous apps lost one finding. Vulnerable benchmark: one
+true `CWE-778` instance fewer (pygoat's `return JsonResponse({"status":
+"error"}, status=500)`), 96% precision, 186/200. Library corpus unchanged.
+
+C2 closes here as measured and not met: the density gate (≤ 1.0 per
+1,000) is met on the tuning set at 0.9; the lenient gates (35% default,
+70% HIGH) are not (33%, 52%); none of the four blind applications met any
+gate (1%, 65%, 15%, 13% lenient at 3.5, 7.0, 1.4, 1.6 per 1,000). What the
+phase established: precision on ordinary code is measurable and is
+measured, with 1,568 adjudicated verdicts across eight applications and
+four frameworks; four blind measurements say what a team sees on day one;
+and the shapes a round removes are mostly one application's idiom, so
+further rounds would buy per-app numbers, not a generalising one. From
+here the eight-app corpus is the regression gate: no check change may
+lower its lenient precision or raise its density, in either port, and
+`benchmark/clean/heldout.sh` stays as the recipe for the next blind
+measurement whenever a new application is chosen.
+
 ### Phase C3: a CVE regression set
 
 The instrument with headroom for recall. Instead of a fifth intentionally
@@ -477,4 +507,4 @@ Semgrep replacement.
   blind density 1.6): release 1.13.0, a Mealie round limited to the two
   check defects, then close C2 with the corpus as the regression gate and
   start C3 (recommended); the same plus a fifth blind app; or close C2 now.
-  Accepted 2026-11-16 as the first.
+  Accepted 2026-11-16 as the first; C2 closed 2026-11-16.
