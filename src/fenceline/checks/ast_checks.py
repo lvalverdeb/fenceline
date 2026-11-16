@@ -21,9 +21,9 @@ from fenceline.ast_helpers import (
     _dotted_name,
     _full_attr,
     _handler_has_diagnostic,
-    _is_fallback_handler,
     _has_dynamic_arg,
     _import_aliases,
+    _is_fallback_handler,
     _is_re_compile,
     _is_sqlalchemy_compile,
     _iter_calls_in_scope,
@@ -1569,6 +1569,34 @@ def _is_route_builder_led(target: ast.expr) -> bool:
     return isinstance(lead, ast.Call) and _dotted_name(lead.func) in _ROUTE_BUILDERS
 
 
+def _concat_operands(expr: ast.expr) -> list[ast.expr]:
+    """The operands of a ``+`` chain or the interpolations of an f-string."""
+    if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Add):
+        return _concat_operands(expr.left) + _concat_operands(expr.right)
+    if isinstance(expr, ast.JoinedStr):
+        return [v.value for v in expr.values if isinstance(v, ast.FormattedValue)]
+    return [expr]
+
+
+def _is_safe_tail(op: ast.expr) -> bool:
+    return (
+        (isinstance(op, ast.Constant) and isinstance(op.value, str))
+        or _is_request_own_path(op)
+        or (isinstance(op, ast.Call) and _dotted_name(op.func) in _ROUTE_BUILDERS)
+    )
+
+
+def _concat_lead(target: ast.expr) -> ast.expr | None:
+    """The leading operand of a concatenation whose other operands cannot
+    change the destination's host: literals, the request's own path, route
+    builders. ``prefix + "/login/?next=" + request.path`` goes wherever
+    ``prefix`` goes, so the leading operand's taint is the redirect's."""
+    ops = _concat_operands(target)
+    if len(ops) >= 2 and not isinstance(ops[0], ast.Constant) and all(map(_is_safe_tail, ops[1:])):
+        return ops[0]
+    return None
+
+
 #: A URL property or URL getter: ``topic.url``, ``self.next_url``,
 #: ``self.get_success_url()``.
 _URL_PROPERTY_RE = re.compile(r"(?:^|_)urls?$")
@@ -1636,7 +1664,8 @@ def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -
             or _is_route_builder_led(data[0])
         ):
             continue
-        taint = classify(tree, node, data)
+        lead = _concat_lead(data[0]) if data else None
+        taint = classify(tree, node, [lead] if lead is not None else data)
         kind = _url_property_kind(data[0]) if len(data) == 1 else None
         if kind == "urls" or (kind == "url" and taint is Taint.INTERNAL):
             continue
@@ -2300,7 +2329,16 @@ def check_path_traversal(path: Path, lines: list[str], tree: ast.Module | None) 
             zero_day = "CWE-22 is #6 in Top 25 with 10 CVEs in KEV."
         else:
             continue
-        taint = _tainted(tree, node, data)
+        raw = classify(tree, node, data)
+        if (
+            name == "lstrip"
+            and raw is Taint.INTERNAL
+            and isinstance(data[0], (ast.Attribute, ast.Subscript))
+        ):
+            # A field read off the application's own object, normalised; a
+            # bare name of unknown provenance stays reported at MEDIUM.
+            continue
+        taint = confidence_for(raw)
         if taint is None:
             continue
         confidence, note = taint
@@ -2705,7 +2743,9 @@ _NOT_A_SECRET_NAME_RE = re.compile(
     r"|^(?:conf|key|data|storage|attr|setting|option)_"
     # An action on the password, not the password: reset_password = "1/m/ip"
     # (a rate limit), account_reset_password = "/account/password-reset".
-    r"|(?:^|_)(?:reset|change|forgot|confirm|validate|verify)_password(?:_|$)",
+    r"|(?:^|_)(?:reset|change|forgot|confirm|validate|verify)_password(?:_|$)"
+    # ...in either word order: DEFAULT_PASSWORD_RESET_SUBJECT = "Password Reset Request".
+    r"|(?:^|_)password_(?:reset|change|changed|forgot|confirm|validate|verify|alert|expired|expiry|policy)(?:_|$)",
     re.I,
 )
 

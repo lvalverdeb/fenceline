@@ -130,7 +130,9 @@ def check_xxe(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fin
     lxml_pattern = re.compile(rf"\b{re.escape(lxml_alias)}\.") if lxml_alias else None
     defused = _defused_parser_names(tree)
     defused_pattern = (
-        re.compile(rf"\bparser\s*=\s*(?:{'|'.join(map(re.escape, defused))})\b") if defused else None
+        re.compile(rf"\bparser\s*=\s*(?:{'|'.join(map(re.escape, defused))})\b")
+        if defused
+        else None
     )
     for lineno, line in enumerate(lines, 1):
         if _skip(line) or "xml.sax.saxutils" in line:

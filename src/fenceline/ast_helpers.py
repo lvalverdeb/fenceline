@@ -46,6 +46,21 @@ _LOG_NAME_TOKENS = frozenset({"log", "logs", "logger", "logging"})
 
 # ``traceback.print_exc()`` and friends surface the exception on stderr.
 _TRACEBACK_FUNCS = frozenset({"print_exc", "print_exception", "print_stack", "format_exc"})
+#: Calls that write the failure somewhere a person sees it or end the
+#: request with an error: the handler has dealt with the exception.
+_OUTPUT_FUNCS = frozenset(
+    {
+        "print",
+        "pprint",
+        "abort",
+        "exit",
+        "sys.exit",
+        "click.echo",
+        "click.secho",
+        "typer.echo",
+        "typer.secho",
+    }
+)
 
 # AST node types that introduce a new, separately-executed scope. A statement
 # merely *defined* inside one of these (a nested function/lambda/class body)
@@ -208,7 +223,10 @@ def _handler_has_diagnostic(handler: ast.ExceptHandler) -> bool:
     anywhere in the body, e.g. ``print(f"...{exc}")`` or ``metrics.record(exc)``,
     means the exception is being surfaced through some mechanism other than
     the stdlib ``logging`` module, which still counts as reported rather than
-    silently swallowed). Walks the whole subtree, not just top-level
+    silently swallowed); a ``print()``, ``click.echo()`` or
+    ``self.stdout.write()`` of anything (the failure is written where a
+    person sees it); or ``abort()``/``sys.exit()`` (the request or program
+    ends with an error). Walks the whole subtree, not just top-level
     statements, so a diagnostic inside a nested block still counts.
     """
     for stmt in handler.body:
@@ -225,6 +243,11 @@ def _handler_has_diagnostic(handler: ast.ExceptHandler) -> bool:
             if full == "warnings.warn" or _has_log_like_token(full):
                 return True
             if full.rsplit(".", 1)[-1] in _TRACEBACK_FUNCS:
+                return True
+            if full in _OUTPUT_FUNCS:
+                return True
+            parts = full.rsplit(".", 2)
+            if len(parts) >= 2 and parts[-1] == "write" and parts[-2] in ("stdout", "stderr"):
                 return True
     return False
 
@@ -245,9 +268,7 @@ def _is_fallback_stmt(stmt: ast.stmt) -> bool:
     if isinstance(stmt, (ast.Pass, ast.Continue, ast.Break)):
         return True
     if isinstance(stmt, ast.Return):
-        return stmt.value is None or not any(
-            isinstance(n, ast.Call) for n in ast.walk(stmt.value)
-        )
+        return stmt.value is None or not any(isinstance(n, ast.Call) for n in ast.walk(stmt.value))
     if isinstance(stmt, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
         return stmt.value is not None and not any(
             isinstance(n, ast.Call) for n in ast.walk(stmt.value)

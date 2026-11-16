@@ -297,6 +297,13 @@ _CLEAN_CALLS = frozenset(
         "django.urls.reverse_lazy",
         "resolve_url",
         "django.shortcuts.resolve_url",
+        # Path sanitisers: None or an exception on traversal, else a path
+        # under the base.
+        "safe_join",
+        "werkzeug.security.safe_join",
+        "werkzeug.utils.safe_join",
+        "flask.safe_join",
+        "django.utils._os.safe_join",
     }
 )
 
@@ -410,35 +417,71 @@ _PREDICATE_METHODS = frozenset(
 _URL_VALIDATORS = frozenset({"url_has_allowed_host_and_scheme", "is_safe_url"})
 
 
+def _const_key(expr: ast.expr) -> str | None:
+    if isinstance(expr, ast.Constant):
+        value = expr.value
+        if isinstance(value, str):
+            return f'"{value}"'
+        if value is None or isinstance(value, (bool, int)):
+            return str(value)
+    return None
+
+
+def _canonical_expr(expr: ast.expr) -> str | None:
+    """A key for an expression a guard can vouch for: a name, an attribute
+    chain, a subscript by a constant, or a call with constant arguments --
+    ``request.args.get("next")``. ``None`` for anything else: two
+    occurrences of such an expression need not be the same value."""
+    if isinstance(expr, ast.Name):
+        return expr.id
+    if isinstance(expr, ast.Attribute):
+        inner = _canonical_expr(expr.value)
+        return f"{inner}.{expr.attr}" if inner else None
+    if isinstance(expr, ast.Subscript):
+        inner, key = _canonical_expr(expr.value), _const_key(expr.slice)
+        return f"{inner}[{key}]" if inner and key else None
+    if isinstance(expr, ast.Call):
+        func = _canonical_expr(expr.func)
+        if not func:
+            return None
+        parts = [_const_key(a) for a in expr.args]
+        parts += [f"{kw.arg}={_const_key(kw.value)}" if kw.arg else None for kw in expr.keywords]
+        if any(p is None for p in parts):
+            return None
+        return f"{func}({','.join(p for p in parts if p)})"
+    return None
+
+
+def _guard_root(key: str) -> str:
+    """The name a guard key is rooted at: rebinding it kills the guard."""
+    return re.split(r"[.(\[]", key, maxsplit=1)[0]
+
+
 def _anchored_match_target(call: ast.Call) -> str | None:
-    """The name a call validates: ``re.fullmatch(p, x)``, ``re.match("...$", x)``,
-    ``PATTERN.fullmatch(x)``, ``x.isdigit()``, or
-    ``url_has_allowed_host_and_scheme(x, ...)``."""
+    """The expression a call validates, as a canonical key:
+    ``re.fullmatch(p, x)``, ``re.match("...$", x)``, ``PATTERN.fullmatch(x)``,
+    ``x.isdigit()``, or ``url_has_allowed_host_and_scheme(x, ...)``, where
+    ``x`` may be a name or a stable expression such as
+    ``request.args.get("next")``."""
     func = call.func
-    if isinstance(func, ast.Attribute) and func.attr in _PREDICATE_METHODS:
-        return func.value.id if isinstance(func.value, ast.Name) and not call.args else None
-    dotted = _dotted_name(func) or ""
     args = call.args
-    if dotted.rsplit(".", 1)[-1] in _URL_VALIDATORS and args and isinstance(args[0], ast.Name):
-        return args[0].id
-    if dotted == "re.fullmatch" and len(args) >= 2 and isinstance(args[1], ast.Name):
-        return args[1].id
+    if isinstance(func, ast.Attribute) and func.attr in _PREDICATE_METHODS:
+        return _canonical_expr(func.value) if not args else None
+    dotted = _dotted_name(func) or ""
+    if dotted.rsplit(".", 1)[-1] in _URL_VALIDATORS and args:
+        return _canonical_expr(args[0])
+    if dotted == "re.fullmatch" and len(args) >= 2:
+        return _canonical_expr(args[1])
     if (
         dotted == "re.match"
         and len(args) >= 2
-        and isinstance(args[1], ast.Name)
         and isinstance(args[0], ast.Constant)
         and isinstance(args[0].value, str)
         and args[0].value.endswith(("$", "\\Z"))
     ):
-        return args[1].id
-    if (
-        isinstance(func, ast.Attribute)
-        and func.attr == "fullmatch"
-        and len(args) == 1
-        and isinstance(args[0], ast.Name)
-    ):
-        return args[0].id
+        return _canonical_expr(args[1])
+    if isinstance(func, ast.Attribute) and func.attr == "fullmatch" and len(args) == 1:
+        return _canonical_expr(args[0])
     return None
 
 
@@ -557,7 +600,7 @@ def _walk_guards(
             record([stmt])
         if guarded:
             killed = _bound_names(stmt)
-            guarded = [g for g in guarded if g[0] not in killed]
+            guarded = [g for g in guarded if _guard_root(g[0]) not in killed]
 
 
 def _bind(scope: _Scope, target: ast.expr, value: ast.expr) -> None:
@@ -883,6 +926,10 @@ class _Classifier:
             return Taint.CLEAN
         if isinstance(node, ast.Name):
             return self.name(node.id, depth)
+        if self.clean_names and isinstance(node, (ast.Attribute, ast.Subscript, ast.Call)):
+            key = _canonical_expr(node)
+            if key is not None and key in self.clean_names:
+                return Taint.CLEAN
         if isinstance(node, ast.Attribute) and node.attr in _CLEAN_ATTRS:
             return Taint.CLEAN
         if isinstance(node, (ast.Attribute, ast.Subscript)):
@@ -936,10 +983,12 @@ class _Classifier:
             inner = node.operand if isinstance(node, ast.UnaryOp) else node.value
             return self.expr(inner, depth + 1)
         if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
-            return max(
-                self.expr(node.elt, depth + 1),
-                self.many((g.iter for g in node.generators), depth + 1),
-            )
+            # A clean element (a constant, a sanitiser call) makes a clean
+            # sequence whatever it iterates over.
+            elt = self.expr(node.elt, depth + 1)
+            if elt is Taint.CLEAN:
+                return Taint.CLEAN
+            return max(elt, self.many((g.iter for g in node.generators), depth + 1))
         if isinstance(node, ast.DictComp):
             return max(
                 self.expr(node.key, depth + 1),

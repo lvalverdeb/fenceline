@@ -572,6 +572,20 @@ def test_apply_suppressions_scoped_nosec_only_suppresses_listed_cwes():
     assert suppressed == 0
 
 
+def test_apply_suppressions_bandit_and_ruff_codes_map_to_cwes():
+    src = "pickle.loads(data)  # noqa: S301, E501\n"
+    findings = _findings(check_pickle, src)
+    assert len(findings) == 1
+    kept, suppressed = apply_suppressions(findings, src.splitlines())
+    assert kept == [] and suppressed == 1
+    src = "pickle.loads(data)  # nosec B608\n"
+    kept, suppressed = apply_suppressions(_findings(check_pickle, src), src.splitlines())
+    assert len(kept) == 1 and suppressed == 0  # S608 is SQL, not pickle
+    src = "pickle.loads(data)  # noqa: E501\n"
+    kept, suppressed = apply_suppressions(_findings(check_pickle, src), src.splitlines())
+    assert len(kept) == 1 and suppressed == 0  # a style code says nothing about security
+
+
 def test_apply_suppressions_matching_scoped_cwe_is_suppressed():
     src = "pickle.loads(data)  # nosec CWE-502\n"
     findings = _findings(check_pickle, src)

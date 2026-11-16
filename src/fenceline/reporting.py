@@ -92,7 +92,7 @@ def print_report(
         if baseline_suppressed:
             print(f"  ({baseline_suppressed} pre-existing finding(s) suppressed by baseline)")
         if nosec_suppressed:
-            print(f"  ({nosec_suppressed} finding(s) suppressed by # nosec)")
+            print(f"  ({nosec_suppressed} finding(s) suppressed by # nosec / # noqa)")
         if test_suppressed:
             print(f"  ({test_suppressed} finding(s) in test code suppressed — see --include-tests)")
         _print_skipped(skipped_files)
@@ -108,7 +108,7 @@ def print_report(
     if baseline_suppressed:
         print(f"  ({baseline_suppressed} pre-existing finding(s) suppressed by baseline)")
     if nosec_suppressed:
-        print(f"  ({nosec_suppressed} finding(s) suppressed by # nosec)")
+        print(f"  ({nosec_suppressed} finding(s) suppressed by # nosec / # noqa)")
     if test_suppressed:
         print(f"  ({test_suppressed} finding(s) in test code suppressed — see --include-tests)")
     _print_skipped(skipped_files)
