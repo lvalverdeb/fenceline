@@ -34,7 +34,12 @@ Mealie round done 2026-11-16, unreleased: Mealie 68 to 53 findings (1.6 to
 (19% / 52% at HIGH, 0.5), vulnerable benchmark 96% with one true
 error-response handler fewer. **C2 closed as measured**: density gate met
 on the tuning set, lenient gates not, no blind application met any gate;
-the eight-app corpus is the regression gate from here. C3 is next.
+the eight-app corpus is the regression gate from here. C3 started
+2026-11-16: 28 CVEs pinned (22 in claimed classes, 6 not), runner and
+scorer in `benchmark/cves/`, first table: 15/22 found, 12 at HIGH; every
+miss has a root cause, two share one (SSRF sinks `Session.request()`,
+`httpx` `build_request()`/`send()`). C3's first milestone is done; the
+follow-on fixes are the next work, SSRF sinks first.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 **Release policy (D11, 2026-11-16)**: a release is cut when something is
@@ -403,9 +408,24 @@ metric: its findings must not change without a labels update that
 explains why. The clean corpus measures precision progress; the CVE set
 measures recall progress.
 
-**Done when** the manifest and runner exist, the first table is in the
-README, and every miss has a one-line root cause. Fixes for the misses are
-their own follow-on work, prioritised by how many CVEs share a cause.
+\1
+**Started 2026-11-16; first table measured at `de44224`.** 28 CVEs in
+`benchmark/cves/manifest.json`: mlflow (6), Gradio (7), Apache Airflow
+(4), label-studio (3), MindsDB (2), Jupyter Server, BentoML, vLLM, Weblate,
+Langflow. 22 in claimed classes, 6 not. `run.sh` clones each last
+vulnerable tree sparsely and scans the affected package; `score.py` prints
+the table (`benchmark/README.md`, "CVE regression set"). Result: 15/22
+found, 12 at HIGH; 0/6 of the unclaimed, as expected. Misses by cause:
+SSRF sinks not known (2: `requests.Session.request()`, `httpx.Client`
+`build_request()`/`send()`); no write-`open()` sink (1); operator template,
+no subprocess (1); HTML via `str.format()` (1); timing check wants a
+literal operand (1); developer `# nosec` on the sink line (1, by design).
+Prioritised follow-on: the SSRF sink list first (two CVEs, cheap, and the
+clean corpus has 12 SSRF false positives to keep in view); the others one
+each, each weighed against the eight-app gate before landing. The run also
+exposed and fixed three Rust parity bugs (pandas `query()` call shape,
+f-string taint depth, dict literals in the identifier collector), so the
+CVE trees are now part of the parity check too.
 
 ### Phase C4: declarative rules in both ports
 
@@ -516,7 +536,7 @@ Semgrep replacement.
   check defects, then close C2 with the corpus as the regression gate and
   start C3 (recommended); the same plus a fifth blind app; or close C2 now.
   Accepted 2026-11-16 as the first; C2 closed 2026-11-16.
-- **D11** Release policy, decided 2026-11-16: release on user-visible
-  change, not per measured round; measurements are pinned to commit hashes
-  (see Scope). The Mealie round therefore stays unreleased on main until a
-  release has a reason.
+\1- **C3 follow-on order** (no decision needed; recorded 2026-11-16): SSRF
+  sinks first, then the single-cause misses, each gated on the eight-app
+  corpus. Any new check for an unclaimed class (CORS, reflection, auth)
+  is C4 material.

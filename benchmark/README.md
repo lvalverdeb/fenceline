@@ -1,10 +1,12 @@
 # Benchmark: fenceline vs Bandit vs Semgrep
 
 A labelled, reproducible comparison on four intentionally vulnerable Python
-web applications, plus a second corpus of four ordinary, maintained
-applications that measures the other side: how much of what the tools report
+web applications, plus two more corpora: eight ordinary, maintained
+applications that measure the other side, how much of what the tools report
 on code nobody made vulnerable is worth a reviewer's time (see
-[Clean-code corpus](#clean-code-corpus)). The point is not a leaderboard but
+[Clean-code corpus](#clean-code-corpus)), and twenty-eight real CVEs in
+real applications, pinned at their last vulnerable commit, that measure
+recall on bugs that shipped (see [CVE regression set](#cve-regression-set)). The point is not a leaderboard but
 a measurement that can be re-run after every change to see which gaps closed
 and what it cost in false positives.
 
@@ -1166,3 +1168,113 @@ FENCELINE_CMD=path/to/fenceline-rs/target/release/fenceline benchmark/run.sh
 rule that `labels.json` does not map, `score.py` stops and names it; label
 it and add it to the `categories` table rather than letting it through
 unscored.
+
+## CVE regression set
+
+Recall on vulnerabilities that shipped, in applications with real service
+layers: for each CVE, `benchmark/cves/manifest.json` pins the last
+vulnerable commit (the parent of the fix, or the base of the fix PR), the
+package scanned, the sink file and line a reviewer would name, and the
+CWE. `benchmark/cves/run.sh` clones each tree sparsely, scans the package
+and scores; `score.py` prints the tables below. A CVE is *found* when a
+finding with the right CWE sits on the sink line (or another line of the
+same instance the manifest lists); the same CWE elsewhere in the file does
+not count. *Other findings in file* is what a reviewer wades through in
+that file apart from the hit.
+
+Twenty-two CVEs are in classes fenceline claims (path traversal, arbitrary
+write, command and code injection, deserialization, SSRF, open redirect,
+XSS, hard-coded secrets, timing attacks); six are in classes it does not
+(missing authentication, session fixation, unsafe reflection, permissive
+CORS, ORM field leaks), kept so the set also says what the tool is not.
+Applications: mlflow, Apache Airflow, MindsDB (Flask); Gradio, Langflow
+(FastAPI); BentoML (Starlette); label-studio, Weblate (Django); Jupyter
+Server (Tornado); vLLM (a network pipe, not HTTP). Selection rule in
+`ROADMAP.md`, Phase C3 and D3.
+
+### Commit `de44224` (2026-11-16): first measurement
+
+### Classes fenceline claims: fenceline, 15/22 found, 12 at HIGH
+
+| CVE | App | Framework | CWE | Result | Same CWE elsewhere in file | Other findings in file | Root cause of the miss |
+|---|---|---|---|---|---|---|---|
+| CVE-2023-1177 | mlflow | Flask | CWE-22 | found (HIGH) | 2 | 2 |  |
+| CVE-2023-2780 | mlflow | Flask | CWE-22 | found (HIGH) | 2 | 2 |  |
+| CVE-2023-6977 | mlflow | Flask | CWE-22 | found (HIGH) | 2 | 4 |  |
+| CVE-2023-6018 | mlflow | Flask | CWE-22 | missed | 1 | 3 | The write is `open(local_path, "wb")` with a parameter path; the traversal is in the file listing a remote server returned, two calls up and in another file. fenceline has no write-`open()` sink; its CWE-73 covers copy and move only. |
+| CVE-2023-6909 | mlflow | Flask | CWE-22 | found (HIGH) | 2 | 4 |  |
+| CVE-2023-6974 | mlflow | Flask | CWE-918 | missed | 0 | 1 | `Session.request(method, url)` is not an SSRF sink fenceline knows (`requests.request()` is), and the flaw is redirect-following, a request setting fenceline does not model. |
+| CVE-2022-40127 | airflow | Flask | CWE-78 | missed | 0 | 0 | The sink is a `BashOperator(bash_command=...)` Jinja template the scheduler renders; the file has no subprocess call. |
+| CVE-2022-40754 | airflow | Flask | CWE-601 | found (HIGH) | 28 | 41 |  |
+| CVE-2022-24710 | weblate | Django | CWE-79 | missed | 0 | 0 | HTML is built with `str.format()` and returned in an `HttpResponse`; the XSS check reports `Markup()`/`mark_safe()` only. |
+| CVE-2023-51449 | gradio | FastAPI | CWE-22 | found (HIGH) | 1 | 5 |  |
+| CVE-2023-34239 | gradio | FastAPI | CWE-918 | missed | 0 | 4 | `httpx.Client.build_request()` and `client.send()` are not SSRF sinks fenceline knows. |
+| CVE-2024-1728 | gradio | FastAPI | CWE-22 | found (HIGH) | 0 | 4 |  |
+| CVE-2024-4941 | gradio | FastAPI | CWE-22 | found (MEDIUM) | 0 | 4 |  |
+| CVE-2024-47164 | gradio | FastAPI | CWE-22 | found (HIGH) | 2 | 8 |  |
+| CVE-2024-1729 | gradio | FastAPI | CWE-208 | missed | 0 | 5 | The timing check reports a secret compared with a string literal; `app.auth[username] == password` compares two values. |
+| CVE-2023-39968 | jupyter_server | Tornado | CWE-601 | found (HIGH) | 0 | 2 |  |
+| CVE-2024-45846 | mindsdb | Flask | CWE-95 | found (MEDIUM) | 1 | 1 |  |
+| CVE-2023-30620 | mindsdb | Flask | CWE-22 | found (HIGH) | 0 | 5 |  |
+| CVE-2024-2912 | bentoml | Starlette | CWE-502 | found (HIGH) | 0 | 1 |  |
+| CVE-2025-29783 | vllm | none | CWE-502 | found (HIGH) | 0 | 0 |  |
+| CVE-2023-43791 | label-studio | Django | CWE-798 | found (MEDIUM) | 0 | 1 |  |
+| CVE-2023-47116 | label-studio | Django | CWE-918 | missed | 0 | 0 | The sink line carries the developer's bare `# nosec`, which fenceline honours; with the comment removed the line is reported as CWE-918, HIGH severity at MEDIUM confidence. |
+
+### Classes fenceline does not claim: fenceline, 0/6 found, 0 at HIGH
+
+| CVE | App | Framework | CWE | Result | Same CWE elsewhere in file | Other findings in file | Root cause of the miss |
+|---|---|---|---|---|---|---|---|
+| CVE-2021-38540 | airflow | Flask | CWE-306 | missed | 0 | 48 | No check: a view absent from a permission map is an authorization fact fenceline does not model. |
+| CVE-2023-40273 | airflow | Flask | CWE-384 | missed | 0 | 0 | No check for session lifecycle. |
+| CVE-2024-1561 | gradio | FastAPI | CWE-470 | missed | 0 | 6 | No check for `getattr()` with a request-controlled attribute name (unsafe reflection). |
+| CVE-2024-1727 | gradio | FastAPI | CWE-942 | missed | 0 | 5 | No check for `CORSMiddleware(allow_origins=["*"])`; a candidate for the declarative rules of C4. |
+| CVE-2023-47117 | label-studio | Django | CWE-200 | missed | 0 | 0 | No check for request-controlled ORM field names. |
+| CVE-2025-3248 | langflow | FastAPI | CWE-306 | missed | 0 | 16 | No check for an unauthenticated route. fenceline reports the `exec()`/`compile()` sinks themselves, sixteen CWE-94 findings in the file at MEDIUM, which is the by-design code sink, not the missing authentication. |
+
+Findings over all 28 trees: 3166.
+
+**Covered classes: 15 of 22 found, 12 at HIGH confidence.** Every hit was
+checked by hand against the vulnerable tree. The four mlflow path
+traversals share one sink, the `send_file()` of the artifact handler, and
+fenceline reports it HIGH in each tree; the guard bugs that made each CVE
+(an unresolved `..`, a `file://` source, a URL form `is_local_uri()`
+missed) are not what it sees, the unguarded sink is. The same holds for the
+three Gradio `/file=` traversals and `FileResponse()`. Both deserialization
+CVEs, the tar slip, the MindsDB `eval()`s, both open redirects and the
+hard-coded Django key are found where the advisory points. Two Gradio
+file reads are found as CWE-73 on the `shutil.copy2()` into the cache
+rather than as CWE-22; the manifest accepts the neighbouring CWE.
+
+**The seven misses, by cause.** Two are SSRF sinks fenceline does not know:
+`Session.request()` (mlflow) and `httpx.Client.build_request()`/`send()`
+(Gradio); the shared cause makes them the first follow-on. One is a write
+through `open(path, "wb")` with the traversal in a remote listing two calls
+up (mlflow): no write-`open()` sink. One is an Airflow `BashOperator`
+template with no subprocess call in the file. One is HTML built with
+`str.format()` (Weblate): the XSS check covers `Markup()`/`mark_safe()`
+only. One is `app.auth[username] == password` (Gradio): the timing check
+reports a secret compared with a literal, not with another value. One is a
+developer's bare `# nosec` on the sink line (label-studio): fenceline
+honours it, and with the comment removed reports the line at HIGH severity,
+MEDIUM confidence. The uncovered six are missed by construction; on
+Langflow fenceline reports the `exec()` sinks themselves, sixteen CWE-94
+findings in the file, which is the by-design code path, not the missing
+authentication.
+
+**Noise.** The Airflow `views.py` trees carry 41 to 48 other findings in
+the sink's file, most of them `redirect(self.get_redirect())` at MEDIUM
+and `Markup(chart.htmlcontent)`; everywhere else the reviewer reads
+between zero and eight.
+
+**Port parity.** The set is also the largest varied corpus the two ports
+had been run on (3,166 findings over 28 trees), and the first run found
+three divergences the earlier corpora never exercised, all on the Rust
+side and all fixed in the same change: the pandas `query()` check tested
+the dotted name instead of the call shape (a bare imported `query()` was
+reported, a `Client().query()` was not); each f-string level consumed an
+extra taint-depth step, so a module constant built from two nested
+f-strings read INTERNAL; and the identifier collector behind the
+log-secrets check did not descend into dict literals. Fixtures cover each.
+Both ports now agree on every tree.
+
