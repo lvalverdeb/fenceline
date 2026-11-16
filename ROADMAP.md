@@ -37,6 +37,14 @@ on the tuning set, lenient gates not, no blind application met any gate;
 the eight-app corpus is the regression gate from here. C3 is next.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
+**Release policy (D11, 2026-11-16)**: a release is cut when something is
+user-visible (a new capability, a check whose findings change materially,
+a phase closing), not to label a measurement. Benchmark sections are
+pinned to the commit they were measured on, a version only where one was
+released from that tree. The per-round gate stays: both ports identical on
+every corpus, the clean corpus no worse; that gate does not need a tag.
+Four minor versions in one day (1.10.0 to 1.13.0) is the cadence this
+replaces.
 
 ## 1. The four problems
 
@@ -508,3 +516,7 @@ Semgrep replacement.
   check defects, then close C2 with the corpus as the regression gate and
   start C3 (recommended); the same plus a fifth blind app; or close C2 now.
   Accepted 2026-11-16 as the first; C2 closed 2026-11-16.
+- **D11** Release policy, decided 2026-11-16: release on user-visible
+  change, not per measured round; measurements are pinned to commit hashes
+  (see Scope). The Mealie round therefore stays unreleased on main until a
+  release has a reason.

@@ -17,9 +17,10 @@ and what it cost in false positives.
 | [dvpwa](https://github.com/anxolerd/dvpwa) | aiohttp | `4a8f4a4` | 674 |
 | [django.nV](https://github.com/nVisium/django.nV) | Django | `a48901f` | 2461 |
 
-Tools: fenceline 1.9.0 for the current table, 1.8.0 for the
-three-app tables and 1.6.0 for the baseline (this repository; the Python and
-Rust ports give identical findings), Bandit 1.9.4 with default settings,
+Tools: fenceline at the commit each section below names (this repository;
+the Python and Rust ports give identical findings; a section labelled with
+a version was measured on the tree that version was released from), Bandit
+1.9.4 with default settings,
 Semgrep 1.185.0 with the community `p/python` ruleset. django.nV was added
 after 1.8.0, so every table before the four-app one covers three apps. Test files (`tests.py`, `test_*.py`, `tests/`),
 migrations and non-Python files are excluded for every tool alike, so
@@ -51,7 +52,12 @@ false-positive rate on ordinary code.
 
 ## Results
 
-### Unreleased (2026-11-16): the Mealie round
+Each section is labelled by the fenceline tree its numbers were measured
+on: a release version where one was cut from that tree, otherwise the
+commit hash. Releases are not cut to label measurements (`ROADMAP.md`,
+release policy).
+
+### Commit `de44224` (2026-11-16): the Mealie round
 
 | Tool | Findings | True | False | Precision | Recall |
 |---|---|---|---|---|---|
@@ -405,8 +411,8 @@ precision or raise its density.
 | [CTFd](https://github.com/CTFd/CTFd) | Flask | `485d59e` | `CTFd/` | 23824 |
 | [Mealie](https://github.com/mealie-recipes/mealie) | FastAPI | `3d639dd` | `mealie/` | 43417 |
 
-Tools: fenceline 1.9.0, Bandit 1.9.4, Semgrep 1.185.0 `p/python`, as in the
-main benchmark. The universe is the same too: findings on `.py` files outside
+Tools: fenceline at the commit each section names, Bandit 1.9.4, Semgrep
+1.185.0 `p/python`, as in the main benchmark. The universe is the same too: findings on `.py` files outside
 tests and migrations (alembic `revisions/` and `alembic/` included), so manifest findings
 and fenceline's test-code suppression are out of the picture for every tool.
 Home Assistant is scanned at the two packages that face requests; the
@@ -431,7 +437,7 @@ design*. Recall is not measured: nobody knows how many weaknesses these
 applications hold. `clean/score.py` refuses to run if any in-scope finding
 has no verdict, so the labels are complete by construction.
 
-### Unreleased (2026-11-16): the Mealie round, eight apps; C2 closed
+### Commit `de44224` (2026-11-16): the Mealie round, eight apps; C2 closed
 
 The round D10 limited to two check defects and two shapes, in both ports
 with parity. `CWE-73` rates a copy or move by its destination (the second
