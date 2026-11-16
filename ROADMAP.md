@@ -38,8 +38,10 @@ the eight-app corpus is the regression gate from here. C3 started
 2026-11-16: 28 CVEs pinned (22 in claimed classes, 6 not), runner and
 scorer in `benchmark/cves/`, first table: 15/22 found, 12 at HIGH; every
 miss has a root cause, two share one (SSRF sinks `Session.request()`,
-`httpx` `build_request()`/`send()`). C3's first milestone is done; the
-follow-on fixes are the next work, SSRF sinks first.
+`httpx` `build_request()`/`send()`). C3's first milestone is done. Follow-on 1 (SSRF sinks
+`.request(method, url)`/`.build_request()`) done 2026-11-16 at `eaf0b47`:
+17/22 found, eight-app corpus +7 (lenient 34%, density 0.92, HIGH
+unchanged). Next: the single-cause misses, or C4.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 **Release policy (D11, 2026-11-16)**: a release is cut when something is
@@ -425,7 +427,20 @@ clean corpus has 12 SSRF false positives to keep in view); the others one
 each, each weighed against the eight-app gate before landing. The run also
 exposed and fixed three Rust parity bugs (pandas `query()` call shape,
 f-string taint depth, dict literals in the identifier collector), so the
-CVE trees are now part of the parity check too.
+\1
+**Follow-on 1 done 2026-11-16, at `eaf0b47`.** `.request(method, url)` and
+`.build_request(method, url)` are SSRF sinks on any receiver, URL second;
+the same change fixed `requests.request()` rating its method argument.
+CVE set 17/22 (12 HIGH); eight-app corpus 259 findings, +3 false (dispatch
+admin URLs, previously hidden by the defect) and +4 by design
+(healthchecks' transport), lenient 33% to 34%, density 0.90 to 0.92, HIGH
+unchanged; vulnerable benchmark unchanged. The density rise is seven
+findings on 280,244 lines and reads 0.9 at the reported precision; it is
+recorded here because the gate says "raise", and the trade (two shipped
+CVEs found, three false positives of a shape already labelled) is the
+kind the gate exists to make visible, not to forbid. Remaining misses are
+single-cause: write-`open()`, operator template, `str.format()` HTML,
+timing compare of two values, developer `# nosec` (by design).
 
 ### Phase C4: declarative rules in both ports
 
