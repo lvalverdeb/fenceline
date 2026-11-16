@@ -1920,15 +1920,24 @@ def check_exec_driver_sql(path: Path, lines: list[str], tree: ast.Module | None)
 
 
 _SSRF_METHOD_NAMES = frozenset(
-    {"get", "post", "put", "patch", "delete", "head", "options", "request"}
+    {"get", "post", "put", "patch", "delete", "head", "options", "request", "build_request"}
 )
+#: ``x.request(method, url)`` / ``client.build_request(method, url)``: the URL
+#: is the second positional argument, and the two-argument shape is itself
+#: the mark of an HTTP client (``requests.Session``, ``httpx.Client``,
+#: ``aiohttp.ClientSession``, ``urllib3.PoolManager``), whatever ``x`` is
+#: bound to.
+_SSRF_METHOD_THEN_URL = frozenset({"request", "build_request"})
 _SSRF_SESSION_CONSTRUCTORS = frozenset(
     {"requests.Session", "httpx.Client", "httpx.AsyncClient", "aiohttp.ClientSession"}
 )
 
 
-def _ssrf_url_arg(call: ast.Call) -> ast.expr | None:
-    if call.args:
+def _ssrf_url_arg(call: ast.Call, method: str) -> ast.expr | None:
+    if method in _SSRF_METHOD_THEN_URL:
+        if len(call.args) >= 2:
+            return call.args[1]
+    elif call.args:
         return call.args[0]
     return next((kw.value for kw in call.keywords if kw.arg == "url"), None)
 
@@ -1937,7 +1946,10 @@ def check_ssrf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
     """CWE-918 rank #22. An outbound HTTP request -- ``requests.get(...)``,
     ``httpx.post(...)``, ``urllib.request.urlopen(...)``, or ``<var>.get(...)``
     where ``<var>`` is bound in the same scope to a ``requests.Session()``/
-    ``httpx.Client()``/``httpx.AsyncClient()``/``aiohttp.ClientSession()``.
+    ``httpx.Client()``/``httpx.AsyncClient()``/``aiohttp.ClientSession()``;
+    and ``<anything>.request(method, url)`` or ``.build_request(method,
+    url)``, whose two-argument shape marks an HTTP client by itself
+    (``_SSRF_METHOD_THEN_URL``), with the URL as the second argument.
     SSRF is about *attacker-influenced* destination selection, so the URL's
     origin sets confidence (``fenceline.taint``): a literal URL or one built
     entirely from module constants is not reported; nor is a bare mention of
@@ -1964,16 +1976,18 @@ def check_ssrf(path: Path, lines: list[str], tree: ast.Module | None) -> list[Fi
             not is_module_call
             and method in _SSRF_METHOD_NAMES
             and isinstance(call.func, ast.Attribute)
-            and isinstance(call.func.value, ast.Name)
         ):
-            bound = literals.get(call.func.value.id)
-            is_session_call = (
-                isinstance(bound, ast.Call)
-                and _callee(bound, aliases) in _SSRF_SESSION_CONSTRUCTORS
-            )
+            if method in _SSRF_METHOD_THEN_URL:
+                is_session_call = _ssrf_url_arg(call, method) is not None
+            elif isinstance(call.func.value, ast.Name):
+                bound = literals.get(call.func.value.id)
+                is_session_call = (
+                    isinstance(bound, ast.Call)
+                    and _callee(bound, aliases) in _SSRF_SESSION_CONSTRUCTORS
+                )
         if not (is_module_call or is_session_call):
             continue
-        url = _ssrf_url_arg(call)
+        url = _ssrf_url_arg(call, method)
         if url is None:
             continue
         taint = _tainted(tree, call, [url])

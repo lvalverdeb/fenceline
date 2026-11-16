@@ -11042,6 +11042,55 @@
       "mealie/mealie/services/backups_v2/alchemy_exporter.py:253",
       "false",
       "a float class attribute, a table name from the ORM's metadata or a fixed state value in a text() statement"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "dispatch/src/dispatch/plugins/dispatch_atlassian_confluence/plugin.py:135",
+      "false",
+      "destination is an administrator-configured integration URL (requests.request(\"PUT\", url): the URL argument is now rated, not the method)"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "dispatch/src/dispatch/plugins/dispatch_jira/plugin.py:88",
+      "false",
+      "destination is an administrator-configured integration URL"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "dispatch/src/dispatch/plugins/dispatch_jira/plugin.py:98",
+      "false",
+      "destination is an administrator-configured integration URL"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "healthchecks/hc/api/transports.py:151",
+      "by-design",
+      "HttpTransport.request(): the shared helper every notification integration posts through; the URL is the one the user configured for their integration, which is the product"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "healthchecks/hc/api/transports.py:211",
+      "by-design",
+      "HttpTransport.post(): same helper"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "healthchecks/hc/api/transports.py:235",
+      "by-design",
+      "HttpTransport.put(): same helper"
+    ],
+    [
+      "fenceline",
+      "CWE-918",
+      "healthchecks/hc/integrations/webhook/transport.py:96",
+      "by-design",
+      "the Webhook integration exists to call the URL the user configured; healthchecks documents this as the integration's purpose"
     ]
   ]
 }

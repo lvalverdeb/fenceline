@@ -97,9 +97,9 @@
       "framework": "Flask",
       "cwe": "CWE-918",
       "class": "covered",
-      "summary": "SSRF: the server follows redirects when downloading a model version source from a user-supplied URL.",
+      "summary": "SSRF: the server follows redirects when downloading a model version source from a user-supplied URL. Found since the SSRF sink follow-on (`.request(method, url)` / `.build_request(method, url)`).",
       "sink": "mlflow/utils/request_utils.py:190",
-      "root_cause": "`Session.request(method, url)` is not an SSRF sink fenceline knows (`requests.request()` is), and the flaw is redirect-following, a request setting fenceline does not model.",
+      "root_cause": null,
       "also": [],
       "accept_cwes": []
     },
@@ -187,9 +187,9 @@
       "framework": "FastAPI",
       "cwe": "CWE-918",
       "class": "covered",
-      "summary": "SSRF and file read: `/proxy=` builds a request to any URL the client names.",
+      "summary": "SSRF and file read: `/proxy=` builds a request to any URL the client names. Found since the SSRF sink follow-on (`.request(method, url)` / `.build_request(method, url)`).",
       "sink": "gradio/routes.py:315",
-      "root_cause": "`httpx.Client.build_request()` and `client.send()` are not SSRF sinks fenceline knows.",
+      "root_cause": null,
       "also": [
         "gradio/routes.py:155"
       ],
