@@ -1499,11 +1499,81 @@ _REQUEST_OWN_PATH_ATTRS = frozenset(
 )
 
 
+def _leading_operand(expr: ast.expr) -> ast.expr:
+    """The leftmost operand of a concatenation -- ``a + "?x"`` and
+    ``f"{a}#x"`` both give ``a`` -- or *expr* itself. A redirect to a
+    destination that starts same-site stays same-site whatever is appended."""
+    while True:
+        if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Add):
+            expr = expr.left
+        elif (
+            isinstance(expr, ast.JoinedStr)
+            and expr.values
+            and isinstance(expr.values[0], ast.FormattedValue)
+        ):
+            expr = expr.values[0].value
+        else:
+            return expr
+
+
+def _attr_segments(expr: ast.expr) -> tuple[list[str], bool]:
+    """Attribute names of a chain, root first, and whether the root is a
+    bare name: ``a.b.c`` → ``(["a", "b", "c"], True)``; ``f().b.c`` →
+    ``(["b", "c"], False)``."""
+    parts: list[str] = []
+    while isinstance(expr, ast.Attribute):
+        parts.append(expr.attr)
+        expr = expr.value
+    if isinstance(expr, ast.Name):
+        parts.append(expr.id)
+    parts.reverse()
+    return parts, isinstance(expr, ast.Name)
+
+
 def _is_request_own_path(target: ast.expr) -> bool:
+    target = _leading_operand(target)
     if isinstance(target, ast.Call) and not target.args:
         target = target.func
     parts = (_dotted_name(target) or "").split(".")
     return len(parts) >= 2 and parts[-2] == "request" and parts[-1] in _REQUEST_OWN_PATH_ATTRS
+
+
+#: A URL property or URL getter: ``topic.url``, ``self.next_url``,
+#: ``self.get_success_url()``.
+_URL_PROPERTY_RE = re.compile(r"(?:^|_)urls?$")
+#: A URL namespace on an object -- urlman's ``event.urls.base``,
+#: ``submission.orga_urls.reviews`` -- whose attributes are named URLs.
+_URLS_NAMESPACE_RE = re.compile(r"(?:^|_)urls$")
+
+
+def _url_property_kind(target: ast.expr) -> str | None:
+    """How a redirect destination is read off one of the application's
+    objects, with no argument that could carry data; ``None`` when it is
+    not. ``"urls"``: a named URL in an urlman-style namespace
+    (``event.urls.base``, ``obj.orga_urls.x.full()``), built by the
+    application whatever the object's origin. ``"url"``: a URL property or
+    getter (``topic.url``, ``self.get_success_url()``), trusted only when
+    the object is the application's own (the destination is INTERNAL):
+    ``body.url`` on a request payload is still a redirect the client
+    chooses."""
+    target = _leading_operand(target)
+    if isinstance(target, ast.Call):
+        if not all(isinstance(a, ast.Constant) for a in target.args) or not all(
+            isinstance(kw.value, ast.Constant) for kw in target.keywords
+        ):
+            return None
+        func = target.func
+        if isinstance(func, ast.Attribute) and _URL_PROPERTY_RE.search(func.attr):
+            return "url"
+        if not isinstance(func, ast.Attribute):
+            return None
+        target = func.value  # a method on a property: event.urls.base.full()
+    parts, root_is_name = _attr_segments(target)
+    if len(parts) >= 2 and _URLS_NAMESPACE_RE.search(parts[-2]):
+        return "urls"
+    if parts and (len(parts) >= 2 or not root_is_name) and _URL_PROPERTY_RE.search(parts[-1]):
+        return "url"
+    return None
 
 
 def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
@@ -1513,8 +1583,10 @@ def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -
     redirects: the literal is a fixed path or, in Django, a URL pattern name
     whose other arguments are URL parameters (``redirect("hc-checks",
     project.code)``). Nor is one whose destination starts with a literal
-    path (``"/tasks/" + task_id``) or is the request's own path
-    (``redirect(request.path)``)."""
+    path (``"/tasks/" + task_id``), is the request's own path
+    (``redirect(request.path)``), or is a URL property or getter of the
+    application's own objects (``redirect(self.get_success_url())``,
+    ``redirect(event.urls.base)``) that no request data reaches."""
     pk = _rel(path)
     results: list[Finding] = []
     for node in _calls(tree):
@@ -1529,10 +1601,14 @@ def check_open_redirect(path: Path, lines: list[str], tree: ast.Module | None) -
         data = _call_data(node)
         if data and (_is_same_site_path(data[0]) or _is_request_own_path(data[0])):
             continue
-        taint = _tainted(tree, node, data)
-        if taint is None:
+        taint = classify(tree, node, data)
+        kind = _url_property_kind(data[0]) if len(data) == 1 else None
+        if kind == "urls" or (kind == "url" and taint is Taint.INTERNAL):
             continue
-        confidence, note = taint
+        rated = confidence_for(taint)
+        if rated is None:
+            continue
+        confidence, note = rated
         line = _node_line(node)
         results.append(
             Finding(

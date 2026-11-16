@@ -186,14 +186,22 @@ def check_sensitive_exposure(
     return results
 
 
+#: A NUL escape: ``\x00``, or octal ``\0`` / ``\00`` / ``\000`` not followed
+#: by another octal digit (``\033`` is ESC, not NUL).
+_NUL_ESCAPE_RE = re.compile(r"\\x00|\\00?0?(?:[^0-7]|$)")
+#: A NUL escape as the operand of a membership test (``"\x00" in path``) or
+#: the start of a regex character class (``[\x00-\x1f]``): validation or
+#: sanitising, not a NUL reaching a C runtime.
+_NUL_VALIDATION_RE = re.compile(r"""["']\\x00["']\s+(?:not\s+)?in\b|\[\\x00-""")
+
+
 def check_null_byte(path: Path, lines: list[str], tree: ast.Module | None) -> list[Finding]:
     pk = _rel(path)
     results: list[Finding] = []
     for lineno, line in enumerate(lines, 1):
         if _skip(line):
             continue
-        if re.search(r"\\x00|\\0", line):
-            # Guard against NUL byte env var value rejection — this is defense, not vulnerability
+        if _NUL_ESCAPE_RE.search(line) and not _NUL_VALIDATION_RE.search(line):
             results.append(
                 Finding(
                     cwe_id="CWE-158",

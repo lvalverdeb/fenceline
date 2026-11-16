@@ -70,6 +70,136 @@ CALLER_NOTE = " Request data reaches a parameter of this function from a caller 
 # other name. ``environ`` is unconditional: WSGI or ``from os import environ``.
 _REQUEST_ROOTS = frozenset({"request", "environ"})
 
+# Attributes of a request object that carry what the client sent, across the
+# frameworks above (Django, DRF, Flask/Werkzeug, aiohttp, Starlette/FastAPI,
+# Pyramid, Bottle, Tornado). A chain of two or more attributes under
+# ``request`` whose first attribute is *not* one of these is server-side
+# state attached by the framework or a middleware -- ``request.user.email``,
+# ``request.session.get(...)``, ``request.event.urls.base`` -- and resolves
+# as INTERNAL, not as request data. A single unknown attribute
+# (``request.body``, ``request.thing``) stays a source.
+_REQUEST_DATA_ATTRS = frozenset(
+    {
+        # Django / DRF
+        "GET",
+        "POST",
+        "FILES",
+        "COOKIES",
+        "META",
+        "headers",
+        "body",
+        "path",
+        "path_info",
+        "full_path",
+        "get_full_path",
+        "get_host",
+        "build_absolute_uri",
+        "method",
+        "content_type",
+        "content_params",
+        "encoding",
+        "scheme",
+        "resolver_match",
+        "data",
+        "query_params",
+        "stream",
+        "read",
+        "readline",
+        "readlines",
+        # Flask / Werkzeug
+        "args",
+        "form",
+        "values",
+        "json",
+        "files",
+        "cookies",
+        "environ",
+        "url",
+        "base_url",
+        "url_root",
+        "host",
+        "host_url",
+        "remote_addr",
+        "remote_user",
+        "referrer",
+        "user_agent",
+        "authorization",
+        "accept_mimetypes",
+        "accept_languages",
+        "accept_charsets",
+        "accept_encodings",
+        "view_args",
+        "script_root",
+        "get_json",
+        "get_data",
+        "input_stream",
+        "mimetype",
+        "mimetype_params",
+        "access_route",
+        "origin",
+        "query_string",
+        "url_rule",
+        "endpoint",
+        "blueprint",
+        # aiohttp
+        "match_info",
+        "query",
+        "rel_url",
+        "raw_path",
+        "forwarded",
+        "remote",
+        "content",
+        "text",
+        "post",
+        "multipart",
+        "path_qs",
+        "http_range",
+        "if_match",
+        "if_none_match",
+        "if_range",
+        "if_modified_since",
+        "if_unmodified_since",
+        "secure",
+        "host_header",
+        # Starlette / FastAPI
+        "path_params",
+        "client",
+        "url_for",
+        # Pyramid
+        "params",
+        "matchdict",
+        "json_body",
+        "subpath",
+        "traversed",
+        "virtual_root",
+        "virtual_root_path",
+        "url_for",
+        "application_url",
+        "host_port",
+        "domain",
+        "path_url",
+        "path_qs",
+        # Bottle
+        "forms",
+        "urlparts",
+        "fullpath",
+        "chunked",
+        "is_xhr",
+        "is_ajax",
+        "auth",
+        # Tornado
+        "arguments",
+        "query_arguments",
+        "body_arguments",
+        "uri",
+        "remote_ip",
+        "protocol",
+        "full_url",
+        "request_time",
+        "ip",
+    }
+)
+
 # Top-level module names whose import marks a module as web-facing.
 _WEB_FRAMEWORKS = frozenset(
     {
@@ -274,16 +404,23 @@ _TERMINATING_CALLS = frozenset({"abort", "exit", "quit", "sys.exit", "os._exit"}
 _PREDICATE_METHODS = frozenset(
     {"isdigit", "isalnum", "isalpha", "isidentifier", "isdecimal", "isnumeric"}
 )
+#: Framework URL validators: ``url_has_allowed_host_and_scheme(url, ...)``
+#: (Django) and its older name vouch for their first argument as a
+#: same-site destination.
+_URL_VALIDATORS = frozenset({"url_has_allowed_host_and_scheme", "is_safe_url"})
 
 
 def _anchored_match_target(call: ast.Call) -> str | None:
     """The name a call validates: ``re.fullmatch(p, x)``, ``re.match("...$", x)``,
-    ``PATTERN.fullmatch(x)``, or ``x.isdigit()``."""
+    ``PATTERN.fullmatch(x)``, ``x.isdigit()``, or
+    ``url_has_allowed_host_and_scheme(x, ...)``."""
     func = call.func
     if isinstance(func, ast.Attribute) and func.attr in _PREDICATE_METHODS:
         return func.value.id if isinstance(func.value, ast.Name) and not call.args else None
     dotted = _dotted_name(func) or ""
     args = call.args
+    if dotted.rsplit(".", 1)[-1] in _URL_VALIDATORS and args and isinstance(args[0], ast.Name):
+        return args[0].id
     if dotted == "re.fullmatch" and len(args) >= 2 and isinstance(args[1], ast.Name):
         return args[1].id
     if (
@@ -510,6 +647,25 @@ _CLEAN_ATTRS = frozenset({"__name__", "__qualname__", "__module__", "__class__",
 _CLASS_NAME_RE = re.compile(r"^[A-Z][a-z]")
 
 
+def _dotted_through_calls(expr: ast.expr) -> str:
+    """The attribute chain of a call target with intermediate calls folded
+    away: ``Model.objects.select_related("e").get`` →
+    ``Model.objects.select_related.get``. Empty when the chain does not
+    start at a name."""
+    parts: list[str] = []
+    while True:
+        if isinstance(expr, ast.Attribute):
+            parts.append(expr.attr)
+            expr = expr.value
+        elif isinstance(expr, ast.Call):
+            expr = expr.func
+        elif isinstance(expr, ast.Name):
+            parts.append(expr.id)
+            return ".".join(reversed(parts))
+        else:
+            return ""
+
+
 def _is_orm_lookup(dotted: str) -> bool:
     """A database lookup: the arguments pick rows, the result is stored data,
     not the request's. Django managers (``Model.objects.get(pk=x)``),
@@ -577,6 +733,16 @@ def _scope_map(tree: ast.Module) -> _Scopes:
         for stmt in body:
             for node in _walk_skip_nested_scopes(stmt):
                 if isinstance(node, ast.ClassDef):
+                    # The class body is a scope of its own: a literal there is
+                    # CLEAN and a class attribute resolves to what the body
+                    # assigned it, exactly as at module level.
+                    body_scope = _Scope(params=frozenset(), handler=False, web=module.web)
+                    body_scope.assigns = {k: list(v) for k, v in module.assigns.items()}
+                    body_scope.imports = set(module.imports)
+                    _collect(body_scope, node.body)
+                    for inner in node.body:
+                        for n in _walk_skip_nested_scopes(inner):
+                            scopes[id(n)] = body_scope
                     methods = visit_functions(node.body, node, f"{prefix}{node.name}.")
                     fields = _self_fields(methods)
                     for _, method_scope in methods:
@@ -666,6 +832,18 @@ class _Classifier:
             return self.request_root("request")
         return dotted.startswith(_SOURCE_PREFIXES)
 
+    def request_state(self, dotted: str) -> bool:
+        """``request.<state>.<more>`` (or ``self.request.<state>.<more>``):
+        two or more attributes under a request whose first is not a data
+        attribute -- the user, the session, an object a middleware attached.
+        Server-side state, not what the client sent."""
+        parts = dotted.split(".")
+        if parts[:2] == ["self", "request"]:
+            parts = parts[1:]
+        if len(parts) < 3 or parts[0] != "request" or not self.request_root("request"):
+            return False
+        return parts[1] not in _REQUEST_DATA_ATTRS
+
     def name(self, name: str, depth: int) -> Taint:
         scope = self.scope
         if name in _REQUEST_ROOTS and self.request_root(name):
@@ -709,6 +887,8 @@ class _Classifier:
             return Taint.CLEAN
         if isinstance(node, (ast.Attribute, ast.Subscript)):
             dotted = _dotted_name(node.value if isinstance(node, ast.Subscript) else node) or ""
+            if dotted and self.request_state(dotted):
+                return Taint.INTERNAL
             if dotted and self.source_chain(dotted):
                 return Taint.SOURCE
             if self.scope.view_class and _is_view_capture(dotted):
@@ -721,11 +901,17 @@ class _Classifier:
         if isinstance(node, ast.Call):
             dotted = _dotted_name(node.func) or ""
             method = node.func.attr if isinstance(node.func, ast.Attribute) else ""
+            if self.request_state(dotted):
+                return max(
+                    Taint.INTERNAL,
+                    self.many(node.args, depth + 1),
+                    self.many((kw.value for kw in node.keywords), depth + 1),
+                )
             if dotted in _SOURCE_CALLS or self.source_chain(dotted) or method in _SOURCE_METHODS:
                 return Taint.SOURCE
             if dotted in _CLEAN_CALLS or method in _CLEAN_METHODS:
                 return Taint.CLEAN
-            if _is_orm_lookup(dotted):
+            if _is_orm_lookup(_dotted_through_calls(node.func)):
                 return Taint.INTERNAL
             return max(
                 self.expr(node.func, depth + 1),
@@ -767,8 +953,10 @@ class _Classifier:
 
 def classify(tree: ast.Module, anchor: ast.AST, exprs: list[ast.expr]) -> Taint:
     """Worst taint over *exprs*, resolved in the scope that contains
-    *anchor* (the sink node itself). An empty *exprs* is ``CLEAN``: a sink
-    fed nothing has nothing to inject."""
+    *anchor* (the sink node itself): a function, a class body or the module.
+    A node the map does not know (a decorator, a default, a lambda) is
+    ``INTERNAL``. An empty *exprs* is ``CLEAN``: a sink fed nothing has
+    nothing to inject."""
     scopes = _scope_map(tree)
     scope = scopes.at.get(id(anchor))
     if scope is None:

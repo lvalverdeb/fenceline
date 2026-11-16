@@ -1638,3 +1638,47 @@ def test_taint_class_getters_and_introspection():
     assert _taint_of(flask + "def v():\n    sink(request.__class__.__name__)\n", 3) is (Taint.CLEAN)
     # Escaping helpers are clean for the context they target.
     assert _taint_of(flask + "def v():\n    sink(escape(request.args['x']))\n", 3) is (Taint.CLEAN)
+
+
+def test_taint_request_state_and_class_body():
+    from fenceline.taint import Taint
+
+    django = "from django.shortcuts import redirect\n"
+    # Two or more attributes under request whose first is not a data
+    # attribute are server-side state: the user, the session, a middleware's
+    # object. A data attribute, or a single unknown one, stays a source.
+    assert _taint_of(django + "def v(request):\n    sink(request.event.urls.base)\n", 3) is (
+        Taint.INTERNAL
+    )
+    assert _taint_of(django + "def v(request):\n    sink(request.session.get('n'))\n", 3) is (
+        Taint.INTERNAL
+    )
+    assert _taint_of(django + "def v(request):\n    sink(request.GET.get('n'))\n", 3) is (
+        Taint.SOURCE
+    )
+    assert _taint_of(django + "def v(request):\n    sink(request.body)\n", 3) is Taint.SOURCE
+    assert _taint_of(django + "def v(request):\n    sink(request.thing)\n", 3) is Taint.SOURCE
+    assert _taint_of(
+        django + "def v(request):\n    sink(request.user.has_perm(request.GET['p']))\n", 3
+    ) is (Taint.SOURCE)
+    assert _taint_of(
+        django + "class V:\n    def get(self):\n        sink(self.request.user.email)\n", 4
+    ) is (Taint.INTERNAL)
+    # A class body is a scope: literals are clean and class attributes
+    # resolve to what the body assigned them.
+    assert _taint_of(django + "class C:\n    x = sink('literal')\n", 3) is Taint.CLEAN
+    assert _taint_of(django + "class C:\n    t = 'a'\n    x = sink(t)\n", 4) is Taint.CLEAN
+    assert _taint_of(django + "class C:\n    x = sink(unknown)\n", 3) is Taint.INTERNAL
+    # An ORM chain with an intermediate call is still a lookup.
+    assert _taint_of(
+        django
+        + "def v(request):\n    sink(Submission.objects.select_related('e').get(code=request.GET['c']))\n",
+        3,
+    ) is (Taint.INTERNAL)
+    # Django's URL validator is a guard on its first argument.
+    guarded = (
+        django + "def v(request):\n    u = request.GET['n']\n"
+        "    if not url_has_allowed_host_and_scheme(u, allowed_hosts=None):\n"
+        "        return\n    sink(u)\n"
+    )
+    assert _taint_of(guarded, 6) is Taint.CLEAN
