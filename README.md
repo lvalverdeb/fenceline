@@ -27,6 +27,32 @@ false-positives on a dangerous call quoted in a docstring or comment: the regex
 checks scan a copy of each file with comments and string-only statements blanked
 out (columns preserved), so only real code is matched.
 
+### Rust port
+
+[fenceline-rs](https://github.com/lvalverdeb/fenceline-rs) is a from-scratch
+Rust reimplementation that produces the same findings from the same fixtures
+and benchmark corpora, as a single native binary with no Python runtime.
+Prebuilt binaries for Apple Silicon and Intel macOS, x64 and ARM64 Linux, and
+x64 Windows are attached to every
+[GitHub release](https://github.com/lvalverdeb/fenceline-rs/releases/latest);
+the installer scripts pick the right one, check its SHA-256 and put
+`fenceline` in `$CARGO_HOME/bin` (`~/.cargo/bin` by default):
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/lvalverdeb/fenceline-rs/releases/latest/download/fenceline-installer.sh | sh
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/lvalverdeb/fenceline-rs/releases/latest/download/fenceline-installer.ps1 | iex"
+```
+
+Replace `latest` with a tag such as `v1.14.0` to pin a version, or build from
+crates.io with `cargo install fenceline`. The options below are the same in
+both ports; the Python port stays the specification of record, and the
+third-party check plugins in [Extending fenceline](#extending-fenceline-with-your-own-checks)
+are the one feature the Rust port does not have (it takes
+[declarative rules](#declarative-rules) instead).
+
 ## Usage
 
 ```bash
