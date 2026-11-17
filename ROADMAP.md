@@ -49,6 +49,14 @@ all three corpora (one documented tail-match difference); Semgrep
 `p/python` matrix 69 built-in / 52 rule / 30 not expressible of 151.
 **All four phases are done.** Released as 1.14.0 on 2026-11-17: the Mealie
 round, both C3 follow-ons and the rule engine, the first release under D11.
+The Rust port's binary release had been silently failing since 1.11.0:
+GitHub retired the `macos-14` runner that cargo-dist 0.32 picks for Apple
+Silicon, and the release workflow was cancelled on every tag with no GitHub
+release created (crates.io and PyPI were never affected). Fixed 2026-11-17
+at fenceline-rs `974d8f9` by pinning `aarch64-apple-darwin` to `macos-15`
+in `dist-workspace.toml`; `v1.14.0` was moved to that commit and is the
+first fenceline-rs GitHub release with binaries and installers. Tags before
+it have none.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 **Release policy (D11, 2026-11-16)**: a release is cut when something is
