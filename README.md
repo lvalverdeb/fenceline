@@ -154,7 +154,7 @@ tree whenever a Python file is staged:
 ```yaml
 repos:
   - repo: https://github.com/lvalverdeb/fenceline
-    rev: v1.13.0
+    rev: v1.14.0
     hooks:
       - id: fenceline
         # args: [--fail-on, critical, --baseline, fenceline-baseline.json]

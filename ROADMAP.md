@@ -47,7 +47,8 @@ done 2026-11-16 at `51125ec` (D12): both ports load `[[rule]]` TOML, four
 kinds, `--disable`; ten built-ins re-expressed with identical findings on
 all three corpora (one documented tail-match difference); Semgrep
 `p/python` matrix 69 built-in / 52 rule / 30 not expressible of 151.
-**All four phases are done.**
+**All four phases are done.** Released as 1.14.0 on 2026-11-17: the Mealie
+round, both C3 follow-ons and the rule engine, the first release under D11.
 **Scope**: both ports. Python stays the spec of record; every phase ends
 with the Rust port producing identical findings on every corpus named here.
 **Release policy (D11, 2026-11-16)**: a release is cut when something is

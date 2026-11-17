@@ -61,6 +61,9 @@ release policy).
 
 ### Commit `006ce07` (2026-11-16): timing compares between two values
 
+Released as 1.14.0 on 2026-11-17 from this tree plus the rule engine,
+which changes no plain-run finding (the proof below).
+
 | Tool | Findings | True | False | Precision | Recall |
 |---|---|---|---|---|---|
 | fenceline | 205 | 195 | 10 | 95% | 190/204 (93%) |

@@ -1,6 +1,6 @@
 [project]
 name = "fenceline"
-version = "1.13.0"
+version = "1.14.0"
 description = "Zero-day security scanner for Python codebases"
 readme = "README.md"
 license = "MIT"
